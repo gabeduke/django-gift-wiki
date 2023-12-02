@@ -1,0 +1,15 @@
+<!-- templates/add_items_batch.html -->
+
+{% extends 'gift/base_generic.html' %}
+
+{% block content %}
+    <h2>Add Items in Batch</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ formset.management_form }}
+        {% for form in formset %}
+            {{ form.as_p }}
+        {% endfor %}
+        <button type="submit">Add Items</button>
+    </form>
+{% endblock %}

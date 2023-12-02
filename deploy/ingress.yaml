@@ -1,0 +1,44 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-middleware
+spec:
+  headers:
+    accessControlAllowMethods:
+      - "GET"
+      - "OPTIONS"
+      - "PUT"
+      - "POST"
+      - "DELETE"
+    accessControlAllowOriginList:
+      - "https://giftwiki.leetserve.com"
+    accessControlAllowCredentials: true
+    accessControlMaxAge: 100
+    addVaryHeader: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: django-app-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    ingress.kubernetes.io/ssl-redirect: "true"
+    kubernetes.io/ingress.class: traefik
+#    traefik.ingress.kubernetes.io/router.middlewares: default-cors-middleware@kubernetescrd
+spec:
+  rules:
+    - host: giftwiki.leetserve.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: django-app-service
+                port:
+                  number: 80
+  tls:
+    - hosts:
+      - giftwiki.leetserve.com
+      secretName: gift-wiki-tls
+

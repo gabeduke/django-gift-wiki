@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: django-app
+  template:
+    metadata:
+      labels:
+        app: django-app
+    spec:
+      containers:
+        - name: django-app
+          image: dukeman/gift-wiki:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DJANGO_ALLOWED_HOSTS
+              value: "giftwiki.leetserve.com"
+            - name: DJANGO_ALLOWED_ORIGINS
+              value: "https://giftwiki.leetserve.com"
+            - name: BASE_DIR
+              value: /app
+            - name: USE_S3
+              value: "TRUE"
+            - name: AWS_STORAGE_BUCKET_NAME
+              value: gift-wiki
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: django-app-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: django-app-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: django-app-secrets
+                  key: DJANGO_SECRET_KEY
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
