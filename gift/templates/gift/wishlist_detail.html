@@ -1,0 +1,16 @@
+<!-- templates/wishlist_detail.html -->
+
+{% extends 'gift/base_generic.html' %}
+
+{% for item in items %}
+    <li>
+        {{ item.name }} - {{ item.description }}
+        {% if can_view_purchased %}
+            <a href="{% url 'gift:purchase_item' item.id %}">Mark as Purchased</a>
+        {% endif %}
+        {% if request.user == wishlist.owner or request.user == wishlist.steward %}
+            <a href="{% url 'gift:edit_item' item.id %}">Edit</a> |
+            <a href="{% url 'gift:delete_item' item.id %}">Delete</a>
+        {% endif %}
+    </li>
+{% endfor %}

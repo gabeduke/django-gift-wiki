@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gift App</title>
+    <!--Simple.css-->
+    <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+    <!--Custom CSS-->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        header {
+            background-color: #f8f8f8;
+            padding: 10px 0;
+            text-align: center;
+        }
+
+        nav ul {
+            list-style-type: none;
+            padding: 0;
+            text-align: center;
+        }
+
+        nav ul li {
+            display: inline;
+            margin: 0 10px;
+        }
+
+        nav a {
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+        }
+
+        nav a:hover {
+            color: #007bff;
+        }
+
+        .messages {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+
+        .messages li {
+            list-style-type: none;
+        }
+
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px 0;
+            background-color: #333;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Welcome to the Gift App</h1>
+</header>
+
+<nav>
+    <ul>
+        {% if request.user.wishlist_set.exists %}
+            <li><a href="{% url 'gift:wishlist_detail' request.user.wishlist_set.first.id %}">My Wishlist</a></li>
+        {% endif %}
+        <li><a href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
+        <li><a href="{% url 'gift:landing_page' %}">View Other Wishlists</a></li>
+        <li><a href="{% url 'gift:account' %}">Profile</a></li>
+    </ul>
+</nav>
+
+{% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+            <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<main>
+    {% block content %}
+        <!-- Content will go here -->
+    {% endblock %}
+</main>
+
+<footer>
+    <p>© 2023 Gift App</p>
+</footer>
+</body>
+</html>
