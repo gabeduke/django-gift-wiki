@@ -13,4 +13,11 @@ from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'giftwiki.settings')
 
-application = get_wsgi_application()
+
+def https_app(environ, start_response):
+    environ["wsgi.url_scheme"] = "https"
+    return get_wsgi_application()(environ, start_response)
+
+
+application = https_app
+# application = get_wsgi_application()

@@ -8,6 +8,13 @@ ENV PYTHONUNBUFFERED 1
 # Set work directory
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install pipenv and compile the dependencies in the Pipfile.lock
 RUN pip install --upgrade pip && \
     pip install pipenv

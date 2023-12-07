@@ -1,0 +1,23 @@
+{% extends "gift/base_generic.html" %}
+
+{% block content %}
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <h2 class="mb-3">Edit Item</h2>
+                <form action="{% url 'gift:edit_item' item.id %}" method="post" class="card card-body">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" name="name" id="name" value="{{ item.name }}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea name="description" id="description" class="form-control">{{ item.description }}</textarea>
+                    </div>
+                    <input type="submit" value="Save" class="btn btn-primary">
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}

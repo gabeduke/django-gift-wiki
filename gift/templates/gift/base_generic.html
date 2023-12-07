@@ -1,112 +1,67 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
     <title>Gift App</title>
-    <!--Simple.css-->
-    <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
-    <!--Custom CSS-->
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
 
-        header {
-            background-color: #f8f8f8;
-            padding: 10px 0;
-            text-align: center;
-        }
-
-        nav ul {
-            list-style-type: none;
-            padding: 0;
-            text-align: center;
-        }
-
-        nav ul li {
-            display: inline;
-            margin: 0 10px;
-        }
-
-        nav a {
-            text-decoration: none;
-            color: #333;
-            font-weight: bold;
-        }
-
-        nav a:hover {
-            color: #007bff;
-        }
-
-        .messages {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-        }
-
-        .messages li {
-            list-style-type: none;
-        }
-
-        .info {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-
-        .warning {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        footer {
-            text-align: center;
-            padding: 20px 0;
-            background-color: #333;
-            width: 100%;
-        }
-    </style>
 </head>
 <body>
-<header>
+<header class="bg-light py-3 text-center">
     <h1>Welcome to the Gift App</h1>
 </header>
 
-<nav>
-    <ul>
-        {% if request.user.wishlist_set.exists %}
-            <li><a href="{% url 'gift:wishlist_detail' request.user.wishlist_set.first.id %}">My Wishlist</a></li>
-        {% endif %}
-        <li><a href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
-        <li><a href="{% url 'gift:landing_page' %}">View Other Wishlists</a></li>
-        <li><a href="{% url 'gift:account' %}">Profile</a></li>
-    </ul>
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'gift:home' %}">Gift App</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                {% if request.user.is_authenticated %}
+                    {% if request.user.wishlist_set.exists %}
+                        <li class="nav-item"><a class="nav-link" href="{% url 'gift:wishlist_detail' request.user.wishlist_set.first.id %}">My List</a></li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
+                    {% endif %}
+                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:account' %}">Profile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:logout' %}">Logout</a></li>
+                {% else %}
+                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:login' %}">Login</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:signup' %}">Signup</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
 </nav>
 
 {% if messages %}
-    <div class="messages">
+    <div class="container mt-3">
         {% for message in messages %}
-            <li class="{{ message.tags }}">{{ message }}</li>
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
         {% endfor %}
     </div>
 {% endif %}
 
-<main>
+<main class="container py-4">
     {% block content %}
         <!-- Content will go here -->
     {% endblock %}
 </main>
 
-<footer>
+<footer class="bg-dark text-white text-center py-3 mt-4">
     <p>© 2023 Gift App</p>
 </footer>
+
+<!-- Bootstrap JS and dependencies -->
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 </body>
 </html>

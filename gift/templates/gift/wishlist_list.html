@@ -1,0 +1,17 @@
+{% extends 'gift/base_generic.html' %}
+
+{% block content %}
+    <div class="container mt-4">
+        <h2 class="mb-3">Wish Lists</h2>
+        <ul class="list-group">
+            {% for wishlist in wishlists %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ wishlist.owner.username }} - {{ wishlist.family_category }}
+                    <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-primary">View</a>
+                </li>
+            {% empty %}
+                <li class="list-group-item">No wish lists available.</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endblock %}
