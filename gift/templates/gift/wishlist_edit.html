@@ -1,0 +1,84 @@
+{% extends 'gift/base_generic.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+
+    <div class="container mt-4">
+        <h2 class="mb-3">Edit Wishlist</h2>
+        <div id="wishlist-items">
+            <!-- Existing wishlist items will be listed here -->
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <form id="add-item-form" method="post">
+                    {% csrf_token %}
+                    <!-- Fields for new item -->
+                    <div class="form-group">
+                        <label for="item_name">Item Name</label>
+                        <input type="text" id="item_name" name="item_name" class="form-control">
+                    </div>
+                    <!-- Additional fields like description, category, etc. -->
+                    <div class="form-group">
+                        <label for="item_description">Item Description</label>
+                        <textarea id="item_description" name="item_description" class="form-control"></textarea>
+                    </div>
+                    <div>
+                        <label for="item_category">Item Category</label>
+                        <select id="item_category" name="item_category" class="form-control">
+{#                            TODO this should be dynamically populated from the database#}
+                            <option value="1">Category 1</option>
+                            <option value="2">Category 2</option>
+                            <option value="3">Category 3</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="item_url">Item URL</label>
+                        <input type="text" id="item_url" name="item_url" class="form-control">
+                    </div>
+                    <button type="button" id="add-item-btn" class="btn btn-primary">Add Item</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var wishlistId = window.location.pathname.split('/')[2];
+        // JavaScript code to handle adding new items to a wishlist
+        document.getElementById('add-item-btn').addEventListener('click', function () {
+            var itemName = document.getElementById('item_name').value;
+
+            // Add other fields as needed
+
+            // AJAX request to Django
+            fetch(`/wishlist/${wishlistId}/add_item_ajax/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') // Function to get CSRF token
+                },
+                body: JSON.stringify({name: itemName /*, other fields */})
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Update the page with the new item
+                    // You can append the new item to 'wishlist-items' div
+                });
+        });
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+    </script>
+{% endblock %}

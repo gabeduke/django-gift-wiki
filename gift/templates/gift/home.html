@@ -1,0 +1,29 @@
+{% extends 'gift/base_generic.html' %}
+{% load static %}
+
+{% block content %}
+    <div class="text-center mb-3">
+        <img src="{% static 'images/welcome-image.jpg' %}" alt="Welcome" class="img-fluid">
+    </div>
+
+    <p class="text-center">Browse wishlists by family:</p>
+
+    <div class="d-flex flex-wrap justify-content-center">
+        {% for family, wishlists in wishlists_by_family.items %}
+            <div class="m-2" style="flex-basis: 45%;">
+                <h2 class="text-center text-primary">{{ family }}</h2>
+                <ul class="list-unstyled text-center">
+                    {% for wishlist in wishlists %}
+                        <li class="my-1">
+                            <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="text-decoration-none text-secondary">
+                                {{ wishlist.title }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% empty %}
+            <p class="text-center">No wishlists available.</p>
+        {% endfor %}
+    </div>
+{% endblock %}

@@ -1,16 +1,22 @@
-<!-- templates/wishlist_detail.html -->
-
 {% extends 'gift/base_generic.html' %}
 
-{% for item in items %}
-    <li>
-        {{ item.name }} - {{ item.description }}
-        {% if can_view_purchased %}
-            <a href="{% url 'gift:purchase_item' item.id %}">Mark as Purchased</a>
-        {% endif %}
-        {% if request.user == wishlist.owner or request.user == wishlist.steward %}
-            <a href="{% url 'gift:edit_item' item.id %}">Edit</a> |
-            <a href="{% url 'gift:delete_item' item.id %}">Delete</a>
-        {% endif %}
-    </li>
-{% endfor %}
+{% block content %}
+    <div class="container mt-4">
+        <ul class="list-group">
+            {% for item in items %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ item.name }} - {{ item.description }}
+                    <div>
+                        {% if can_view_purchased %}
+                            <a href="{% url 'gift:purchase_item' item.id %}" class="btn btn-sm btn-outline-secondary mr-2">Mark as Purchased</a>
+                        {% endif %}
+                        {% if request.user == wishlist.owner or request.user == wishlist.steward %}
+                            <a href="{% url 'gift:edit_item' item.id %}" class="btn btn-sm btn-outline-primary mr-2">Edit</a>
+                            <a href="{% url 'gift:delete_item' item.id %}" class="btn btn-sm btn-outline-danger">Delete</a>
+                        {% endif %}
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endblock %}

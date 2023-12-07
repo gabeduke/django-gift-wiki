@@ -11,6 +11,8 @@ gunicorn = "*"
 django-cors-headers = "*"
 django-storages = "*"
 boto3 = "*"
+psycopg2 = "*"
+django-widget-tweaks = "*"
 
 [dev-packages]
 

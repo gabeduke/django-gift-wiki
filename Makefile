@@ -11,10 +11,17 @@ build:
 push:
 	docker buildx build --platform $(PLATFORMS) -t $(IMAGE_NAME):$(TAG) --push .
 
+dev:
+	skaffold dev
+
 # Deploy to Kubernetes
 .PHONY: deploy
 deploy:
 	kubectl apply -k deploy
+
+.PHONY: clean
+clean:
+	kubectl delete -k deploy
 
 # All-in-one command
 all: build push deploy

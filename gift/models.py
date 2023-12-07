@@ -1,3 +1,4 @@
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -8,7 +9,12 @@ class WishList(models.Model):
     steward = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='stewarded_wishlists')
     title = models.CharField(max_length=255, default='My WishList')
     description = models.TextField(blank=True, null=True)
-    image = models.ImageField(upload_to='wishlist_images/', blank=True, null=True)
+    image = models.ImageField(
+        upload_to='wishlist_images/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]
+    )
     family_category = models.CharField(max_length=255, default='General')  # Default value
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -39,28 +45,33 @@ class Item(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     purchased_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchased_items')
+    updated_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='updated_%(class)s_records', null=True)
     is_deleted = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if 'current_user' in kwargs:
+            self.updated_by = kwargs['current_user']
+            del kwargs['current_user']
+        super(Item, self).save(*args, **kwargs)
 
     def __str__(self):
         return self.name
 
 
-class Variation(models.Model):
-    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='variations')
-    description = models.CharField(max_length=255)
-
-    def __str__(self):
-        return self.description
-
-
 class Suggestion(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='suggestions')
     name = models.CharField(max_length=255, default='My Suggestion')
-    hyperlink = models.URLField()
+    hyperlink = models.URLField(blank=True, null=True)  # Allow null and blank
     description = models.TextField(blank=True, null=True)
+    image = models.ImageField(upload_to='suggestions/', blank=True, null=True)  # Image field
+    suggested_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)  # Optional price field
+    suggested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='suggested_items')  # Track who suggested it
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False)  # Soft deletion
 
     def __str__(self):
-        return self.hyperlink
+        return self.name
 
 
 class ItemGroup(models.Model):

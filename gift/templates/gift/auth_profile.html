@@ -1,0 +1,97 @@
+{% extends 'gift/base_generic.html' %}
+
+{% block content %}
+    <div class="container">
+        <h2 class="my-4">Account Settings</h2>
+
+        <div class="row">
+            <!-- User Information -->
+            <div class="col-md-6">
+                <h3>User Information</h3>
+                <div class="table-responsive">
+                    <table class="table">
+                        <tbody>
+                        <tr>
+                            <th scope="row">Username</th>
+                            <td>{{ request.user.username }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Email</th>
+                            <td>{{ request.user.email }}</td>
+                        </tr>
+                        <!-- Add more user details if needed -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Link to update user information -->
+            </div>
+
+            <!-- Password Reset -->
+            <div class="col-md-6">
+                <h3>Change Password</h3>
+                <form method="post" class="form">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <!-- Loop through each form field -->
+                        {% for field in form %}
+                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% for error in field.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="btn btn-primary">Change Password</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <h3>My Wishlists</h3>
+                <!-- Navigation Link to Wishlist Page -->
+
+                <div class="accordion" id="wishlistAccordion">
+                    {% for wishlist in wishlists %}
+                        <div class="card">
+                            <div class="card-header" id="heading{{ wishlist.id }}">
+                                <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-primary float-right">View Wishlist</a>
+                                <h5 class="mb-0">
+                                    <!-- Hamburger Icon for Collapsible -->
+                                    <button class="btn" type="button" data-toggle="collapse"
+                                            data-target="#collapse{{ wishlist.id }}" aria-expanded="true"
+                                            aria-controls="collapse{{ wishlist.id }}">
+                                        <i class="fas fa-bars"></i> <!-- Font Awesome Hamburger Icon -->
+                                    </button>
+                                    {{ wishlist.title }}
+                                </h5>
+                            </div>
+
+                            <div id="collapse{{ wishlist.id }}" class="collapse" aria-labelledby="heading{{ wishlist.id }}"
+                                 data-parent="#wishlistAccordion">
+                                <div class="card-body">
+                                    <!-- Wishlist items here -->
+                                    <div style="max-height: 200px; overflow-y: auto;">
+                                        <ul class="list-group list-group-flush">
+                                            {% for item in wishlist.items.all %}
+                                                <li class="list-group-item">{{ item.name }}</li>
+                                            {% empty %}
+                                                <li class="list-group-item">No items found.</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-success mt-2">Add
+                                        Item</a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+{% endblock %}
