@@ -10,7 +10,7 @@
                         {% if can_view_purchased %}
                             <a href="{% url 'gift:purchase_item' item.id %}" class="btn btn-sm btn-outline-secondary mr-2">Mark as Purchased</a>
                         {% endif %}
-                        {% if request.user == wishlist.owner or request.user == wishlist.steward %}
+                        {% if request.user == wishlist.owner or request.user == wishlist.dependent %}
                             <a href="{% url 'gift:edit_item' item.id %}" class="btn btn-sm btn-outline-primary mr-2">Edit</a>
                             <a href="{% url 'gift:delete_item' item.id %}" class="btn btn-sm btn-outline-danger">Delete</a>
                         {% endif %}

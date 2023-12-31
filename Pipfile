@@ -13,6 +13,7 @@ django-storages = "*"
 boto3 = "*"
 psycopg2 = "*"
 django-widget-tweaks = "*"
+django-allauth = "*"
 
 [dev-packages]
 

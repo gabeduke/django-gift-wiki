@@ -6,7 +6,7 @@ from django.utils import timezone
 
 class WishList(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_wishlist')
-    steward = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='stewarded_wishlists')
+    dependent = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='stewarded_wishlists')
     title = models.CharField(max_length=255, default='My WishList')
     description = models.TextField(blank=True, null=True)
     image = models.ImageField(

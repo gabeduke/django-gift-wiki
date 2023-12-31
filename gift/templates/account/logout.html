@@ -1,0 +1,17 @@
+{% extends 'gift/base_generic.html' %}
+{% load i18n %}
+
+{% block content %}
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-6 text-center">
+                <h2 class="mb-3">{% trans "Logout" %}</h2>
+                <p>{% trans "Are you sure you want to logout?" %}</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">{% trans "Logout" %}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}
