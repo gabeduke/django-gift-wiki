@@ -162,7 +162,7 @@ def create_or_select_external_user(user_name, family_category):
 @login_required
 def profile(request):
     # Get all lists where the user is the owner or the steward
-    wishlists = WishList.objects.filter(owner=request.user) | WishList.objects.filter(steward=request.user)
+    wishlists = WishList.objects.filter(owner=request.user) | WishList.objects.filter(dependent=request.user)
 
     context = {
         'wishlists': wishlists
