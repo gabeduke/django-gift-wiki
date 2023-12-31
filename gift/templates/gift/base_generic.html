@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gift App</title>
+    <title>GiftWiki</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
@@ -13,12 +13,12 @@
 </head>
 <body>
 <header class="bg-light py-3 text-center">
-    <h1>Welcome to the Gift App</h1>
+    <h1>GiftWiki</h1>
 </header>
 
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
     <div class="container">
-        <a class="navbar-brand" href="{% url 'gift:home' %}">Gift App</a>
+        <a class="navbar-brand" href="{% url 'gift:home' %}">Home</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -31,10 +31,9 @@
                         <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
                     {% endif %}
                     <li class="nav-item"><a class="nav-link" href="{% url 'gift:account' %}">Profile</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:logout' %}">Logout</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'account_logout' %}">Logout</a></li>
                 {% else %}
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:login' %}">Login</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:signup' %}">Signup</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'account_login' %}">Login</a></li>
                 {% endif %}
             </ul>
         </div>

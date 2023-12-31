@@ -119,8 +119,8 @@ def wishlist_create(request):
                     wishlist.family_category = form.cleaned_data.get('family_category')
                     external_user = create_or_select_external_user(form.cleaned_data)
                     wishlist.owner = external_user
-                    if wishlist.steward is None:
-                        wishlist.steward = request.user
+                    if wishlist.dependent is None:
+                        wishlist.dependent = request.user
                 else:
                     wishlist.owner = request.user
 
@@ -190,10 +190,10 @@ def wishlist_detail(request, wishlist_id):
     items = wishlist.items.filter(is_deleted=False)
 
     # Check if the user is the owner or the steward
-    if request.user == wishlist.owner or request.user == wishlist.steward:
-        can_view_purchased = True
-    else:
+    if request.user == wishlist.owner or request.user == wishlist.dependent:
         can_view_purchased = False
+    else:
+        can_view_purchased = True
         for item in items:
             item.purchased_by = None
 
