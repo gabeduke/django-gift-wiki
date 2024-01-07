@@ -34,17 +34,17 @@ class WishListForm(forms.ModelForm):
     steward = forms.ModelChoiceField(
         queryset=User.objects.all(),  # Include all users
         required=False,
-        label="Steward"
+        label="Proxy"
     )
 
     class Meta:
         model = WishList
-        fields = ['title', 'description', 'image', 'family_category', 'steward']
+        fields = ['title', 'description', 'image', 'family_category', 'dependent']
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super(WishListForm, self).__init__(*args, **kwargs)
         if user:
             # Set the default steward to the current user
-            self.fields['steward'].initial = user.id
-            self.fields['steward'].queryset = User.objects.all()
+            self.fields['dependent'].initial = user.id
+            self.fields['dependent'].queryset = User.objects.all()
