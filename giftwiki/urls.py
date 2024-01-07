@@ -20,6 +20,5 @@ from django.urls import include, path
 urlpatterns = [
     path('', include('gift.urls')),  # Include the gift app's URLs at the root
     path("admin/", admin.site.urls),
-    path('accounts/', include('allauth.urls')),
     path("__debug__/", include("debug_toolbar.urls")),
 ]

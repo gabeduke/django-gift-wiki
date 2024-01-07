@@ -25,6 +25,8 @@ spec:
               value: "https://giftwiki.leetserve.com,http://localhost:3000"
             - name: BASE_DIR
               value: /app
+            - name: DJANGO_LOG_LEVEL
+              value: DEBUG
             - name: USE_S3
               value: "TRUE"
             - name: AWS_STORAGE_BUCKET_NAME

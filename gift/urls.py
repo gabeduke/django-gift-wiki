@@ -11,7 +11,9 @@ urlpatterns = [
     path('', views.home, name='home'),
 
     # Authentication
+    path('signup/', views.SignUpView.as_view(), name='signup'),
     path('profile/', views.profile, name='account'),
+    path('accounts/', include('django.contrib.auth.urls')),
 
     # Wishlists
     path('wishlist/create/', views.wishlist_create, name='create_wishlist'),
