@@ -1,21 +1,3 @@
-apiVersion: traefik.containo.us/v1alpha1
-kind: Middleware
-metadata:
-  name: cors-middleware
-spec:
-  headers:
-    accessControlAllowMethods:
-      - "GET"
-      - "OPTIONS"
-      - "PUT"
-      - "POST"
-      - "DELETE"
-    accessControlAllowOriginList:
-      - "https://giftwiki.leetserve.com"
-    accessControlAllowCredentials: true
-    accessControlMaxAge: 100
-    addVaryHeader: true
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

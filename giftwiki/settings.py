@@ -65,6 +65,7 @@ LOGGING = {
 
 
 # Application definition
+AUTH_USER_MODEL = 'gift.WikiUser'
 ROOT_URLCONF = 'giftwiki.urls'
 WSGI_APPLICATION = 'giftwiki.wsgi.application'
 INTERNAL_IPS = ["127.0.0.1"]
@@ -126,7 +127,7 @@ TEMPLATES = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'giftwiki',
+        'NAME': os.getenv('DJANGO_DB_NAME', 'giftwiki'),
         'USER': 'postgres',
         'PASSWORD': os.getenv('DJANGO_DB_PASS', 'default'),
         'HOST': 'giftwiki.coetmusgho2c.us-east-1.rds.amazonaws.com',  # Set to empty string for localhost.

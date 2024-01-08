@@ -2,20 +2,19 @@ import json
 import logging
 from collections import defaultdict
 
+from django.contrib import messages  # Import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy
 from django.views import generic
-from django.contrib import messages  # Import messages
-from .models import WishList, Item
-from .forms import ItemForm, ItemFormSet, WishListForm
-from django.core.exceptions import ValidationError
-
-from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from .models import Item
+
+from .forms import ItemForm, ItemFormSet, WishListForm
+from .models import WishList, Item
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +115,7 @@ def wishlist_create(request):
 
                 is_for_external_user = form.cleaned_data.get('is_for_external_user')
                 if is_for_external_user:
-                    wishlist.family_category = form.cleaned_data.get('family_category')
+                    wishlist.family_name = form.cleaned_data.get('family_category')
                     external_user = create_or_select_external_user(form.cleaned_data)
                     wishlist.owner = external_user
                     if wishlist.dependent is None:
@@ -176,7 +175,7 @@ def home(request):
     wishlists_by_family = defaultdict(list)
 
     for wishlist in wishlists:
-        wishlists_by_family[wishlist.family_category].append(wishlist)
+        wishlists_by_family[wishlist.family_name].append(wishlist)
 
     context = {
         'wishlists_by_family': dict(wishlists_by_family)

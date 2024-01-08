@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import WishList, Item, Suggestion, ItemGroup, Category
+
+from gift.models import Suggestion, WishList, Item, ItemGroup, Category
 
 admin.site.register(WishList)
 admin.site.register(Item)

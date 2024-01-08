@@ -1,12 +1,35 @@
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.contrib.auth.models import User
 from django.utils import timezone
 
 
+class WikiUser(AbstractUser):
+    family_name = models.ForeignKey('Family', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='WikiUsers')
+
+    def __str__(self):
+        return self.username
+
+
+class Family(models.Model):
+    name = models.CharField(max_length=255, default='My Family')
+    description = models.TextField(blank=True, null=True)
+    image = models.ImageField(
+        upload_to='family_images/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]
+    )
+
+    def __str__(self):
+        return self.name
+
+
 class WishList(models.Model):
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_wishlist')
-    dependent = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='stewarded_wishlists')
+    owner = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='owned_wishlist')
+    dependent = models.ForeignKey(WikiUser, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='stewarded_wishlists')
     title = models.CharField(max_length=255, default='My WishList')
     description = models.TextField(blank=True, null=True)
     image = models.ImageField(
@@ -16,6 +39,8 @@ class WishList(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]
     )
     family_category = models.CharField(max_length=255, default='General')  # Default value
+    family_name = models.ForeignKey(Family, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='wishlists')
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -44,8 +69,9 @@ class Item(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
-    purchased_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchased_items')
-    updated_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='updated_%(class)s_records', null=True)
+    purchased_by = models.ForeignKey(WikiUser, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='purchased_items')
+    updated_by = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='updated_%(class)s_records', null=True)
     is_deleted = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
@@ -64,8 +90,10 @@ class Suggestion(models.Model):
     hyperlink = models.URLField(blank=True, null=True)  # Allow null and blank
     description = models.TextField(blank=True, null=True)
     image = models.ImageField(upload_to='suggestions/', blank=True, null=True)  # Image field
-    suggested_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)  # Optional price field
-    suggested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='suggested_items')  # Track who suggested it
+    suggested_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True,
+                                          null=True)  # Optional price field
+    suggested_by = models.ForeignKey(WikiUser, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='suggested_items')  # Track who suggested it
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     is_deleted = models.BooleanField(default=False)  # Soft deletion

@@ -10,4 +10,4 @@ build:
 manifests:
   kustomize:
     paths:
-      - deploy
+      - deploy/dev

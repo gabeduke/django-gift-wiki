@@ -3,6 +3,10 @@ IMAGE_NAME = dukeman/gift-wiki
 TAG = latest
 PLATFORMS = linux/amd64,linux/arm64
 
+.PHONY: env
+env:
+	@echo "set -a; source .env; set +a"
+
 # Build the Docker image
 build:
 	docker buildx build --platform $(PLATFORMS) -t $(IMAGE_NAME):$(TAG) .
