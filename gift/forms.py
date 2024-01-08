@@ -1,9 +1,12 @@
 # forms.py
 
 from django import forms
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.forms import formset_factory
-from .models import Item, WishList, Suggestion
+
+from .models import Suggestion, WishList, Item
+
+User = get_user_model()
 
 
 class ItemForm(forms.ModelForm):
@@ -39,7 +42,7 @@ class WishListForm(forms.ModelForm):
 
     class Meta:
         model = WishList
-        fields = ['title', 'description', 'image', 'family_category', 'dependent']
+        fields = ['title', 'description', 'image', 'family_name', 'dependent']
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
@@ -48,3 +51,10 @@ class WishListForm(forms.ModelForm):
             # Set the default steward to the current user
             self.fields['dependent'].initial = user.id
             self.fields['dependent'].queryset = User.objects.all()
+
+        for name, field in self.fields.items():
+            if not field.required:
+                if self.fields[name].label:
+                    self.fields[name].label += ' (Optional)'
+                else:
+                    self.fields[name].label = name.capitalize() + ' (Optional)'

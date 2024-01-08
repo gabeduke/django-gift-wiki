@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: wikileet
+
+resources:
+  - ../base
+
+secretGenerator:
+  - name: django-app-secrets
+    behavior: replace
+    envs:
+      - secrets.env
+
+configMapGenerator:
+  - name: django-app-config
+    behavior: replace
+    envs:
+    - .env
+
+patches:
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: django-app-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: "giftwiki.leetserve.com"
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts:
+              - "giftwiki.leetserve.com"
+            secretName: gift-wiki-tls
+  - target:
+      group: traefik.containo.us
+      version: v1alpha1
+      kind: Middleware
+      name: cors-middleware
+    patch: |-
+        - op: replace
+          path: /spec/headers/accessControlAllowOriginList
+          value:
+            - "https://giftwiki.leetserve.com"

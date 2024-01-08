@@ -7,8 +7,14 @@ resources:
     - deployment.yaml
     - service.yaml
     - ingress.yaml
+    - middleware.yaml
 
 secretGenerator:
   - name: django-app-secrets
     envs:
-      - .env
+      - secrets.env-tpl
+
+configMapGenerator:
+  - name: django-app-config
+    envs:
+      - config.env-tpl
