@@ -25,31 +25,48 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ml-auto">
                 {% if request.user.is_authenticated %}
-                    {% if request.user.wishlist_set.exists %}
-                        <li class="nav-item"><a class="nav-link" href="{% url 'gift:wishlist_detail' request.user.wishlist_set.first.id %}">My List</a></li>
-                    {% else %}
-                        <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
-                    {% endif %}
+                    {% with user_wishlists=request.user.owned_wishlist.all %}
+                        {% if user_wishlists %}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="listsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    My Lists
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="listsDropdown">
+                                    {% for wishlist in user_wishlists|slice:":10" %}
+                                        <a class="dropdown-item" href="{% url 'gift:wishlist_detail' wishlist.id %}">{{ wishlist.title }}</a>
+                                    {% endfor %}
+                                    {% if user_wishlists|length > 10 %}
+                                        <div class="dropdown-divider"></div>
+                                        <a class="dropdown-item" href="{% url 'gift:account' %}">View All Lists</a>
+                                    {% endif %}
+                                </div>
+                            </li>
+                        {% endif %}
+                    {% endwith %}
+                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'gift:account' %}">Profile</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:logout' %}">Logout</a></li>
                 {% else %}
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:login' %}">Login</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:signup' %}">Signup</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/accounts/login/">Login</a></li>
                 {% endif %}
+                <li class="nav-item">
+                    <button class="btn btn-sm btn-outline-secondary ml-2" id="themeToggle" title="Toggle dark mode">
+                        <i class="fas fa-moon" id="themeIcon"></i>
+                    </button>
+                </li>
             </ul>
         </div>
     </div>
 </nav>
 
 {% if messages %}
-    <div class="container mt-3">
+    <div class="container mt-2">
         {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
         {% endfor %}
     </div>
 {% endif %}
 
-<main class="container py-4">
+<main class="container py-2">
     {% block content %}
         <!-- Content will go here -->
     {% endblock %}
@@ -63,5 +80,65 @@
 <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+<!-- Theme Toggle and Color Palette -->
+<script>
+(function() {
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const html = document.documentElement;
+    
+    // Function to apply theme
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            html.setAttribute('data-theme', 'dark');
+            themeIcon.classList.remove('fa-moon');
+            themeIcon.classList.add('fa-sun');
+        } else {
+            html.removeAttribute('data-theme');
+            themeIcon.classList.remove('fa-sun');
+            themeIcon.classList.add('fa-moon');
+        }
+        localStorage.setItem('theme', theme);
+    }
+    
+    // Function to apply color palette
+    function applyPalette(palette) {
+        if (palette && palette !== 'default') {
+            html.setAttribute('data-palette', palette);
+        } else {
+            html.removeAttribute('data-palette');
+        }
+        localStorage.setItem('color_palette', palette || 'default');
+    }
+    
+    // Get user's color palette from the page (set in template context)
+    const userPalette = '{{ request.user.color_palette|default:"default" }}';
+    
+    // Check for saved theme preference or default to light mode
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    applyTheme(savedTheme);
+    
+    // Apply user's color palette (from database, or fallback to localStorage)
+    const savedPalette = localStorage.getItem('color_palette');
+    const paletteToUse = userPalette && userPalette !== 'default' ? userPalette : (savedPalette || 'default');
+    applyPalette(paletteToUse);
+    
+    // Toggle theme on button click
+    themeToggle.addEventListener('click', function() {
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(newTheme);
+    });
+    
+    // Listen for palette changes (when user updates it on profile page)
+    // This will be triggered after form submission
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'color_palette') {
+            applyPalette(e.newValue || 'default');
+        }
+    });
+})();
+</script>
 </body>
 </html>

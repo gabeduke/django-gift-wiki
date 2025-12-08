@@ -31,6 +31,7 @@ media
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
 .idea/**/dbnavigator.xml
+.idea/**/runConfigurations/
 
 # Gradle
 .idea/**/gradle.xml
@@ -97,8 +98,7 @@ celerybeat-schedule.*
 *.sage.py
 
 # Environments
-deploy/.env
-.env
+**/*.env
 .venv
 env/
 venv/
