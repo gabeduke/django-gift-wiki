@@ -5,17 +5,14 @@ namespace: wikileet
 resources:
   - ../base
 
-secretGenerator:
-  - name: django-app-secrets
-    behavior: replace
-    envs:
-      - secrets.env
+# Secrets are managed separately in homelab repo and applied via 'make secrets'
+# The 'django-app-secrets' secret must exist in wikileet namespace before deployment
 
 configMapGenerator:
   - name: django-app-config
     behavior: replace
     envs:
-    - .env
+    - config.env
 
 patches:
   - target:
