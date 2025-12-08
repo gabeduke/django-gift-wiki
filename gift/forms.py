@@ -345,6 +345,17 @@ class WishListForm(forms.ModelForm):
                 else:
                     self.fields[name].label = name.capitalize() + ' (Optional)'
     
+    def full_clean(self):
+        """Allow '__CREATE_NEW__' to survive ModelChoiceField validation."""
+        super().full_clean()
+        
+        if 'family_name' in self.errors:
+            field_name = self.add_prefix('family_name')
+            raw_value = self.data.get(field_name) if hasattr(self, 'data') and self.data else None
+            if raw_value == '__CREATE_NEW__':
+                del self.errors['family_name']
+                self.cleaned_data['family_name'] = '__CREATE_NEW__'
+    
     def clean(self):
         cleaned_data = super().clean()
         family_name = cleaned_data.get('family_name')
