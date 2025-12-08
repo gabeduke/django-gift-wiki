@@ -14,8 +14,16 @@ boto3 = "*"
 psycopg2 = "*"
 django-widget-tweaks = "*"
 urllib3 = "*"
+openai = "*"
 
 [dev-packages]
+pytest = "*"
+pytest-django = "*"
+pytest-bdd = "*"
+selenium = "*"
+factory-boy = "*"
+coverage = "*"
+pytest-cov = "*"
 
 [requires]
 python_version = "3.10"

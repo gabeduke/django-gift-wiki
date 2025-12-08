@@ -19,11 +19,57 @@
                             <th scope="row">Email</th>
                             <td>{{ request.user.email }}</td>
                         </tr>
+                        {% if request.user.scraped_page_selected and request.user.selected_scraped_page %}
+                        <tr>
+                            <th scope="row">Imported Gift List</th>
+                            <td>
+                                {{ request.user.selected_scraped_page.title }}
+                                <br>
+                                <small class="text-muted">
+                                    <a href="{% url 'gift:select_scraped_page' %}?reset=1" class="text-primary">
+                                        Re-select gift list
+                                    </a>
+                                </small>
+                            </td>
+                        </tr>
+                        {% endif %}
                         <!-- Add more user details if needed -->
                         </tbody>
                     </table>
                 </div>
-                <!-- Link to update user information -->
+                
+                <!-- Profile Picture Upload (only if feature enabled) -->
+                {% if PROFILE_PICTURE_ENABLED %}
+                <h3 class="mt-4">Profile Picture</h3>
+                {% if request.user.get_profile_picture_web_url %}
+                    <div class="mb-3">
+                        <img src="{{ request.user.get_profile_picture_web_url }}" 
+                             alt="Profile Picture" 
+                             class="img-thumbnail" 
+                             style="max-width: 200px; max-height: 200px;">
+                    </div>
+                {% endif %}
+                {% if profile_form %}
+                <form method="post" enctype="multipart/form-data" class="form">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="{{ profile_form.profile_picture.id_for_label }}" class="form-label">
+                            {{ profile_form.profile_picture.label }}
+                        </label>
+                        {{ profile_form.profile_picture }}
+                        {% if profile_form.profile_picture.help_text %}
+                            <div class="form-text">{{ profile_form.profile_picture.help_text }}</div>
+                        {% endif %}
+                        {% for error in profile_form.profile_picture.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" name="update_profile_picture" class="btn btn-primary">
+                        {% if request.user.profile_picture %}Update{% else %}Upload{% endif %} Profile Picture
+                    </button>
+                </form>
+                {% endif %}
+                {% endif %}
             </div>
 
             <!-- Password Reset -->
@@ -51,14 +97,24 @@
 
         <div class="row">
             <div class="col">
-                <h3>My Wishlists</h3>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">My Wishlists</h3>
+                    <a href="{% url 'gift:create_wishlist' %}" class="btn btn-primary">Create New Wishlist</a>
+                </div>
                 <!-- Navigation Link to Wishlist Page -->
 
                 <div class="accordion" id="wishlistAccordion">
                     {% for wishlist in wishlists %}
                         <div class="card">
                             <div class="card-header" id="heading{{ wishlist.id }}">
-                                <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-primary float-right">View Wishlist</a>
+                                <div class="float-right">
+                                    <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-primary btn-sm">View</a>
+                                    <a href="{% url 'gift:delete_wishlist' wishlist.id %}" 
+                                       class="btn btn-danger btn-sm" 
+                                       onclick="return confirm('Are you sure you want to delete this wishlist? This action cannot be undone.');">
+                                        Delete
+                                    </a>
+                                </div>
                                 <h5 class="mb-0">
                                     <!-- Hamburger Icon for Collapsible -->
                                     <button class="btn" type="button" data-toggle="collapse"

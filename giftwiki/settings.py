@@ -7,8 +7,15 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-import os.path
+import os
 from pathlib import Path
+
+# Import database configuration for SQLite WAL mode (enables concurrent access)
+try:
+    from . import db_config
+except ImportError:
+    # db_config is optional - only needed for SQLite WAL mode
+    pass
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -69,11 +76,19 @@ AUTH_USER_MODEL = 'gift.WikiUser'
 ROOT_URLCONF = 'giftwiki.urls'
 WSGI_APPLICATION = 'giftwiki.wsgi.application'
 INTERNAL_IPS = ["127.0.0.1"]
-CORS_ALLOWED_ORIGINS = os.environ.get('DJANGO_ALLOWED_ORIGINS', '').split(',')
-CSRF_TRUSTED_ORIGINS = os.environ.get('DJANGO_ALLOWED_ORIGINS', '').split(',')
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS').split(',')
+CORS_ALLOWED_ORIGINS = os.getenv('DJANGO_ALLOWED_ORIGINS', 'http://localhost').split(',')
+CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_ALLOWED_ORIGINS', 'http://localhost').split(',')
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
+
+# Feature Flags - Import from feature_flags module
+try:
+    from .feature_flags import STEWARD_PROXY_ENABLED
+except ImportError:
+    # Fallback for initial migration
+    STEWARD_PROXY_ENABLED = False
+
 INSTALLED_APPS = [
     'corsheaders',
     'storages',
@@ -87,17 +102,25 @@ INSTALLED_APPS = [
     "gift.apps.GiftConfig",
     "debug_toolbar",
 ]
+
 MIDDLEWARE = [
     'gift.middleware.healthcheck.HealthCheckMiddleware',
     "corsheaders.middleware.CorsMiddleware",
     "debug_toolbar.middleware.DebugToolbarMiddleware",
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',  # Must run before TraefikAuthMiddleware (needs session)
+    'gift.middleware.traefik_auth.TraefikAuthMiddleware',  # Traefik forward auth - runs after SessionMiddleware, before AuthenticationMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# Authentication backends - add Traefik auth backend
+AUTHENTICATION_BACKENDS = [
+    'gift.middleware.traefik_auth.TraefikAuthBackend',  # Traefik forward auth
+    'django.contrib.auth.backends.ModelBackend',  # Default Django auth (for admin, etc.)
 ]
 TEMPLATES = [
     {
@@ -110,6 +133,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'giftwiki.feature_flags.get_context_processor',
             ],
         },
     },
@@ -126,13 +150,16 @@ TEMPLATES = [
 # }
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DJANGO_DB_NAME', 'giftwiki'),
-        'USER': 'postgres',
-        'PASSWORD': os.getenv('DJANGO_DB_PASS', 'default'),
-        'HOST': 'giftwiki.coetmusgho2c.us-east-1.rds.amazonaws.com',  # Set to empty string for localhost.
-        'PORT': '5432',           # Set to empty string for default.
-        'AUTO_CREATE': True,
+        # 'ENGINE': 'django.db.backends.postgresql',
+        # 'NAME': os.getenv('DJANGO_DB_NAME', 'giftwiki'),
+        # 'USER': 'postgres',
+        # 'PASSWORD': os.getenv('DJANGO_DB_PASS', 'default'),
+        # # 'HOST': 'giftwiki.coetmusgho2c.us-east-1.rds.amazonaws.com',  # Set to empty string for localhost.
+        # 'HOST': '192.168.1.103',
+        # 'PORT': '5432',           # Set to empty string for default.
+        # 'AUTO_CREATE': True,
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'db.sqlite3')),  # Use the environment variable
     }
 }
 
@@ -150,7 +177,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'EST'
+# Allow TIME_ZONE to be overridden by environment variable, but default to valid IANA timezone
+TIME_ZONE = os.getenv('DJANGO_TIME_ZONE', 'America/New_York')  # Changed from 'EST' - Django 5.1 requires IANA timezone names
 USE_I18N = True
 USE_TZ = True
 
@@ -171,10 +199,11 @@ if USE_S3:
     STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
     STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    # STATIC_ROOT still needed for collectstatic to work, even when using S3
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 else:
     STATIC_URL = '/staticfiles/'
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

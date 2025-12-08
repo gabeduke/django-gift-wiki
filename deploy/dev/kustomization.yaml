@@ -33,13 +33,3 @@ patches:
           - hosts:
               - "giftwiki-dev.leetserve.com"
             secretName: gift-wiki-tls
-  - target:
-      group: traefik.containo.us
-      version: v1alpha1
-      kind: Middleware
-      name: cors-middleware
-    patch: |-
-        - op: replace
-          path: /spec/headers/accessControlAllowOriginList
-          value:
-            - "https://giftwiki-dev.leetserve.com"

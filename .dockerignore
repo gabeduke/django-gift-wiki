@@ -1,22 +1,88 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.DS_Store
-deploy/base/.env
-.env
-.venv
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
 venv/
 ENV/
 env/
 env.bak/
 env.tmp/
+.venv
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.hypothesis/
+.tox/
+tests/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+deploy/**/.env
+deploy/**/secrets.env
+
+# Logs
 *.log
+debug.log
+
+# Database
 *.sql
 *.sqlite3
 db.sqlite3
-media/
+
+# Static/media (collected at runtime)
 static/
-node_modules/
-.git
+staticfiles/
+media/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+PROJECT_REVIEW.md
+FEATURES.md
+FEATURE_FLAGS.md
+MINIMAL_STATE.md
+DEPLOYMENT_FIXES.md
+
+# Development files
+Makefile
+Pipfile
+Pipfile.lock
+pytest.ini
+skaffold.yaml
+cursor/
+htmlcov/
+
+# Deployment configs (not needed in image)
+deploy/
 
