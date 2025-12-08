@@ -2,83 +2,636 @@
 {% load widget_tweaks %}
 
 {% block content %}
-
-    <div class="container mt-4">
-        <h2 class="mb-3">Edit Wishlist</h2>
-        <div id="wishlist-items">
-            <!-- Existing wishlist items will be listed here -->
-        </div>
-        <div class="row">
-            <div class="col-md-12">
-                <form id="add-item-form" method="post">
-                    {% csrf_token %}
-                    <!-- Fields for new item -->
-                    <div class="form-group">
-                        <label for="item_name">Item Name</label>
-                        <input type="text" id="item_name" name="item_name" class="form-control">
-                    </div>
-                    <!-- Additional fields like description, category, etc. -->
-                    <div class="form-group">
-                        <label for="item_description">Item Description</label>
-                        <textarea id="item_description" name="item_description" class="form-control"></textarea>
-                    </div>
-                    <div>
-                        <label for="item_category">Item Category</label>
-                        <select id="item_category" name="item_category" class="form-control">
-{#                            TODO this should be dynamically populated from the database#}
-                            <option value="1">Category 1</option>
-                            <option value="2">Category 2</option>
-                            <option value="3">Category 3</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="item_url">Item URL</label>
-                        <input type="text" id="item_url" name="item_url" class="form-control">
-                    </div>
-                    <button type="button" id="add-item-btn" class="btn btn-primary">Add Item</button>
-                </form>
+    <div class="container mt-2">
+        <div class="row mb-2">
+            <div class="col">
+                <h2>Edit Wishlist</h2>
+                <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
             </div>
         </div>
+        
+        {% if not wishlist.family_name %}
+            <div class="alert alert-warning mb-2">
+                <strong>Note:</strong> This wishlist doesn't have a family assigned. Categories are family-specific, so you'll need to assign a family to the wishlist first.
+            </div>
+        {% endif %}
+        
+        <form method="post" class="card">
+            <div class="card-body">
+                {% csrf_token %}
+                
+                <!-- Wishlist Details Section - Compact -->
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label for="{{ wishlist_form.title.id_for_label }}" class="form-label">
+                                List Name <span class="text-danger">*</span>
+                            </label>
+                            {{ wishlist_form.title|add_class:"form-control form-control-sm" }}
+                            {% if wishlist_form.title.errors %}
+                                <div class="text-danger small mt-1">{{ wishlist_form.title.errors }}</div>
+                            {% endif %}
+                            {% if wishlist_form.managers %}
+                            <div class="mt-3">
+                                <label class="form-label">
+                                    <i class="fas fa-users"></i> Additional Managers
+                                </label>
+                                <div class="dropdown-checkbox-wrapper">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm form-control form-control-sm text-left dropdown-toggle-managers" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="managersDropdownBtnEdit">
+                                        <span class="selected-count">Select managers...</span>
+                                        <span class="float-right"><i class="fas fa-chevron-down"></i></span>
+                                    </button>
+                                    <div class="dropdown-menu managers-dropdown" aria-labelledby="managersDropdownBtnEdit">
+                                        {% for checkbox in wishlist_form.managers %}
+                                            <div class="form-check dropdown-item-text">
+                                                {{ checkbox.tag }}
+                                                <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                                    {{ checkbox.choice_label }}
+                                                </label>
+                                            </div>
+                                        {% empty %}
+                                            <div class="dropdown-item-text text-muted small">No other users available.</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% if wishlist_form.managers.errors %}
+                                    <div class="text-danger small mt-1">{{ wishlist_form.managers.errors }}</div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            {% if wishlist_form.family_name %}
+                            <label for="{{ wishlist_form.family_name.id_for_label }}" class="form-label">
+                                Family Group <span class="text-danger">*</span>
+                            </label>
+                            {{ wishlist_form.family_name|add_class:"form-control form-control-sm"|attr:"data-toggle-field:new_family_name" }}
+                            {% if wishlist_form.family_name.errors %}
+                                <div class="text-danger small mt-1">{{ wishlist_form.family_name.errors }}</div>
+                            {% endif %}
+                            <div id="new_family_name_wrapper" class="mt-2" style="display: none;">
+                                <div class="mb-2">
+                                    {{ wishlist_form.new_family_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new family name..." }}
+                                    {% if wishlist_form.new_family_name.errors %}
+                                        <div class="text-danger small mt-1">{{ wishlist_form.new_family_name.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                {% if wishlist_form.new_family_poem %}
+                                <div>
+                                    <label for="{{ wishlist_form.new_family_poem.id_for_label }}" class="form-label small">
+                                        {{ wishlist_form.new_family_poem.label }}
+                                    </label>
+                                    {{ wishlist_form.new_family_poem|add_class:"form-control form-control-sm"|attr:"placeholder:Write a poem, story, or memory that captures your family's spirit..." }}
+                                    {% if wishlist_form.new_family_poem.help_text %}
+                                        <small class="form-text text-muted">{{ wishlist_form.new_family_poem.help_text }}</small>
+                                    {% endif %}
+                                    {% if wishlist_form.new_family_poem.errors %}
+                                        <div class="text-danger small mt-1">{{ wishlist_form.new_family_poem.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label for="{{ wishlist_form.description.id_for_label }}" class="form-label">
+                                {{ wishlist_form.description.label }}
+                            </label>
+                            {{ wishlist_form.description|add_class:"form-control form-control-sm" }}
+                            {% if wishlist_form.description.help_text %}
+                                <small class="form-text text-muted">{{ wishlist_form.description.help_text }}</small>
+                            {% endif %}
+                            {% if wishlist_form.description.errors %}
+                                <div class="text-danger small mt-1">{{ wishlist_form.description.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if wishlist_form.new_family_name and not wishlist_form.family_name %}
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label for="{{ wishlist_form.new_family_name.id_for_label }}" class="form-label">
+                                Or Create New Family
+                            </label>
+                            {{ wishlist_form.new_family_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new family name..." }}
+                            {% if wishlist_form.new_family_name.errors %}
+                                <div class="text-danger small mt-1">{{ wishlist_form.new_family_name.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Items Section - More Compact -->
+                <div class="mb-2">
+                    <h5 class="mb-2"><i class="fas fa-gift"></i> Items in This List</h5>
+                    <small class="text-muted">Click headers to sort • Check "Del" to remove</small>
+                </div>
+                {{ formset.management_form }}
+            
+                <div class="table-responsive">
+                    <table class="table table-hover" id="itemsTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;" title="Delete item">Del</th>
+                                <th style="width: 180px;">Name</th>
+                                <th>Description</th>
+                                <th style="width: 140px;">Price Range</th>
+                                <th style="width: 80px;" title="Purchased">✓</th>
+                                {% if wishlist.family_name %}
+                                    <th style="min-width: 150px;">Category</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for form in formset %}
+                                <tr>
+                                    <td class="checkbox-cell">
+                                        {% if form.DELETE %}
+                                            {{ form.DELETE|add_class:"form-check-input" }}
+                                        {% endif %}
+                                        {% if form.id %}
+                                            {{ form.id }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ form.name|add_class:"form-control form-control-sm"|attr:"placeholder:Item name..." }}
+                                        {% if form.name.errors %}
+                                            <div class="text-danger small mt-1">{{ form.name.errors }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="description-cell">
+                                            {{ form.description|add_class:"form-control form-control-sm expandable-textarea"|attr:"rows:1"|attr:"placeholder:Add description, links, notes..."|attr:"data-min-rows:1" }}
+                                            {% if form.description.errors %}
+                                                <div class="text-danger small mt-1">{{ form.description.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {{ form.price_range|add_class:"form-control form-control-sm" }}
+                                        {% if form.price_range.errors %}
+                                            <div class="text-danger small mt-1">{{ form.price_range.errors }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="checkbox-cell purchased-cell">
+                                        {{ form.purchased|add_class:"form-check-input" }}
+                                        {% if form.purchased.errors %}
+                                            <div class="text-danger small mt-1">{{ form.purchased.errors }}</div>
+                                        {% endif %}
+                                    </td>
+                                    {% if wishlist.family_name %}
+                                        <td style="vertical-align: middle;">
+                                            <div class="mb-1">
+                                                {{ form.category|add_class:"form-control form-control-sm category-select"|attr:"data-toggle-field:new_category_name" }}
+                                                {% if form.category.errors %}
+                                                    <div class="text-danger small mt-1">{{ form.category.errors }}</div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="new-category-wrapper" style="display: none;">
+                                                {{ form.new_category_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new category name..." }}
+                                                {% if form.new_category_name.errors %}
+                                                    <div class="text-danger small mt-1">{{ form.new_category_name.errors }}</div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="{% if wishlist.family_name %}6{% else %}5{% endif %}" class="text-center text-muted py-3">
+                                        <i class="fas fa-inbox"></i> No items yet. <a href="{% url 'gift:add_item' wishlist.id %}">Add your first item</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if formset.non_form_errors %}
+                    <div class="alert alert-danger mt-2">
+                        {{ formset.non_form_errors }}
+                    </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </div>
+        </form>
     </div>
-
+    
     <script>
-        var wishlistId = window.location.pathname.split('/')[2];
-        // JavaScript code to handle adding new items to a wishlist
-        document.getElementById('add-item-btn').addEventListener('click', function () {
-            var itemName = document.getElementById('item_name').value;
-
-            // Add other fields as needed
-
-            // AJAX request to Django
-            fetch(`/wishlist/${wishlistId}/add_item_ajax/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken') // Function to get CSRF token
-                },
-                body: JSON.stringify({name: itemName /*, other fields */})
-            })
-                .then(response => response.json())
-                .then(data => {
-                    // Update the page with the new item
-                    // You can append the new item to 'wishlist-items' div
+    (function() {
+        // Simple table sorting function
+        function sortTable(table, column, asc = true) {
+            const dirModifier = asc ? 1 : -1;
+            const tBody = table.tBodies[0];
+            const rows = Array.from(tBody.querySelectorAll("tr"));
+            
+            // Filter out rows with form errors or empty rows
+            const sortedRows = rows.filter(row => {
+                const cells = row.querySelectorAll("td");
+                return cells.length > 0 && !row.classList.contains('d-none');
+            });
+            
+            const sorted = sortedRows.sort((a, b) => {
+                const aCell = a.querySelector(`td:nth-child(${column + 1})`);
+                const bCell = b.querySelector(`td:nth-child(${column + 1})`);
+                
+                // For the combined name/description column (column 1), extract just the name
+                let aColText, bColText;
+                if (column === 1) {
+                    // Get the name input value (first input in the cell)
+                    const aNameInput = aCell.querySelector('input[type="text"]');
+                    const bNameInput = bCell.querySelector('input[type="text"]');
+                    aColText = aNameInput ? aNameInput.value.trim() : aCell.textContent.trim();
+                    bColText = bNameInput ? bNameInput.value.trim() : bCell.textContent.trim();
+                } else {
+                    aColText = aCell.textContent.trim();
+                    bColText = bCell.textContent.trim();
+                }
+                
+                // Try to parse as number
+                const aNum = parseFloat(aColText);
+                const bNum = parseFloat(bColText);
+                
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return (aNum - bNum) * dirModifier;
+                }
+                
+                return aColText.localeCompare(bColText) * dirModifier;
+            });
+            
+            // Remove all existing rows
+            while (tBody.firstChild) {
+                tBody.removeChild(tBody.firstChild);
+            }
+            
+            // Re-add the sorted rows
+            tBody.append(...sorted);
+            
+            // Remember how the column is currently sorted
+            table.querySelectorAll("th").forEach((th, idx) => {
+                th.classList.remove("th-sort-asc", "th-sort-desc");
+                if (idx === column) {
+                    th.classList.toggle("th-sort-asc", asc);
+                    th.classList.toggle("th-sort-desc", !asc);
+                }
+            });
+        }
+        
+        // Add sorting to table headers
+        const table = document.querySelector("#itemsTable");
+        if (table) {
+            table.querySelectorAll("thead th").forEach((headerCell, idx) => {
+                // Skip the first column (Delete checkbox)
+                if (idx === 0) return;
+                
+                headerCell.style.cursor = "pointer";
+                headerCell.style.userSelect = "none";
+                const originalText = headerCell.textContent.trim();
+                headerCell.innerHTML = `<span>${originalText}</span> <span style="opacity: 0.5; font-size: 0.8em;">⇅</span>`;
+                
+                headerCell.addEventListener("click", () => {
+                    const tableElement = headerCell.closest("table");
+                    const currentIsAscending = headerCell.classList.contains("th-sort-asc");
+                    sortTable(tableElement, idx, !currentIsAscending);
                 });
-        });
-
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
+            });
+        }
+    })();
+    </script>
+    <script>
+    (function() {
+        // Handle family dropdown toggle
+        const familySelect = document.querySelector('#id_family_name');
+        const newFamilyWrapper = document.getElementById('new_family_name_wrapper');
+        
+        if (familySelect && newFamilyWrapper) {
+            function toggleNewFamily() {
+                if (familySelect.value === '__CREATE_NEW__') {
+                    newFamilyWrapper.style.display = 'block';
+                    const input = newFamilyWrapper.querySelector('input');
+                    if (input) input.focus();
+                } else {
+                    newFamilyWrapper.style.display = 'none';
+                    const input = newFamilyWrapper.querySelector('input');
+                    if (input) input.value = '';
                 }
             }
-            return cookieValue;
+            
+            familySelect.addEventListener('change', toggleNewFamily);
+            // Check initial state
+            toggleNewFamily();
         }
-
+        
+        // Handle category dropdown toggles for all items
+        function setupCategoryToggles() {
+            document.querySelectorAll('.category-select').forEach(function(select) {
+                const wrapper = select.closest('td').querySelector('.new-category-wrapper');
+                
+                function toggleNewCategory() {
+                    if (select.value === '__CREATE_NEW__') {
+                        wrapper.style.display = 'block';
+                        const input = wrapper.querySelector('input');
+                        if (input) input.focus();
+                    } else {
+                        wrapper.style.display = 'none';
+                        const input = wrapper.querySelector('input');
+                        if (input) input.value = '';
+                    }
+                }
+                
+                select.addEventListener('change', toggleNewCategory);
+                // Check initial state
+                toggleNewCategory();
+            });
+        }
+        
+        // Setup on page load
+        setupCategoryToggles();
+        
+        // Re-setup after formset changes (if dynamic forms are added)
+        const observer = new MutationObserver(setupCategoryToggles);
+        const table = document.querySelector('#itemsTable tbody');
+        if (table) {
+            observer.observe(table, { childList: true, subtree: true });
+        }
+        
+        // Auto-expand textareas on input
+        document.querySelectorAll('.expandable-textarea').forEach(function(textarea) {
+            function autoExpand() {
+                textarea.style.height = 'auto';
+                const minHeight = parseInt(textarea.getAttribute('data-min-rows') || '1') * 32;
+                const scrollHeight = textarea.scrollHeight;
+                textarea.style.height = Math.max(minHeight, scrollHeight) + 'px';
+            }
+            
+            textarea.addEventListener('input', autoExpand);
+            // Initial sizing
+            autoExpand();
+        });
+        
+        // Add data labels for mobile responsive view
+        function addMobileLabels() {
+            if (window.innerWidth <= 768) {
+                const headers = Array.from(document.querySelectorAll('#itemsTable thead th'));
+                const rows = document.querySelectorAll('#itemsTable tbody tr');
+                
+                rows.forEach(function(row) {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    cells.forEach(function(cell, cellIndex) {
+                        if (cellIndex > 0 && headers[cellIndex]) {
+                            const label = headers[cellIndex].textContent.trim();
+                            cell.setAttribute('data-label', label);
+                        }
+                    });
+                });
+            }
+        }
+        
+        // Run on load and resize
+        addMobileLabels();
+        window.addEventListener('resize', addMobileLabels);
+        
+        // Update managers dropdown button text based on selected checkboxes
+        function updateManagersButton(buttonId) {
+            const button = document.getElementById(buttonId);
+            if (!button) return;
+            
+            const dropdown = button.nextElementSibling;
+            if (!dropdown) return;
+            
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+            const checked = Array.from(checkboxes).filter(cb => cb.checked);
+            const countSpan = button.querySelector('.selected-count');
+            
+            if (checked.length === 0) {
+                countSpan.textContent = 'Select managers...';
+            } else if (checked.length === 1) {
+                const label = checked[0].nextElementSibling.textContent.trim();
+                countSpan.textContent = label;
+            } else {
+                countSpan.textContent = `${checked.length} managers selected`;
+            }
+        }
+        
+        // Setup managers dropdown for all instances
+        document.querySelectorAll('.dropdown-toggle-managers').forEach(function(button) {
+            const buttonId = button.id;
+            const dropdown = button.nextElementSibling;
+            
+            if (dropdown) {
+                // Update on checkbox change
+                dropdown.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
+                    checkbox.addEventListener('change', function() {
+                        updateManagersButton(buttonId);
+                    });
+                });
+                
+                // Initial update
+                updateManagersButton(buttonId);
+                
+                // Prevent dropdown from closing when clicking inside
+                dropdown.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+        });
+    })();
     </script>
+    <style>
+    .th-sort-asc::after {
+        content: " ▲";
+        opacity: 0.7;
+        color: var(--primary-color);
+    }
+    .th-sort-desc::after {
+        content: " ▼";
+        opacity: 0.7;
+        color: var(--primary-color);
+    }
+    #itemsTable th {
+        white-space: nowrap;
+        font-size: 0.8125rem;
+        padding: var(--spacing-sm) var(--spacing-md);
+        cursor: pointer;
+        user-select: none;
+    }
+    #itemsTable th:hover {
+        background-color: var(--primary-light);
+    }
+    #itemsTable td {
+        vertical-align: middle;
+        padding: var(--spacing-sm);
+    }
+    /* Checkbox cells - perfectly centered */
+    #itemsTable .checkbox-cell {
+        vertical-align: middle;
+        text-align: center;
+        padding: var(--spacing-sm);
+        width: 40px;
+    }
+    #itemsTable .purchased-cell {
+        width: 80px;
+    }
+    #itemsTable .checkbox-cell .form-check-input {
+        margin: 0 auto;
+        display: block;
+    }
+    #itemsTable .form-control-sm {
+        font-size: 0.8125rem;
+        padding: 0.375rem 0.5rem;
+        width: 100%;
+    }
+    /* Name column styling */
+    #itemsTable td:nth-child(2) {
+        width: 180px;
+        min-width: 150px;
+    }
+    /* Description column - takes remaining space */
+    #itemsTable td:nth-child(3) {
+        min-width: 200px;
+    }
+    .btn-sm {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+    /* Style the "Create new" option */
+    select option[value="__CREATE_NEW__"] {
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+    /* Expandable textarea for descriptions */
+    .expandable-textarea {
+        resize: vertical;
+        min-height: 32px;
+        max-height: 200px;
+        transition: min-height 0.2s ease;
+        font-size: 0.8125rem;
+        line-height: 1.4;
+    }
+    .expandable-textarea:focus {
+        min-height: 48px;
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px var(--primary-light);
+    }
+    .description-cell {
+        position: relative;
+    }
+    /* Managers dropdown with checkboxes */
+    .dropdown-checkbox-wrapper {
+        position: relative;
+    }
+    .dropdown-toggle-managers {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+    }
+    .dropdown-toggle-managers:after {
+        display: none; /* Hide Bootstrap's default arrow */
+    }
+    .managers-dropdown {
+        max-height: 250px;
+        overflow-y: auto;
+        overflow-x: visible;
+        min-width: 100%;
+        padding: var(--spacing-sm);
+    }
+    .managers-dropdown .dropdown-item-text {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        white-space: nowrap;
+        cursor: pointer;
+        display: block;
+        position: relative;
+    }
+    .managers-dropdown .dropdown-item-text:hover {
+        background-color: var(--bg-secondary);
+    }
+    .managers-dropdown .form-check {
+        margin: 0;
+        padding: 0;
+        display: flex !important;
+        align-items: center;
+        width: 100%;
+        position: relative;
+    }
+    .managers-dropdown .form-check-label {
+        cursor: pointer;
+        margin-left: var(--spacing-sm);
+        font-size: 0.875rem;
+        flex: 1;
+        display: inline-block;
+    }
+    .managers-dropdown input[type="checkbox"],
+    .managers-dropdown .form-check-input {
+        margin: 0 !important;
+        margin-right: var(--spacing-sm) !important;
+        cursor: pointer;
+        position: relative !important;
+        z-index: 10;
+        flex-shrink: 0;
+        width: 1rem !important;
+        height: 1rem !important;
+        min-width: 1rem !important;
+        min-height: 1rem !important;
+        display: inline-block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        appearance: checkbox !important;
+        -webkit-appearance: checkbox !important;
+        -moz-appearance: checkbox !important;
+        clip: unset !important;
+        clip-path: none !important;
+        overflow: visible !important;
+    }
+    /* Prevent dropdown from closing when clicking checkboxes */
+    .managers-dropdown .form-check-input,
+    .managers-dropdown .form-check-label {
+        pointer-events: auto;
+    }
+    
+    /* Responsive: stack on mobile */
+    @media (max-width: 768px) {
+        #itemsTable thead {
+            display: none;
+        }
+        #itemsTable tbody tr {
+            display: block;
+            margin-bottom: var(--spacing-md);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: var(--spacing-md);
+            background-color: var(--bg-card);
+        }
+        #itemsTable tbody td {
+            display: block;
+            border: none;
+            padding: var(--spacing-xs) 0;
+            text-align: left;
+        }
+        #itemsTable tbody td:before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        #itemsTable tbody td:first-child {
+            text-align: right;
+        }
+        #itemsTable tbody td:first-child:before {
+            display: none;
+        }
+    }
+    </style>
 {% endblock %}

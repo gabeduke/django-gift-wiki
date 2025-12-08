@@ -2,27 +2,295 @@
 {% load widget_tweaks %}
 
 {% block content %}
-    <div class="container mt-4">
+    <div class="container mt-2">
         <div class="row">
-            <div class="col-md-6 offset-md-3">
-                <h2 class="mb-3">Create List</h2>
-                <form method="post" enctype="multipart/form-data" class="card card-body">
-                    {% csrf_token %}
-                    {% for field in form %}
-                        <div class="form-group">
-                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            {{ field|add_class:"form-control" }}
-                            {% if field.help_text %}
-                                <small class="form-text text-muted">{{ field.help_text }}</small>
-                            {% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger">{{ error }}</div>
-                            {% endfor %}
+            <div class="col-lg-10 col-xl-8 mx-auto">
+                <h2 class="mb-2">Create New Wishlist</h2>
+                <p class="text-muted small mb-3">Create a list to share your gift preferences with family and friends.</p>
+                
+                <form method="post" enctype="multipart/form-data" class="card">
+                    <div class="card-body">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Information - Compact Row -->
+                        <div class="form-section">
+                            <h5 class="mb-2"><i class="fas fa-info-circle"></i> Basic Information</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <label for="{{ form.title.id_for_label }}" class="form-label">
+                                        List Name <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.title|add_class:"form-control form-control-sm" }}
+                                    {% for error in form.title.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label for="{{ form.family_name.id_for_label }}" class="form-label">
+                                        Family Group <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.family_name|add_class:"form-control form-control-sm" }}
+                                    {% for error in form.family_name.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                    <div id="new_family_name_wrapper" class="mt-2" style="display: none;">
+                                        <div class="mb-2">
+                                            {{ form.new_family_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new family name..." }}
+                                            {% for error in form.new_family_name.errors %}
+                                                <div class="text-danger small mt-1">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                        <div>
+                                            <label for="{{ form.new_family_poem.id_for_label }}" class="form-label small">
+                                                {{ form.new_family_poem.label }}
+                                            </label>
+                                            {{ form.new_family_poem|add_class:"form-control form-control-sm"|attr:"placeholder:Write a poem, story, or memory that captures your family's spirit..." }}
+                                            {% if form.new_family_poem.help_text %}
+                                                <small class="form-text text-muted">{{ form.new_family_poem.help_text }}</small>
+                                            {% endif %}
+                                            {% for error in form.new_family_poem.errors %}
+                                                <div class="text-danger small mt-1">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                                        {{ form.description.label }}
+                                    </label>
+                                    {{ form.description|add_class:"form-control form-control-sm" }}
+                                    {% if form.description.help_text %}
+                                        <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                                    {% endif %}
+                                    {% for error in form.description.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
                         </div>
-                    {% endfor %}
-                    <button type="submit" class="btn btn-primary">Save</button>
+                        
+                        <!-- Optional Sections - Side by Side -->
+                        {% if form.scraped_page or form.managers or form.dependent %}
+                        <div class="row">
+                            {% if form.scraped_page %}
+                            <div class="col-md-6 mb-2">
+                                <div class="form-section">
+                                    <h5 class="mb-2"><i class="fas fa-download"></i> Import Items</h5>
+                                    <label for="{{ form.scraped_page.id_for_label }}" class="form-label">
+                                        {{ form.scraped_page.label }}
+                                    </label>
+                                    {{ form.scraped_page|add_class:"form-control form-control-sm" }}
+                                    {% for error in form.scraped_page.errors %}
+                                        <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if form.managers or form.dependent %}
+                            <div class="col-md-6 mb-2">
+                                <div class="form-section">
+                                    <h5 class="mb-2"><i class="fas fa-users"></i> Management</h5>
+                                    {% if form.dependent %}
+                                    <div class="mb-2">
+                                        <label for="{{ form.dependent.id_for_label }}" class="form-label">
+                                            {{ form.dependent.label }}
+                                        </label>
+                                        {{ form.dependent|add_class:"form-control form-control-sm" }}
+                                        {% for error in form.dependent.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if form.managers %}
+                                    <div>
+                                        <label class="form-label">
+                                            Additional Managers
+                                        </label>
+                                        <div class="dropdown-checkbox-wrapper">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm form-control form-control-sm text-left dropdown-toggle-managers" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="managersDropdownBtn">
+                                                <span class="selected-count">Select managers...</span>
+                                                <span class="float-right"><i class="fas fa-chevron-down"></i></span>
+                                            </button>
+                                            <div class="dropdown-menu managers-dropdown" aria-labelledby="managersDropdownBtn">
+                                                {% for checkbox in form.managers %}
+                                                    <div class="form-check dropdown-item-text">
+                                                        {{ checkbox.tag }}
+                                                        <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                                            {{ checkbox.choice_label }}
+                                                        </label>
+                                                    </div>
+                                                {% empty %}
+                                                    <div class="dropdown-item-text text-muted small">No other users available.</div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% for error in form.managers.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        {# Hidden fields #}
+                        {% for field in form.hidden_fields %}
+                            {{ field }}
+                        {% endfor %}
+                        
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Create Wishlist
+                            </button>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
+    
+    <script>
+    (function() {
+        // Handle family dropdown toggle
+        const familySelect = document.querySelector('#id_family_name');
+        const newFamilyWrapper = document.getElementById('new_family_name_wrapper');
+        
+        if (familySelect && newFamilyWrapper) {
+            function toggleNewFamily() {
+                if (familySelect.value === '__CREATE_NEW__') {
+                    newFamilyWrapper.style.display = 'block';
+                    const input = newFamilyWrapper.querySelector('input');
+                    if (input) input.focus();
+                } else {
+                    newFamilyWrapper.style.display = 'none';
+                    const input = newFamilyWrapper.querySelector('input');
+                    if (input) input.value = '';
+                }
+            }
+            
+            familySelect.addEventListener('change', toggleNewFamily);
+            // Check initial state
+            toggleNewFamily();
+        }
+        
+        // Update managers dropdown button text based on selected checkboxes
+        function updateManagersButton(buttonId) {
+            const button = document.getElementById(buttonId);
+            if (!button) return;
+            
+            const dropdown = button.nextElementSibling;
+            if (!dropdown) return;
+            
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+            const checked = Array.from(checkboxes).filter(cb => cb.checked);
+            const countSpan = button.querySelector('.selected-count');
+            
+            if (checked.length === 0) {
+                countSpan.textContent = 'Select managers...';
+            } else if (checked.length === 1) {
+                const label = checked[0].nextElementSibling.textContent.trim();
+                countSpan.textContent = label;
+            } else {
+                countSpan.textContent = `${checked.length} managers selected`;
+            }
+        }
+        
+        // Setup managers dropdown
+        const managersBtn = document.getElementById('managersDropdownBtn');
+        if (managersBtn) {
+            const dropdown = managersBtn.nextElementSibling;
+            if (dropdown) {
+                // Update on checkbox change
+                dropdown.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
+                    checkbox.addEventListener('change', function() {
+                        updateManagersButton('managersDropdownBtn');
+                    });
+                });
+                
+                // Initial update
+                updateManagersButton('managersDropdownBtn');
+                
+                // Prevent dropdown from closing when clicking inside
+                dropdown.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+        }
+    })();
+    </script>
+    <style>
+    /* Managers dropdown with checkboxes */
+    .dropdown-checkbox-wrapper {
+        position: relative;
+    }
+    .dropdown-toggle-managers {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+    }
+    .dropdown-toggle-managers:after {
+        display: none; /* Hide Bootstrap's default arrow */
+    }
+    .managers-dropdown {
+        max-height: 250px;
+        overflow-y: auto;
+        min-width: 100%;
+        padding: var(--spacing-sm);
+    }
+    .managers-dropdown .dropdown-item-text {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        white-space: nowrap;
+        cursor: pointer;
+        display: block;
+        position: relative;
+        overflow: visible;
+    }
+    .managers-dropdown .dropdown-item-text:hover {
+        background-color: var(--bg-secondary);
+    }
+    .managers-dropdown .form-check {
+        margin: 0;
+        padding: 0;
+        display: flex !important;
+        align-items: center;
+        width: 100%;
+        position: relative;
+    }
+    .managers-dropdown .form-check-label {
+        cursor: pointer;
+        margin-left: var(--spacing-sm);
+        font-size: 0.875rem;
+        flex: 1;
+        display: inline-block;
+    }
+    .managers-dropdown input[type="checkbox"],
+    .managers-dropdown .form-check-input {
+        margin: 0 !important;
+        margin-right: var(--spacing-sm) !important;
+        cursor: pointer;
+        position: relative !important;
+        z-index: 10;
+        flex-shrink: 0;
+        width: 1rem !important;
+        height: 1rem !important;
+        min-width: 1rem !important;
+        min-height: 1rem !important;
+        display: inline-block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        appearance: checkbox !important;
+        -webkit-appearance: checkbox !important;
+        -moz-appearance: checkbox !important;
+        clip: unset !important;
+        clip-path: none !important;
+        overflow: visible !important;
+    }
+    </style>
 {% endblock %}

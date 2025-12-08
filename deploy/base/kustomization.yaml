@@ -4,10 +4,13 @@ commonLabels:
   app: gift-wiki
 
 resources:
-    - deployment.yaml
+    - storageclass.yaml
+    - statefulset.yaml
+    - pvc.yaml
+    # migration-job.yaml removed - migrations now run as init container
+    # deployment.yaml removed - using StatefulSet for better RWO volume handling
     - service.yaml
     - ingress.yaml
-    - middleware.yaml
 
 secretGenerator:
   - name: django-app-secrets
