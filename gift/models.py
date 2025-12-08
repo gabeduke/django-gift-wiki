@@ -37,6 +37,20 @@ class WikiUser(AbstractUser):
         related_name='selected_by_users',
         help_text='The scraped wiki page this user selected to import'
     )
+    COLOR_PALETTE_CHOICES = [
+        ('default', 'Default (Indigo/Purple)'),
+        ('ocean', 'Ocean (Blue/Teal)'),
+        ('forest', 'Forest (Green/Emerald)'),
+        ('sunset', 'Sunset (Orange/Pink)'),
+        ('midnight', 'Midnight (Dark Blue/Navy)'),
+        ('rose', 'Rose (Pink/Rose)'),
+    ]
+    color_palette = models.CharField(
+        max_length=20,
+        choices=COLOR_PALETTE_CHOICES,
+        default='default',
+        help_text='Color palette theme for the interface'
+    )
 
     def __str__(self):
         return self.username

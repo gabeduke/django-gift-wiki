@@ -15,6 +15,7 @@ psycopg2 = "*"
 django-widget-tweaks = "*"
 urllib3 = "*"
 openai = "*"
+whitenoise = "*"
 
 [dev-packages]
 pytest = "*"
