@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: django-app-db
+spec:
+  accessModes:
+    - ReadWriteOnce  # Temporarily using RWO due to Longhorn RWX issues
+    # Note: RWO allows only one pod at a time, so we use 1 replica
+    # Once Longhorn RWX is fixed, switch back to ReadWriteMany for multi-pod HA
+  storageClassName: longhorn-retain  # Uses Retain reclaim policy to preserve PV after PVC deletion
+  resources:
+    requests:
+      storage: 100Mi
+

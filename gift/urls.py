@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib.auth.views import LogoutView, LoginView
 from django.urls import path, include
 
 from . import views
@@ -11,9 +10,11 @@ urlpatterns = [
     path('', views.home, name='home'),
 
     # Authentication
-    path('signup/', views.SignUpView.as_view(), name='signup'),
+    # Signup removed - users are auto-created via Traefik forward auth
     path('profile/', views.profile, name='account'),
-    path('accounts/', include('django.contrib.auth.urls')),
+    path('select-scraped-page/', views.select_scraped_page, name='select_scraped_page'),
+    path('logout/', views.logout_view, name='logout'),
+    path('accounts/', include('django.contrib.auth.urls')),  # Keep for login if needed
 
     # Wishlists
     path('wishlist/create/', views.wishlist_create, name='create_wishlist'),
@@ -27,6 +28,9 @@ urlpatterns = [
     path('item/edit/<int:item_id>/', views.item_edit, name='edit_item'),
     path('item/delete/<int:item_id>/', views.item_delete, name='delete_item'),
     path('item/purchase/<int:item_id>/', views.item_purchase, name='purchase_item'),
+    
+    # Categories
+    path('category/edit/<int:category_id>/', views.category_edit, name='edit_category'),
 ]
 
 if settings.DEBUG:

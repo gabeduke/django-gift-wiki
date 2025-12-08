@@ -1,0 +1,198 @@
+# Gift Wiki Django Project - Cursor Rules
+
+## Project Context
+This is a Django-based family gift wish list management application. It uses Django 5.1 with a SQLite database for development and PostgreSQL for production.
+
+## Architecture Principles
+
+1. **Feature-Flag Architecture**: Use feature flags to control optional functionality
+   - `CREST_GENERATOR_ENABLED`: Disables crest generator app by default
+   - `STEWARD_PROXY_ENABLED`: Disables confusing dependent/proxy fields by default
+2. **Core Focus**: Prioritize gift/wishlist management features
+3. **Defensive Development**: Always add tests for new features (unit, integration, BDD)
+4. **Go-Like Approach**: Prefer explicit code over Django magic where possible
+5. **Feature Flag Interface**: Use `giftwiki/feature_flags.py` for all feature flags
+
+## Code Style
+
+### Django Patterns
+- Use function-based views for simplicity
+- Leverage Django ORM but keep queries explicit
+- Always use `get_object_or_404` for database lookups in views
+- Prefer explicit redirects with named URLs using `gift:` namespace
+
+### Testing Strategy
+- Write tests FIRST for new features (TDD approach)
+- Use pytest and pytest-django for unit tests
+- Use pytest-bdd for BDD tests
+- Mock external dependencies (OpenAI, S3, etc.)
+- All tests in `tests/` directory with clear structure:
+  - `tests/api/` - API/view tests
+  - `tests/ui/` - UI/integration tests
+  - `tests/features/` - BDD feature files
+  - `tests/steps/` - BDD step definitions
+
+### File Organization
+```
+project/
+├── gift/              # Main app
+├── crest_generator/   # Optional feature (disabled by default)
+├── tests/              # All tests
+│   ├── api/           # API tests
+│   ├── ui/            # UI tests
+│   ├── features/      # BDD features
+│   └── steps/         # BDD steps
+└── Makefile           # Development commands
+```
+
+## Development Workflow
+
+### Before Adding Features
+1. Write BDD feature file in `tests/features/` (this IS the documentation)
+2. Write step definitions in `tests/steps/` if needed
+3. Write API/unit tests in `tests/api/`
+4. Implement minimal code to make tests pass
+5. Refactor and improve
+
+### Documentation Philosophy
+- **DO NOT create separate .md files** for each feature or task
+- Feature files (`.feature`) ARE the living documentation
+- Run `pytest tests/features/` to see all scenarios
+- If you need docs, update the feature files
+- Keep .md files minimal (README, FEATURES, FEATURE_FLAGS only)
+
+### Common Tasks
+- `make run` - Start development server
+- `make test` - Run all tests
+- `make check` - Check for issues
+- `make shell` - Django shell
+
+## Important Constraints
+
+### Database Models
+- WikiUser extends AbstractUser (custom user model)
+- Items use soft deletion (`is_deleted` flag)
+- WishLists have owner and dependent (steward) fields (controlled by STEWARD_PROXY_ENABLED flag)
+
+### Feature Flags
+- Always check feature flags before showing UI elements
+- Use `giftwiki.feature_flags` module for flag checks
+- Flags available in templates via `feature_flags` context
+
+### Security
+- Always check ownership in views (users can only edit their own items)
+- Use `@login_required` decorator on protected views
+- Don't trust user input - use Django forms for validation
+
+### URL Patterns
+- Always use `gift:` namespace for gift app URLs
+- Use reverse() for URL generation in tests
+- Check redirects use proper kwargs
+
+## Current State
+
+### Working Features ✅
+- User registration and authentication
+- Wishlist CRUD operations
+- Item CRUD operations
+- Purchase tracking
+- Basic family organization
+
+### Known Issues ⚠️
+- DEBUG=True in development (expected)
+- Missing comprehensive test coverage
+- Basic UI (needs polish)
+
+### Disabled Features 🚫
+- Crest generator (via feature flag)
+- External user functionality (simplified)
+
+## Best Practices
+
+### When Adding Views
+1. Always add `@login_required` decorator for protected views
+2. Use `get_object_or_404` for lookups
+3. Check ownership before allowing modifications
+4. Use messages framework for user feedback
+5. Redirect to appropriate URL with named parameters
+
+### When Adding Models
+1. Add to admin.py immediately
+2. Create fixtures in tests/conftest.py
+3. Add factory classes using factory-boy
+4. Consider soft deletion if appropriate
+
+### When Fixing Bugs
+1. Write a test that reproduces the bug
+2. Fix the bug
+3. Ensure the test passes
+4. Run full test suite
+
+### Documentation
+- **Feature files are documentation** - don't duplicate in .md files
+- Each `.feature` file describes behavior in Gherkin
+- Run `pytest -v` to see scenarios as documentation
+- Avoid creating markdown files unless necessary
+- Keep project clean and maintainable
+
+## AI Assistant Guidelines
+
+### DO
+- Follow the existing patterns in gift/views.py
+- Use the Makefile for common tasks
+- Write tests for any new features
+- Keep features simple and explicit
+- Reference .feature files for behavior (not separate .md files)
+- Use pytest-bdd for BDD workflow
+- Write .feature files as living documentation
+
+### DON'T
+- Enable crest_generator without explicit request
+- Add complex Django magic unless necessary
+- Skip tests for new features
+- Change core workflow without careful consideration
+- Over-engineer solutions
+- Create extra markdown documentation files (use feature files instead)
+- Duplicate information that belongs in feature files
+
+## Test Commands
+```bash
+make test                    # Run all tests
+pytest tests/api/           # Run API tests only
+pytest tests/features/      # Run BDD tests (feature files)
+pytest -m unit              # Run unit tests
+pytest --cov                # With coverage
+pytest -v                   # Verbose - shows scenario names
+```
+
+## Documentation Philosophy
+
+**pytest-bdd = Ginkgo for Python**
+
+Feature files ARE the documentation:
+- Write behavior in Gherkin syntax (`.feature` files)
+- Run `pytest -v` to see scenarios as docs
+- No need for separate markdown files
+- Living documentation that can't go stale
+
+Existing markdown files:
+- `README.md` - Setup and quick start
+- `FEATURES.md` - How to use BDD in this project
+- `FEATURE_FLAGS.md` - Feature flag system
+- `MINIMAL_STATE.md` - Current project state
+- `PROJECT_REVIEW.md` - Initial project review
+
+## Key Files to Know
+- `gift/views.py` - All view logic
+- `gift/models.py` - Database models
+- `giftwiki/settings.py` - Configuration (check feature flags)
+- `Makefile` - Development commands
+- `tests/api/test_views.py` - API tests
+- `tests/features/*.feature` - BDD feature definitions
+
+## Getting Started
+1. Read MINIMAL_STATE.md for current status
+2. Run `make setup` to install dependencies
+3. Run `make run` to start development server
+4. Check `README.md` for setup details
+

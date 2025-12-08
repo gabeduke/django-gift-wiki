@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-migrate
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: dukeman/gift-wiki:latest
+          imagePullPolicy: Always
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              python manage.py migrate --noinput
+              python manage.py collectstatic --noinput || echo "collectstatic failed, continuing..."
+              python manage.py createsuperusers
+              # Import scraped wiki data if available and not already imported
+              if [ -f /app/scraped_wiki_data.json ]; then
+                python manage.py import_scraped_wiki /app/scraped_wiki_data.json || echo "Warning: import_scraped_wiki failed, continuing..."
+              else
+                echo "Warning: scraped_wiki_data.json not found, skipping import"
+              fi
+          env:
+            - name: DATABASE_PATH
+              value: /app/db/db.sqlite3
+          envFrom:
+            - secretRef:
+                name: django-app-secrets
+            - configMapRef:
+                name: django-app-config
+          volumeMounts:
+            - name: sqlite-storage
+              mountPath: /app/db
+      volumes:
+        - name: sqlite-storage
+          persistentVolumeClaim:
+            claimName: django-app-db
+

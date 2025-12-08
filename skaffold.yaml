@@ -10,4 +10,15 @@ build:
 manifests:
   kustomize:
     paths:
-      - deploy
+      - deploy/dev
+profiles:
+  - name: dev
+    manifests:
+      kustomize:
+        paths:
+          - deploy/dev
+  - name: prod
+    manifests:
+      kustomize:
+        paths:
+          - deploy/prod
