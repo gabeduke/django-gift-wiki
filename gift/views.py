@@ -606,7 +606,19 @@ def wishlist_edit(request, wishlist_id):
                     category = form.cleaned_data.get('category')
                     new_category_name = form.cleaned_data.get('new_category_name')
                     instance.categories.clear()
-                    if new_category_name and wishlist.family_name:
+                    
+                    # Handle "Create new..." option
+                    if category == '__CREATE_NEW__':
+                        if new_category_name and wishlist.family_name:
+                            from .models import Category
+                            category_obj, created = Category.objects.get_or_create(
+                                name=new_category_name,
+                                family=wishlist.family_name,
+                                defaults={'description': f'Category for {new_category_name}'}
+                            )
+                            instance.categories.add(category_obj)
+                    elif new_category_name and wishlist.family_name:
+                        # If new category name provided, create it (takes precedence over selected category)
                         from .models import Category
                         category_obj, created = Category.objects.get_or_create(
                             name=new_category_name,
@@ -614,11 +626,17 @@ def wishlist_edit(request, wishlist_id):
                             defaults={'description': f'Category for {new_category_name}'}
                         )
                         instance.categories.add(category_obj)
-                    elif category:
+                    elif category and category != '__CREATE_NEW__':
+                        # Use the selected existing category
                         instance.categories.add(category)
             
             messages.success(request, 'Wishlist and items updated successfully.')
-            return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+            
+            # Check if "Save & Continue Editing" was clicked
+            if 'save_and_continue' in request.POST:
+                return redirect('gift:edit_wishlist', wishlist_id=wishlist.id)
+            else:
+                return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
         else:
             # Show errors if forms are invalid
             if not wishlist_form_valid:
