@@ -99,6 +99,29 @@ class ItemForm(forms.ModelForm):
                 if category.id in self.fields['category'].queryset.values_list('id', flat=True):
                     self.fields['category'].initial = category.id
 
+    def full_clean(self):
+        """Override to handle '__CREATE_NEW__' before ModelChoiceField validation fails."""
+        super().full_clean()
+        
+        # Check if category field has a validation error and if the raw value is '__CREATE_NEW__'
+        if 'category' in self.errors:
+            field_name = self.add_prefix('category')
+            raw_value = self.data.get(field_name) if hasattr(self, 'data') and self.data else None
+            
+            if raw_value == '__CREATE_NEW__':
+                # Remove the validation error and set the cleaned value
+                del self.errors['category']
+                self.cleaned_data['category'] = '__CREATE_NEW__'
+
+    def clean_category(self):
+        """Allow '__CREATE_NEW__' as a valid choice."""
+        category = self.cleaned_data.get('category')
+        # If it's already '__CREATE_NEW__' (set in full_clean), return it
+        if category == '__CREATE_NEW__':
+            return '__CREATE_NEW__'
+        # Otherwise return the normal category value
+        return category
+
     def save(self, commit=True, *args, **kwargs):
         current_user = kwargs.pop('current_user', None)
         wishlist = kwargs.pop('wishlist', None)

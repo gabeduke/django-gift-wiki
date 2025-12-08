@@ -104,8 +104,8 @@ docker-build-local: test
 
 # Deploy to Kubernetes
 dev:
-	skaffold run --profile dev
+	skaffold run --profile dev --namespace wikileet-dev
 
 # Clean Kubernetes deployment
 prod:
-	skaffold run --profile prod
+	skaffold run --profile prod --namespace wikileet

@@ -216,8 +216,11 @@
                 {% endif %}
                 
                 <div class="mt-3">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" name="save" class="btn btn-primary">
                         <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <button type="submit" name="save_and_continue" class="btn btn-outline-primary">
+                        <i class="fas fa-save"></i> Save & Continue Editing
                     </button>
                     <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-secondary">Cancel</a>
                 </div>
