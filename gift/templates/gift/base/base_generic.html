@@ -81,34 +81,61 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 
-<!-- Theme Toggle -->
+<!-- Theme Toggle and Color Palette -->
 <script>
 (function() {
     const themeToggle = document.getElementById('themeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const html = document.documentElement;
     
-    // Check for saved theme preference or default to light mode
-    const currentTheme = localStorage.getItem('theme') || 'light';
-    if (currentTheme === 'dark') {
-        html.setAttribute('data-theme', 'dark');
-        themeIcon.classList.remove('fa-moon');
-        themeIcon.classList.add('fa-sun');
-    }
-    
-    themeToggle.addEventListener('click', function() {
-        const currentTheme = html.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        
-        html.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-        
-        if (newTheme === 'dark') {
+    // Function to apply theme
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            html.setAttribute('data-theme', 'dark');
             themeIcon.classList.remove('fa-moon');
             themeIcon.classList.add('fa-sun');
         } else {
+            html.removeAttribute('data-theme');
             themeIcon.classList.remove('fa-sun');
             themeIcon.classList.add('fa-moon');
+        }
+        localStorage.setItem('theme', theme);
+    }
+    
+    // Function to apply color palette
+    function applyPalette(palette) {
+        if (palette && palette !== 'default') {
+            html.setAttribute('data-palette', palette);
+        } else {
+            html.removeAttribute('data-palette');
+        }
+        localStorage.setItem('color_palette', palette || 'default');
+    }
+    
+    // Get user's color palette from the page (set in template context)
+    const userPalette = '{{ request.user.color_palette|default:"default" }}';
+    
+    // Check for saved theme preference or default to light mode
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    applyTheme(savedTheme);
+    
+    // Apply user's color palette (from database, or fallback to localStorage)
+    const savedPalette = localStorage.getItem('color_palette');
+    const paletteToUse = userPalette && userPalette !== 'default' ? userPalette : (savedPalette || 'default');
+    applyPalette(paletteToUse);
+    
+    // Toggle theme on button click
+    themeToggle.addEventListener('click', function() {
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(newTheme);
+    });
+    
+    // Listen for palette changes (when user updates it on profile page)
+    // This will be triggered after form submission
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'color_palette') {
+            applyPalette(e.newValue || 'default');
         }
     });
 })();

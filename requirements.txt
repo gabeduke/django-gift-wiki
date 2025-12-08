@@ -33,3 +33,4 @@ typing_extensions==4.12.2
 urllib3==2.2.2
 requests==2.31.0
 beautifulsoup4==4.12.3
+whitenoise==6.7.0

@@ -186,6 +186,20 @@ class ProfilePictureForm(forms.ModelForm):
         fields = ['profile_picture']
 
 
+class ColorPaletteForm(forms.ModelForm):
+    """Form for selecting color palette theme."""
+    color_palette = forms.ChoiceField(
+        choices=User.COLOR_PALETTE_CHOICES,
+        label='Color Palette',
+        help_text='Choose your preferred color theme',
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    class Meta:
+        model = User
+        fields = ['color_palette']
+
+
 class WishListForm(forms.ModelForm):
     new_family_name = forms.CharField(
         max_length=255,
