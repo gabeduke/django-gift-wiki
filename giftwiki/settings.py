@@ -114,6 +114,8 @@ if DEBUG:
 
 MIDDLEWARE = [
     'gift.middleware.healthcheck.HealthCheckMiddleware',
+    'gift.middleware.metrics.MetricsMiddleware',  # Handle /metrics endpoint early, before security checks
+    'gift.middleware.prometheus.PrometheusMiddleware',  # Prometheus metrics - early in chain to track all requests
     "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files in production

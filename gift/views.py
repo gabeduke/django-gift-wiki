@@ -8,12 +8,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy
 from django.views import generic
 from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
+from django.views.decorators.cache import never_cache
 
 from .forms import ItemForm, ItemFormSet, WishListForm, CustomUserCreationForm, CategoryForm, ScrapedPageSelectionForm
 from .models import WishList, Item, Category, ScrapedWikiPage, ScrapedWikiItem
@@ -21,6 +22,21 @@ from .models import WishList, Item, Category, ScrapedWikiPage, ScrapedWikiItem
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+
+@csrf_exempt
+@never_cache
+def metrics_view(request):
+    """
+    Expose Prometheus metrics endpoint.
+    Only accessible from within the cluster (no external access needed).
+    Exempt from CSRF protection since Prometheus doesn't send CSRF tokens.
+    """
+    try:
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        return HttpResponse("Prometheus client not installed", status=503)
 
 
 class SignUpView(generic.CreateView):

@@ -18,11 +18,13 @@ from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
+from gift import views as gift_views
 
 urlpatterns = [
     path('', include('gift.urls')),  # Include the gift app's URLs at the root
     path("admin/", admin.site.urls),
     path("__debug__/", include("debug_toolbar.urls")),
+    path("metrics/", gift_views.metrics_view, name='metrics'),  # Prometheus metrics endpoint
 ]
 
 # Serve static files in development
