@@ -91,19 +91,24 @@ class TraefikAuthMiddleware:
         
         if forwarded_user:
             try:
-                # Get or create user
-                try:
-                    user = User.objects.get(username=forwarded_user)
-                    # Update email if provided and different
-                    if forwarded_email and user.email != forwarded_email:
-                        user.email = forwarded_email
-                        user.save(update_fields=['email'])
-                except User.DoesNotExist:
-                    # Create new user from Traefik auth
-                    user = User.objects.create_user(
-                        username=forwarded_user,
-                        email=forwarded_email or f'{forwarded_user}@leetserve.com',
-                    )
+                # Check if user is already authenticated in session to avoid redundant DB queries
+                if hasattr(request, 'user') and request.user.is_authenticated and request.user.username == forwarded_user:
+                    # User already authenticated, skip DB query
+                    return self.get_response(request)
+                
+                # Get or create user - use get_or_create to avoid race conditions
+                user, created = User.objects.get_or_create(
+                    username=forwarded_user,
+                    defaults={
+                        'email': forwarded_email or f'{forwarded_user}@leetserve.com',
+                    }
+                )
+                
+                # Update email if provided and different (only if user already existed)
+                if not created and forwarded_email and user.email != forwarded_email:
+                    user.email = forwarded_email
+                    user.save(update_fields=['email'])
+                elif created:
                     logger.info(f"Created new user from Traefik auth: {forwarded_user}")
                 
                 # Authenticate the user for this request using the backend
@@ -113,7 +118,8 @@ class TraefikAuthMiddleware:
                     # Login the user (creates session)
                     # This will set request.user for subsequent middleware
                     login(request, authenticated_user, backend='gift.middleware.traefik_auth.TraefikAuthBackend')
-                    logger.info(f"Successfully authenticated user via Traefik: {forwarded_user} (email: {forwarded_email})")
+                    if not created:  # Only log if not a new user to reduce log noise
+                        logger.debug(f"Authenticated user via Traefik: {forwarded_user}")
                 else:
                     logger.warning(f"Backend authentication returned None for user: {forwarded_user}")
             except Exception as e:
