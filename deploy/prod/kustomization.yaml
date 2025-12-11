@@ -10,7 +10,7 @@ resources:
 
 configMapGenerator:
   - name: django-app-config
-    behavior: replace
+    behavior: create
     envs:
     - config.env
 
