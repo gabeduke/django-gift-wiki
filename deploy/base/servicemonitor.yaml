@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: wikileet
+  labels:
+    app: wikileet
+    # Add any labels your Prometheus serviceMonitorSelector requires
+    # Common labels: release: prometheus, app: prometheus, etc.
+    release: prom-stack
+spec:
+  selector:
+    matchLabels:
+      app: wikileet
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - wikileet
+      - wikileet-dev
+

@@ -2,6 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: wikileet-dev
 
+commonLabels:
+  app: wikileet
+  environment: dev
+
 resources:
   - ../base
 
@@ -14,12 +18,18 @@ configMapGenerator:
     envs:
     - config.env
 
+# Image tag will be updated by GitHub Actions with commit SHA
+# Format: dukeman/gift-wiki:<short-sha>
+images:
+  - name: dukeman/gift-wiki
+    newTag: latest  # This will be replaced by GitHub Actions with commit SHA
+
 patches:
   - target:
       group: networking.k8s.io
       version: v1
       kind: Ingress
-      name: django-app-ingress
+      name: wikileet
     patch: |-
       - op: replace
         path: /spec/rules/0/host
@@ -30,3 +40,6 @@ patches:
           - hosts:
               - "giftwiki-dev.leetserve.com"
             secretName: gift-wiki-tls
+      - op: replace
+        path: /spec/rules/0/http/paths/0/backend/service/name
+        value: "wikileet"

@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: django-app-ingress
+  name: wikileet
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-aws-prod
     ingress.kubernetes.io/ssl-redirect: "true"
@@ -16,7 +16,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: django-app-service
+                name: wikileet
                 port:
                   number: 80
   tls:

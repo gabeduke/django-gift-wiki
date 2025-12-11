@@ -62,8 +62,8 @@ class TraefikAuthMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Skip authentication for health check endpoint
-        if request.path == '/health/':
+        # Skip authentication for health check and metrics endpoints
+        if request.path in ['/health/', '/metrics', '/metrics/']:
             return self.get_response(request)
         
         # Get user info from Traefik headers

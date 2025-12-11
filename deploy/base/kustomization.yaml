@@ -1,16 +1,20 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 commonLabels:
-  app: gift-wiki
+  app: wikileet
 
 resources:
     - statefulset.yaml
     - pvc.yaml
-    # migration-job.yaml removed - migrations now run as init container
-    # deployment.yaml removed - using StatefulSet for better RWO volume handling
-    # storageclass.yaml removed - managed in homelab/clusters/iot/namespace-longhorn-system
     - service.yaml
     - ingress.yaml
+    # ServiceMonitor for Prometheus Operator
+    # Make sure the labels match what your Prometheus serviceMonitorSelector expects
+    - servicemonitor.yaml
+    # Grafana dashboard ConfigMap
+    # Deploy this in your app namespace - Grafana can discover it cross-namespace
+    # if configured with proper RBAC and namespace watching
+    - grafana-dashboard.yaml
 
 # Secrets are managed separately in homelab repo and applied via 'make secrets'
 # They are created as 'django-app-secrets' in the target namespace
