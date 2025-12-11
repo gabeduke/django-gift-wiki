@@ -35,3 +35,5 @@ class Command(BaseCommand):
             for u in User.objects.all()[:10]:
                 self.stdout.write(f'  - {u.username} ({u.email})')
 
+
+

@@ -31,7 +31,8 @@ MEDIA_URL = '/media/'
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-k3as*djui($*yovvfforvv#8*ayh1!feuv)*i3$)_ka5k50lm-")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
+# Configure logging - only write to file in debug mode to reduce I/O overhead in production
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -45,12 +46,6 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
         },
-        'file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': 'debug.log',
-            'formatter': 'verbose',
-        },
     },
     'loggers': {
         'django': {
@@ -58,17 +53,28 @@ LOGGING = {
             'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
         },
         'boto3': {
-            'handlers': ['file'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG'),
+            'handlers': ['console'],
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'WARNING' if not DEBUG else 'DEBUG'),
             'propagate': True,
         },
         'botocore': {
-            'handlers': ['file'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG'),
+            'handlers': ['console'],
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'WARNING' if not DEBUG else 'DEBUG'),
             'propagate': True,
         },
     },
 }
+
+# Only add file handler in debug mode
+if DEBUG:
+    LOGGING['handlers']['file'] = {
+        'level': 'DEBUG',
+        'class': 'logging.FileHandler',
+        'filename': 'debug.log',
+        'formatter': 'verbose',
+    }
+    LOGGING['loggers']['boto3']['handlers'].append('file')
+    LOGGING['loggers']['botocore']['handlers'].append('file')
 
 
 # Application definition
@@ -100,13 +106,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'widget_tweaks',
     "gift.apps.GiftConfig",
-    "debug_toolbar",
 ]
+
+# Only enable debug toolbar in development
+if DEBUG:
+    INSTALLED_APPS.append("debug_toolbar")
 
 MIDDLEWARE = [
     'gift.middleware.healthcheck.HealthCheckMiddleware',
     "corsheaders.middleware.CorsMiddleware",
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files in production
     'django.contrib.sessions.middleware.SessionMiddleware',  # Must run before TraefikAuthMiddleware (needs session)
@@ -117,6 +125,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Only enable debug toolbar middleware in development
+if DEBUG:
+    MIDDLEWARE.insert(2, "debug_toolbar.middleware.DebugToolbarMiddleware")
 
 # Authentication backends - add Traefik auth backend
 AUTHENTICATION_BACKENDS = [

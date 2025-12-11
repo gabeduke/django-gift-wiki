@@ -389,14 +389,14 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
 
 @login_required
 def profile(request):
-    # Get all lists where the user is the owner
-    wishlists = WishList.objects.filter(owner=request.user)
+    # Get all lists where the user is the owner - optimize with select_related
+    wishlists = WishList.objects.filter(owner=request.user).select_related('family_name', 'owner', 'dependent')
     
     # Optionally include wishlists where user is the steward (if feature enabled)
     from giftwiki.feature_flags import get_steward_proxy_enabled
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
     if STEWARD_PROXY_ENABLED:
-        stewarded = WishList.objects.filter(dependent=request.user)
+        stewarded = WishList.objects.filter(dependent=request.user).select_related('family_name', 'owner', 'dependent')
         wishlists = wishlists | stewarded
 
     # Handle profile picture upload (only if feature enabled)
@@ -450,7 +450,8 @@ def profile(request):
 
 
 def home(request):
-    wishlists = WishList.objects.all()
+    # Optimize query with select_related to avoid N+1 queries for family_name
+    wishlists = WishList.objects.select_related('family_name', 'owner').all()
     wishlists_by_family = defaultdict(list)
 
     for wishlist in wishlists:
@@ -472,8 +473,12 @@ def home(request):
 
 @login_required
 def wishlist_detail(request, wishlist_id):
-    wishlist = get_object_or_404(WishList, id=wishlist_id)
-    items = wishlist.items.filter(is_deleted=False).prefetch_related('categories')
+    # Optimize query with select_related for owner and prefetch_related for items and categories
+    wishlist = get_object_or_404(
+        WishList.objects.select_related('owner', 'family_name', 'dependent'),
+        id=wishlist_id
+    )
+    items = wishlist.items.filter(is_deleted=False).select_related('purchased_by', 'updated_by').prefetch_related('categories')
 
     # Group items by category
     items_by_category = defaultdict(list)
