@@ -84,3 +84,4 @@ def process_profile_picture(image_field):
     
     return thumbnail, web_size
 
+

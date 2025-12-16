@@ -77,6 +77,13 @@ def item_add_ajax(request, wishlist_id):
 @login_required
 def item_add(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
+    
+    # Business Rule: Only owner or managers can add items
+    is_owner = request.user == wishlist.owner
+    is_manager = request.user in wishlist.managers.all()
+    if not (is_owner or is_manager):
+        messages.error(request, 'You can only add items to wishlists you own or manage.')
+        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
     if request.method == 'POST':
         form = ItemForm(request.POST, wishlist=wishlist)
@@ -133,9 +140,11 @@ def item_edit(request, item_id):
 def item_delete(request, item_id):
     item = get_object_or_404(Item, id=item_id)
     
-    # Business Rule: Only owner can delete items
-    if request.user != item.wishlist.owner:
-        messages.error(request, 'You can only delete items in your own wishlists.')
+    # Business Rule: Only owner or managers can delete items
+    is_owner = request.user == item.wishlist.owner
+    is_manager = request.user in item.wishlist.managers.all()
+    if not (is_owner or is_manager):
+        messages.error(request, 'You can only delete items in wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=item.wishlist.id)
 
     wishlist_id = item.wishlist.id

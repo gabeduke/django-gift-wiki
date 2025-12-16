@@ -554,6 +554,47 @@ header h1 {
     .card-body {
         padding: var(--spacing-md);
     }
+    
+    /* Make buttons smaller on mobile - scoped to specific areas */
+    /* Only apply to wishlist detail page buttons, not edit forms */
+    #ownerActions .btn,
+    .list-group-item .btn {
+        padding: 0.5rem 0.875rem;
+        font-size: 0.8125rem;
+    }
+    
+    #ownerActions .btn-sm,
+    .list-group-item .btn-sm {
+        padding: 0.375rem 0.625rem;
+        font-size: 0.75rem;
+    }
+    
+    /* Preserve edit page button sizes */
+    .wishlist-edit-page .btn {
+        padding: 0.625rem 1.25rem !important;
+        font-size: 0.875rem !important;
+    }
+    
+    .wishlist-edit-page .btn-sm {
+        padding: 0.375rem 0.75rem !important;
+        font-size: 0.8125rem !important;
+    }
+    
+    /* Ensure buttons wrap properly on mobile */
+    .d-flex.flex-wrap > * {
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Stack list items vertically on mobile */
+    .list-group-item {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+    
+    /* Ensure button groups wrap */
+    #ownerActions {
+        flex-wrap: wrap;
+    }
 }
 
 /* ============================================
