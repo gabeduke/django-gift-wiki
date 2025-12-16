@@ -1,0 +1,75 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-sqlite-to-postgres
+  annotations:
+    # This job runs migrations and migrates data from SQLite to Neon
+    # It's idempotent - safe to run multiple times
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        # Wait for Neon PostgreSQL to be ready
+        - name: wait-for-neon
+          image: postgres:16-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Support both old and new secret key names
+              if [ -z "$DJANGO_DB_PASSWORD" ] && [ -n "$DJANGO_DB_PASS" ]; then
+                export PGPASSWORD="$DJANGO_DB_PASS"
+              else
+                export PGPASSWORD="${DJANGO_DB_PASSWORD:-$DJANGO_DB_PASS}"
+              fi
+              # Use DJANGO_DB_USER from secret, default to neondb_owner if not set
+              DB_USER="${DJANGO_DB_USER:-neondb_owner}"
+              until pg_isready -h "$DJANGO_DB_HOST" -p "$DJANGO_DB_PORT" -U "$DB_USER"; do
+                echo "Waiting for Neon PostgreSQL..."
+                sleep 2
+              done
+              echo "Neon PostgreSQL is ready!"
+          envFrom:
+            - configMapRef:
+                name: django-app-config-2ggm79t7m7  # Use the actual ConfigMap name with hash (matches deployment)
+            - secretRef:
+                name: django-app-secrets
+      containers:
+        - name: migrate
+          image: dukeman/gift-wiki:latest
+          imagePullPolicy: Always
+          workingDir: /app
+          # Use entrypoint script approach - it sets up the environment correctly
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              cd /app
+              # Ensure Python is in PATH and use python3 explicitly
+              export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+              # Verify Django is available
+              python3 -c "import django; print(f'Django {django.get_version()} found')" || echo "Warning: Django not found in python3, trying python..."
+              python3 manage.py migrate --noinput
+              
+              # Migrate data from SQLite to PostgreSQL (idempotent - skips existing)
+              if [ -f /app/db/db.sqlite3 ]; then
+                echo "Found SQLite database, migrating data to Neon..."
+                python3 manage.py migrate_sqlite_to_postgres --sqlite-path=/app/db/db.sqlite3 --skip-existing
+                echo "Migration completed successfully!"
+              else
+                echo "No SQLite database found - starting fresh with Neon"
+              fi
+          envFrom:
+            - configMapRef:
+                name: django-app-config-2ggm79t7m7  # Use the actual ConfigMap name with hash (matches deployment)
+            - secretRef:
+                name: django-app-secrets
+          volumeMounts:
+            # Mount the SQLite PVC to access the old database
+            - name: sqlite-storage
+              mountPath: /app/db
+              readOnly: true
+      volumes:
+        - name: sqlite-storage
+          persistentVolumeClaim:
+            claimName: wikileet-db  # Your existing SQLite PVC
+
