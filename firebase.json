@@ -1,0 +1,98 @@
+{
+  "hosting": [
+    {
+      "target": "dev",
+      "public": "firebase-public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "/auth.html",
+          "destination": "/auth.html"
+        },
+        {
+          "source": "/sessionLogin",
+          "function": "sessionLogin"
+        },
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "giftwiki-dev",
+            "region": "us-east1"
+          }
+        }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-XSS-Protection",
+              "value": "1; mode=block"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "prod",
+      "public": "firebase-public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "/auth.html",
+          "destination": "/auth.html"
+        },
+        {
+          "source": "/sessionLogin",
+          "function": "sessionLogin"
+        },
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "giftwiki-prod",
+            "region": "us-east1"
+          }
+        }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-XSS-Protection",
+              "value": "1; mode=block"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "source": "firebase-functions",
+    "runtime": "nodejs20"
+  }
+}

@@ -35,3 +35,4 @@ requests==2.31.0
 beautifulsoup4==4.12.3
 whitenoise==6.7.0
 prometheus-client==0.20.0
+firebase-admin==6.5.0

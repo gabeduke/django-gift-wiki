@@ -1,0 +1,19 @@
+{
+  "name": "gift-wiki-firebase-functions",
+  "version": "1.0.0",
+  "description": "Firebase Functions proxy for Cloud Run",
+  "main": "index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}
+

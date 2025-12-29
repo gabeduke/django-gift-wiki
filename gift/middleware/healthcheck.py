@@ -4,6 +4,7 @@ import logging
 
 # Get the logger for database queries
 db_logger = logging.getLogger('django.db.backends')
+logger = logging.getLogger(__name__)
 
 class HealthCheckMiddleware:
     def __init__(self, get_response):
@@ -25,6 +26,8 @@ class HealthCheckMiddleware:
                 
                 return HttpResponse('ok')
             except Exception as e:
+                # Log the actual error for debugging (but don't expose details in response)
+                logger.error(f"Health check failed: {type(e).__name__}: {str(e)}", exc_info=True)
                 # If any exception occurred while checking the database, return a server error
                 return HttpResponseServerError('Database check failed')
             finally:

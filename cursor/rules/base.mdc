@@ -196,3 +196,6 @@ Existing markdown files:
 3. Run `make run` to start development server
 4. Check `README.md` for setup details
 
+## State
+
+Store state files and local documentation in the `local-docs/` directory.

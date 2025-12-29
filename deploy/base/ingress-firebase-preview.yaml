@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wikileet-firebase-preview
+  annotations:
+    # ExternalDNS: Create CNAME record pointing to Firebase Hosting
+    # This tells ExternalDNS to create a CNAME instead of an A record
+    external-dns.alpha.kubernetes.io/target: giftwiki-prod.web.app
+    external-dns.alpha.kubernetes.io/ttl: "300"
+spec:
+  # Ingress class doesn't matter since we're only using this for DNS management
+  # Traffic goes directly to Firebase Hosting via CNAME
+  ingressClassName: traefik
+  rules:
+    - host: giftwiki-preview.leetserve.com
+      http:
+        paths:
+          # Backend doesn't matter - ExternalDNS uses the target annotation
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: firebase-hosting-preview
+                port:
+                  number: 80
+
+---
+# ExternalName service pointing to Firebase Hosting
+# Required for Ingress spec, but traffic goes directly to Firebase via CNAME
+apiVersion: v1
+kind: Service
+metadata:
+  name: firebase-hosting-preview
+spec:
+  type: ExternalName
+  externalName: giftwiki-prod.web.app
+  ports:
+    - port: 80
+      protocol: TCP
+      name: http
+

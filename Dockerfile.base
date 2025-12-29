@@ -1,0 +1,24 @@
+# Base image with system dependencies pre-installed
+# This image should be rebuilt only when system dependencies change
+# Build with: docker build -f Dockerfile.base -t gcr.io/PROJECT_ID/giftwiki-base:latest .
+FROM python:3.10-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+# These rarely change, so this layer will be cached for most builds
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Upgrade pip (this layer is cached unless pip version changes)
+RUN pip install --upgrade pip
+

@@ -1,0 +1,13 @@
+# Temporary annotation patch to tell ExternalDNS to ignore the old ingress
+# Apply this before deleting the old ingress to prevent DNS conflicts
+# Usage: kubectl annotate ingress wikileet -n wikileet external-dns.alpha.kubernetes.io/ignore=true
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wikileet
+  namespace: wikileet
+  annotations:
+    # Tell ExternalDNS to ignore this ingress (stops managing its DNS records)
+    external-dns.alpha.kubernetes.io/ignore: "true"
+

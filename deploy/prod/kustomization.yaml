@@ -25,21 +25,48 @@ images:
     newTag: latest  # This will be replaced by GitHub Actions with commit SHA
 
 patches:
+  # Main production ingress (giftwiki.leetserve.com) - points to Firebase Hosting
   - target:
       group: networking.k8s.io
       version: v1
       kind: Ingress
-      name: wikileet
+      name: wikileet-firebase
     patch: |-
       - op: replace
         path: /spec/rules/0/host
         value: "giftwiki.leetserve.com"
-      - op: add
-        path: /spec/tls
-        value:
-          - hosts:
-              - "giftwiki.leetserve.com"
-            secretName: gift-wiki-tls
       - op: replace
-        path: /spec/rules/0/http/paths/0/backend/service/name
-        value: "wikileet"
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1target
+        value: "giftwiki-prod.web.app"
+  - target:
+      group: ""
+      version: v1
+      kind: Service
+      name: firebase-hosting
+    patch: |-
+      - op: replace
+        path: /spec/externalName
+        value: "giftwiki-prod.web.app"
+  # Preview ingress (giftwiki-preview.leetserve.com) - for testing before switching
+  # Points to the same Firebase site but allows testing on separate domain
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: wikileet-firebase-preview
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: "giftwiki-preview.leetserve.com"
+      - op: replace
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1target
+        value: "giftwiki-prod.web.app"
+  - target:
+      group: ""
+      version: v1
+      kind: Service
+      name: firebase-hosting-preview
+    patch: |-
+      - op: replace
+        path: /spec/externalName
+        value: "giftwiki-prod.web.app"

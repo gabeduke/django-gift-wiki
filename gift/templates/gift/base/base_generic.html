@@ -45,8 +45,9 @@
                     {% endwith %}
                     <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'gift:account' %}">Profile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:logout' %}">Logout</a></li>
                 {% else %}
-                    <li class="nav-item"><a class="nav-link" href="/accounts/login/">Login</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/auth.html">Login</a></li>
                 {% endif %}
                 <li class="nav-item">
                     <button class="btn btn-sm btn-outline-secondary ml-2" id="themeToggle" title="Toggle dark mode">

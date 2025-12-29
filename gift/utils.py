@@ -83,5 +83,3 @@ def process_profile_picture(image_field):
     web_size = resize_image(image_field, max_width=400, max_height=400, quality=85)
     
     return thumbnail, web_size
-
-

@@ -65,6 +65,31 @@ LOGGING = {
     },
 }
 
+# Configure Cloud Logging in Production/Dev environment
+if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
+    try:
+        from google.cloud import logging as google_logging
+        from google.cloud.logging.handlers import CloudLoggingHandler
+        
+        client = google_logging.Client()
+        cloud_handler = CloudLoggingHandler(client)
+        
+        # Add cloud handler to root logger or specific loggers
+        LOGGING['handlers']['cloud'] = {
+            'class': 'google.cloud.logging.handlers.CloudLoggingHandler',
+            'client': client,
+        }
+        
+        # Update loggers to use cloud handler
+        LOGGING['loggers']['django']['handlers'] = ['cloud']
+        LOGGING['loggers']['gift'] = {  # App specific logger
+            'handlers': ['cloud'],
+            'level': 'INFO',
+            'propagate': True,
+        }
+    except Exception as e:
+        print(f"Failed to setup Cloud Logging: {e}")
+
 # Only add file handler in debug mode
 if DEBUG:
     LOGGING['handlers']['file'] = {
@@ -87,6 +112,8 @@ CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_ALLOWED_ORIGINS', 'http://localhost').s
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
+# Redirect to Firebase auth page instead of Django login form
+LOGIN_URL = '/auth.html'
 
 # Feature Flags - Import from feature_flags module
 try:
@@ -119,11 +146,11 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files in production
-    'django.contrib.sessions.middleware.SessionMiddleware',  # Must run before TraefikAuthMiddleware (needs session)
-    'gift.middleware.traefik_auth.TraefikAuthMiddleware',  # Traefik forward auth - runs after SessionMiddleware, before AuthenticationMiddleware
+    'django.contrib.sessions.middleware.SessionMiddleware',  # Must run before AuthenticationMiddleware
     'django.middleware.common.CommonMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'gift.middleware.firebase_auth.FirebaseAuthMiddleware',  # Firebase auth - runs after AuthenticationMiddleware to fix session stripping issue
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -132,9 +159,9 @@ MIDDLEWARE = [
 if DEBUG:
     MIDDLEWARE.insert(2, "debug_toolbar.middleware.DebugToolbarMiddleware")
 
-# Authentication backends - add Traefik auth backend
+# Authentication backends - add Firebase auth backend
 AUTHENTICATION_BACKENDS = [
-    'gift.middleware.traefik_auth.TraefikAuthBackend',  # Traefik forward auth
+    'gift.middleware.firebase_auth.FirebaseAuthBackend',  # Firebase auth
     'django.contrib.auth.backends.ModelBackend',  # Default Django auth (for admin, etc.)
 ]
 TEMPLATES = [
@@ -157,26 +184,31 @@ TEMPLATES = [
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-DATABASES = {
-    'default': {
-        # 'ENGINE': 'django.db.backends.postgresql',
-        # 'NAME': os.getenv('DJANGO_DB_NAME', 'giftwiki'),
-        # 'USER': 'postgres',
-        # 'PASSWORD': os.getenv('DJANGO_DB_PASS', 'default'),
-        # # 'HOST': 'giftwiki.coetmusgho2c.us-east-1.rds.amazonaws.com',  # Set to empty string for localhost.
-        # 'HOST': '192.168.1.103',
-        # 'PORT': '5432',           # Set to empty string for default.
-        # 'AUTO_CREATE': True,
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'db.sqlite3')),  # Use the environment variable
+# Use PostgreSQL (Neon) if DJANGO_DB_HOST is set, otherwise fall back to SQLite
+if os.getenv('DJANGO_DB_HOST'):
+    # PostgreSQL/Neon configuration
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DJANGO_DB_NAME', 'neondb'),
+            'USER': os.getenv('DJANGO_DB_USER', 'neondb_owner'),
+            'PASSWORD': os.getenv('DJANGO_DB_PASSWORD') or os.getenv('DJANGO_DB_PASS', ''),
+            'HOST': os.getenv('DJANGO_DB_HOST'),
+            'PORT': os.getenv('DJANGO_DB_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',
+            },
+            'CONN_MAX_AGE': int(os.getenv('DJANGO_DB_CONN_MAX_AGE', '0')),  # 0 for serverless/Cloud Run to avoid closed connection errors
+        }
     }
-}
+else:
+    # SQLite configuration (fallback for local development)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'db.sqlite3')),
+        }
+    }
 
 
 # Password validation

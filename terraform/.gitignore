@@ -1,0 +1,16 @@
+# Terraform files
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+# Keep environment-specific tfvars files (they contain secrets but are needed)
+# dev.tfvars and prod.tfvars should be in .gitignore at repo root
+.terraform.tfstate.lock.info
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.env_vars_*.txt
+
