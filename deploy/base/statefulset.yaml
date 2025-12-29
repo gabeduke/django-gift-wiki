@@ -7,7 +7,7 @@ spec:
     matchLabels:
       app: wikileet
   serviceName: "wikileet"
-  replicas: 1
+  replicas: 0  # Scaled to 0 - kept for rollback capability. Deployment uses Neon PostgreSQL.
   template:
     metadata:
       labels:

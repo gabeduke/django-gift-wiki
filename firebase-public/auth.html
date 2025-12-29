@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gift Wiki - Sign In</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 1rem;
+            font-size: 14px;
+        }
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        button:hover {
+            background: #357ae8;
+        }
+        button.facebook {
+            background: #1877f2;
+        }
+        button.facebook:hover {
+            background: #166fe5;
+        }
+        h2 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        p {
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Authenticating...</p>
+        </div>
+        <div id="signin">
+            <h2>Sign in required</h2>
+            <p>Please sign in to access Gift Wiki</p>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <button onclick="signInWithGoogle()">Sign in with Google</button>
+                <button onclick="signInWithFacebook()" class="facebook">Sign in with Facebook</button>
+            </div>
+            <div id="error" class="error"></div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDbA0Ebild_tQu694MxBGJXrG01YYphRHA",
+            authDomain: "wikileet.firebaseapp.com",
+            projectId: "wikileet",
+            storageBucket: "wikileet.firebasestorage.app",
+            messagingSenderId: "179879905839",
+            appId: "1:179879905839:web:eeccfafc3a3fec117994da" 
+        };
+
+        firebase.initializeApp(firebaseConfig);
+
+        // Check if we're on the Firebase auth handler page and redirect back to auth.html
+        if (window.location.hostname.includes('firebaseapp.com') && window.location.pathname.includes('/__/auth/handler')) {
+            console.log('Detected Firebase auth handler, redirecting to auth.html...');
+            const urlParams = new URLSearchParams(window.location.search);
+            const state = urlParams.get('state');
+            // Extract next parameter from state if present, or use current URL
+            window.location.href = '/auth.html' + (window.location.search ? window.location.search : '');
+        }
+
+        // Helper to get cookie
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            return parts.length === 2 ? parts.pop().split(';').shift() : null;
+        }
+
+        // Create session cookie via Firebase Function (recommended pattern)
+        async function createSessionCookie(idToken) {
+            try {
+                console.log('Calling /sessionLogin endpoint...');
+                const response = await fetch('/sessionLogin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ idToken }),
+                    credentials: 'include', // Important: include cookies in request
+                });
+
+                console.log('Response status:', response.status, response.statusText);
+
+                if (!response.ok) {
+                    let error;
+                    try {
+                        error = await response.json();
+                    } catch (e) {
+                        const errorText = await response.text();
+                        error = { error: 'Unknown error', details: errorText };
+                    }
+                    console.error('Failed to create session cookie:', error);
+                    // Show error to user
+                    const errorElement = document.getElementById('error');
+                    if (errorElement) {
+                        errorElement.textContent = error.error || error.details || 'Failed to create session. Please try again.';
+                        errorElement.style.display = 'block';
+                    }
+                    return false;
+                }
+
+                const result = await response.json();
+                console.log('✅ Session cookie created successfully:', result);
+                return true;
+            } catch (error) {
+                console.error('Error creating session cookie:', error);
+                // Show error to user
+                const errorElement = document.getElementById('error');
+                if (errorElement) {
+                    errorElement.textContent = 'Network error. Please check your connection and try again.';
+                    errorElement.style.display = 'block';
+                }
+                return false;
+            }
+        }
+
+        // Sign in with Google
+        function signInWithGoogle() {
+            document.getElementById('error').textContent = '';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('signin').style.display = 'none';
+            
+            console.log('Starting Google sign-in...');
+            const provider = new firebase.auth.GoogleAuthProvider();
+            firebase.auth().signInWithPopup(provider)
+                .then(async (result) => {
+                    console.log('Sign-in popup completed, user:', result.user.email);
+                    // Force refresh token immediately after sign-in to get fresh auth_time
+                    try {
+                        const idToken = await result.user.getIdToken(true); // Force refresh
+                        console.log('Token refreshed after sign-in, length:', idToken.length);
+                        
+                        // Immediately create session cookie (don't wait for onAuthStateChanged)
+                        console.log('Creating session cookie immediately after sign-in...');
+                        const cookieCreated = await createSessionCookie(idToken);
+                        
+                        if (cookieCreated) {
+                            // Get redirect URL
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const next = urlParams.get('next');
+                            const redirectUrl = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
+                            console.log('Session cookie created, redirecting to:', redirectUrl);
+                            setTimeout(() => {
+                                window.location.replace(redirectUrl);
+                            }, 300);
+                        } else {
+                            console.error('Failed to create session cookie after sign-in');
+                            document.getElementById('error').textContent = 'Failed to create session. Please try again.';
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('signin').style.display = 'block';
+                        }
+                    } catch (error) {
+                        console.error('Error after sign-in:', error);
+                        document.getElementById('error').textContent = 'Error completing sign-in: ' + error.message;
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('signin').style.display = 'block';
+                    }
+                })
+                .catch((error) => {
+                    console.error('Sign-in popup error:', error);
+                    document.getElementById('error').textContent = 'Sign in failed: ' + error.message;
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('signin').style.display = 'block';
+                });
+        }
+
+        // Sign in with Facebook
+        function signInWithFacebook() {
+            document.getElementById('error').textContent = '';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('signin').style.display = 'none';
+            
+            console.log('Starting Facebook sign-in...');
+            const provider = new firebase.auth.FacebookAuthProvider();
+            provider.addScope('email');
+            firebase.auth().signInWithPopup(provider)
+                .then(async (result) => {
+                    console.log('Sign-in popup completed, user:', result.user.email);
+                    // Force refresh token immediately after sign-in to get fresh auth_time
+                    try {
+                        const idToken = await result.user.getIdToken(true); // Force refresh
+                        console.log('Token refreshed after sign-in, length:', idToken.length);
+                        
+                        // Immediately create session cookie (don't wait for onAuthStateChanged)
+                        console.log('Creating session cookie immediately after sign-in...');
+                        const cookieCreated = await createSessionCookie(idToken);
+                        
+                        if (cookieCreated) {
+                            // Get redirect URL
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const next = urlParams.get('next');
+                            const redirectUrl = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
+                            console.log('Session cookie created, redirecting to:', redirectUrl);
+                            setTimeout(() => {
+                                window.location.replace(redirectUrl);
+                            }, 300);
+                        } else {
+                            console.error('Failed to create session cookie after sign-in');
+                            document.getElementById('error').textContent = 'Failed to create session. Please try again.';
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('signin').style.display = 'block';
+                        }
+                    } catch (error) {
+                        console.error('Error after sign-in:', error);
+                        document.getElementById('error').textContent = 'Error completing sign-in: ' + error.message;
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('signin').style.display = 'block';
+                    }
+                })
+                .catch((error) => {
+                    console.error('Sign-in popup error:', error);
+                    document.getElementById('error').textContent = 'Sign in failed: ' + error.message;
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('signin').style.display = 'block';
+                });
+        }
+
+        // Check if this is a logout request
+        const urlParams = new URLSearchParams(window.location.search);
+        const isLogout = urlParams.get('logout') === 'true';
+        
+        if (isLogout) {
+            // Sign out from Firebase and clear cookie
+            firebase.auth().signOut().then(() => {
+                document.cookie = '__session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+                console.log('Signed out from Firebase');
+                // Redirect to home page
+                window.location.href = '/';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+                // Still clear cookie and redirect even if signout fails
+                document.cookie = '__session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+                window.location.href = '/';
+            });
+        } else {
+            // Handle authentication flow
+            let redirecting = false; // Flag to prevent multiple redirects
+            
+            firebase.auth().onAuthStateChanged(async (user) => {
+                // Prevent multiple redirects
+                if (redirecting) {
+                    console.log('Already redirecting, skipping...');
+                    return;
+                }
+                
+                if (user) {
+                    // User is signed in
+                    // Only create session cookie if we don't already have one
+                    // The popup handler will create it when user actually signs in
+                    // This prevents trying to create cookie with old tokens on page load
+                    
+                    console.log('User is signed in:', user.email);
+                    
+                    // Check if we're coming from a fresh sign-in by checking URL params
+                    // If not, don't try to create session cookie (might be old token)
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const hasNextParam = urlParams.has('next');
+                    
+                    // Only try to create session cookie if:
+                    // 1. We have a 'next' parameter (user was redirected here)
+                    // 2. OR this is the first time onAuthStateChanged fires after page load
+                    // But skip if token is likely old (user was already signed in)
+                    
+                    // For now, let's just show the UI and let the popup handler create the cookie
+                    // when user actually signs in
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('signin').style.display = 'block';
+                    
+                    // If user is already signed in and has a valid session cookie,
+                    // they should be able to navigate - the server will verify the cookie
+                    // If they don't have a valid cookie, they'll be redirected back here
+                    
+                } else {
+                    // Not signed in - show sign-in UI
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('signin').style.display = 'block';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

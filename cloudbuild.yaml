@@ -1,0 +1,90 @@
+steps:
+  # Build the container image using Dockerfile.cloudrun
+  # Note: Assumes base image (giftwiki-base) is already built and pushed to GCR
+  # Build base image separately using: gcloud builds submit --config=cloudbuild.base.yaml
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.cloudrun'
+      - '--build-arg'
+      - 'PROJECT_ID=$PROJECT_ID'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+      - '.'
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}']
+  
+  # Deploy container image to Cloud Run
+  # 1. Update/Create the migration job with the new image
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run jobs update ${_SERVICE_NAME}-migrate \
+          --image gcr.io/$PROJECT_ID/${_SERVICE_NAME} \
+          --region ${_REGION} \
+          --command "python,manage.py,migrate,--noinput" \
+          --set-env-vars DJANGO_SETTINGS_MODULE=giftwiki.settings,DJANGO_DB_HOST=${_DB_HOST},DJANGO_DB_NAME=${_DB_NAME},DJANGO_DB_PORT=${_DB_PORT},DJANGO_DB_CONN_MAX_AGE=600,USE_S3=TRUE,AWS_S3_REGION_NAME=us-east-1,AWS_STORAGE_BUCKET_NAME=gift-wiki,DJANGO_LOG_LEVEL=INFO \
+          --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest \
+          --quiet || \
+        gcloud run jobs create ${_SERVICE_NAME}-migrate \
+          --image gcr.io/$PROJECT_ID/${_SERVICE_NAME} \
+          --region ${_REGION} \
+          --command "python,manage.py,migrate,--noinput" \
+          --set-env-vars DJANGO_SETTINGS_MODULE=giftwiki.settings,DJANGO_DB_HOST=${_DB_HOST},DJANGO_DB_NAME=${_DB_NAME},DJANGO_DB_PORT=${_DB_PORT},DJANGO_DB_CONN_MAX_AGE=600,USE_S3=TRUE,AWS_S3_REGION_NAME=us-east-1,AWS_STORAGE_BUCKET_NAME=gift-wiki,DJANGO_LOG_LEVEL=INFO \
+          --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest \
+          --quiet
+
+  # 2. Execute the migration job and wait for completion
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'jobs'
+      - 'execute'
+      - '${_SERVICE_NAME}-migrate'
+      - '--region'
+      - '${_REGION}'
+      - '--wait'
+
+  # 3. Deploy container image to Cloud Run service
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+      - '--region'
+      - '${_REGION}'
+      - '--allow-unauthenticated'
+      - '--platform'
+      - 'managed'
+      - '--set-env-vars'
+      - 'DJANGO_SETTINGS_MODULE=giftwiki.settings,DJANGO_ALLOWED_HOSTS=*,DJANGO_DB_HOST=${_DB_HOST},DJANGO_DB_NAME=${_DB_NAME},DJANGO_DB_PORT=${_DB_PORT},DJANGO_DB_CONN_MAX_AGE=600,USE_S3=TRUE,AWS_S3_REGION_NAME=us-east-1,AWS_STORAGE_BUCKET_NAME=gift-wiki,DJANGO_LOG_LEVEL=INFO'
+      - '--set-secrets'
+      - 'DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest'
+      - '--quiet'
+
+substitutions:
+  _SERVICE_NAME: giftwiki-dev
+  _REGION: us-east1
+  # Database configuration (from deploy/dev/config.env)
+  _DB_HOST: ep-floral-paper-aenqf3t7-pooler.c-2.us-east-2.aws.neon.tech
+  _DB_NAME: neondb
+  _DB_PORT: "5432"
+  # Secret Manager secret names (create these using scripts/setup-cloud-run-secrets.sh)
+  # These are just the secret names, not full paths
+  _SECRET_KEY_SECRET: django-secret-key
+  _DB_USER_SECRET: django-db-user
+  _DB_PASSWORD_SECRET: django-db-password
+  _AWS_ACCESS_KEY_SECRET: aws-access-key-id
+  _AWS_SECRET_KEY_SECRET: aws-secret-access-key
+
+images:
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+

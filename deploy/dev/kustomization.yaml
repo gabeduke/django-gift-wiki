@@ -29,17 +29,20 @@ patches:
       group: networking.k8s.io
       version: v1
       kind: Ingress
-      name: wikileet
+      name: wikileet-firebase
     patch: |-
       - op: replace
         path: /spec/rules/0/host
         value: "giftwiki-dev.leetserve.com"
-      - op: add
-        path: /spec/tls
-        value:
-          - hosts:
-              - "giftwiki-dev.leetserve.com"
-            secretName: gift-wiki-tls
       - op: replace
-        path: /spec/rules/0/http/paths/0/backend/service/name
-        value: "wikileet"
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1target
+        value: "giftwiki-dev-42be6.web.app"
+  - target:
+      group: ""
+      version: v1
+      kind: Service
+      name: firebase-hosting
+    patch: |-
+      - op: replace
+        path: /spec/externalName
+        value: "giftwiki-dev-42be6.web.app"

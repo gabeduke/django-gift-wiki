@@ -1,58 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: django-app
+  name: wikileet
 spec:
-  replicas: 1  # Using 1 replica with RWO (ReadWriteOnce) volume
-  # Once Longhorn RWX is working, can scale to 2+ replicas for HA
+  replicas: 2  # Can scale to multiple replicas with Neon (no PVC dependency)
   selector:
     matchLabels:
-      app: django-app
+      app: wikileet
   template:
     metadata:
       labels:
-        app: django-app
+        app: wikileet
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
     spec:
-      initContainers:
-        - name: migrate
-          image: dukeman/gift-wiki:latest
-          imagePullPolicy: Always
-          command: ["python", "manage.py", "migrate", "--noinput"]
-          env:
-            - name: DATABASE_PATH
-              value: /app/db/db.sqlite3
-          envFrom:
-            - secretRef:
-                name: django-app-secrets
-            - configMapRef:
-                name: django-app-config
-          volumeMounts:
-            - name: sqlite-storage
-              mountPath: /app/db
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
       containers:
         - name: django-app
           image: dukeman/gift-wiki:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
-          env:
-            - name: DATABASE_PATH
-              value: /app/db/db.sqlite3
           envFrom:
             - secretRef:
                 name: django-app-secrets
             - configMapRef:
                 name: django-app-config
-          volumeMounts:
-            - name: sqlite-storage
-              mountPath: /app/db
           resources:
             requests:
               cpu: 200m
@@ -72,8 +46,4 @@ spec:
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 5
-      volumes:
-        - name: sqlite-storage
-          persistentVolumeClaim:
-            claimName: django-app-db
 

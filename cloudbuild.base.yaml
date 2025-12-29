@@ -1,0 +1,27 @@
+# Cloud Build configuration for building the base image
+# This should be run separately and infrequently (only when system dependencies change)
+# Run with: gcloud builds submit --config=cloudbuild.base.yaml
+steps:
+  # Build the base container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.base'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/giftwiki-base:latest'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/giftwiki-base:$BUILD_ID'
+      - '.'
+  
+  # Push the base container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/giftwiki-base:latest']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/giftwiki-base:$BUILD_ID']
+
+images:
+  - 'gcr.io/$PROJECT_ID/giftwiki-base:latest'
+  - 'gcr.io/$PROJECT_ID/giftwiki-base:$BUILD_ID'
+

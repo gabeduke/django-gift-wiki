@@ -42,5 +42,3 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write('No users with missing profile pictures found.')
-
-

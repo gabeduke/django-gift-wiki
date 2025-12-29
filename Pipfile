@@ -16,6 +16,12 @@ django-widget-tweaks = "*"
 urllib3 = "*"
 openai = "*"
 whitenoise = "*"
+google-cloud-logging = "*"
+opentelemetry-api = "*"
+opentelemetry-sdk = "*"
+opentelemetry-instrumentation-django = "*"
+opentelemetry-instrumentation-psycopg2 = "*"
+opentelemetry-exporter-gcp-trace = "*"
 
 [dev-packages]
 pytest = "*"

@@ -1,0 +1,26 @@
+# Copy this file to terraform.tfvars and fill in your values
+# terraform.tfvars is in .gitignore to keep secrets safe
+
+project_id  = "your-gcp-project-id"
+region      = "us-east1"
+service_name = "giftwiki-dev"
+
+# Secret names (non-sensitive - just the names)
+secret_names = [
+  "django-secret-key",
+  "django-db-user",
+  "django-db-password",
+  "aws-access-key-id",
+  "aws-secret-access-key"
+]
+
+# Secret values (sensitive)
+# IMPORTANT: Never commit terraform.tfvars to git!
+secret_values = {
+  django-secret-key      = "your-django-secret-key"
+  django-db-user         = "neondb_owner"
+  django-db-password     = "your-db-password"
+  aws-access-key-id      = "your-aws-key"
+  aws-secret-access-key  = "your-aws-secret"
+}
+

@@ -46,12 +46,14 @@ class SignUpView(generic.CreateView):
 
 
 @csrf_protect
-@login_required
 def logout_view(request):
-    """Custom logout view that redirects properly."""
+    """Custom logout view that clears Django session and redirects to Firebase logout."""
     auth_logout(request)
     messages.success(request, 'You have been logged out successfully.')
-    return redirect('gift:home')
+    
+    # Redirect to Firebase auth page which will handle Firebase logout
+    # Pass a query parameter to indicate logout
+    return redirect('/auth.html?logout=true')
 
 
 @require_POST
@@ -204,6 +206,14 @@ def wishlist_create(request):
                 # For now, always set owner to current user
                 # External user functionality can be added later
                 wishlist.owner = request.user
+                
+                # Handle dependent field if steward proxy is enabled
+                from giftwiki.feature_flags import get_steward_proxy_enabled
+                STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
+                if STEWARD_PROXY_ENABLED and 'dependent' in form.cleaned_data:
+                    dependent = form.cleaned_data.get('dependent')
+                    if dependent:
+                        wishlist.dependent = dependent
                 
                 # Handle new family creation
                 new_family_name = form.cleaned_data.get('new_family_name')
@@ -475,19 +485,25 @@ def profile(request):
 
 
 def home(request):
-    # Optimize query with select_related to avoid N+1 queries for family_name
-    wishlists = WishList.objects.select_related('family_name', 'owner').all()
-    wishlists_by_family = defaultdict(list)
+    # Only show wishlists if user is authenticated
+    wishlists_by_family = {}
+    
+    if request.user.is_authenticated:
+        # Optimize query with select_related to avoid N+1 queries for family_name
+        wishlists = WishList.objects.select_related('family_name', 'owner').all()
+        wishlists_by_family = defaultdict(list)
 
-    for wishlist in wishlists:
-        wishlists_by_family[wishlist.family_name].append(wishlist)
+        for wishlist in wishlists:
+            wishlists_by_family[wishlist.family_name].append(wishlist)
 
-    # Check if logged in user needs to select a scraped page
-    show_scraped_page_prompt = False
-    if request.user.is_authenticated and not request.user.scraped_page_selected:
-        available_pages = ScrapedWikiPage.objects.filter(is_imported=False).count()
-        if available_pages > 0:
-            show_scraped_page_prompt = True
+        # Check if logged in user needs to select a scraped page
+        show_scraped_page_prompt = False
+        if not request.user.scraped_page_selected:
+            available_pages = ScrapedWikiPage.objects.filter(is_imported=False).count()
+            if available_pages > 0:
+                show_scraped_page_prompt = True
+    else:
+        show_scraped_page_prompt = False
 
     context = {
         'wishlists_by_family': dict(wishlists_by_family),
