@@ -10,10 +10,6 @@
       ],
       "rewrites": [
         {
-          "source": "/auth.html",
-          "destination": "/auth.html"
-        },
-        {
           "source": "/sessionLogin",
           "function": "sessionLogin"
         },
@@ -54,10 +50,6 @@
         "**/node_modules/**"
       ],
       "rewrites": [
-        {
-          "source": "/auth.html",
-          "destination": "/auth.html"
-        },
         {
           "source": "/sessionLogin",
           "function": "sessionLogin"

@@ -32,6 +32,10 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-k3as*djui($*yo
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+# Allow Firebase Auth popups to communicate with the application
+# Django 4.0+ defaults to 'same-origin' which blocks cross-origin popups
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 # Configure logging - only write to file in debug mode to reduce I/O overhead in production
 LOGGING = {
     'version': 1,
@@ -164,6 +168,17 @@ AUTHENTICATION_BACKENDS = [
     'gift.middleware.firebase_auth.FirebaseAuthBackend',  # Firebase auth
     'django.contrib.auth.backends.ModelBackend',  # Default Django auth (for admin, etc.)
 ]
+
+# Firebase Client Configuration for Frontend
+# Used to inject configuration into auth.html securely
+FIREBASE_CLIENT_CONFIG = {
+    "apiKey": os.environ.get("FIREBASE_API_KEY", ""),  # Must be set in environment
+    "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN", "wikileet.firebaseapp.com"),
+    "projectId": os.environ.get("FIREBASE_PROJECT_ID", "wikileet"),
+    "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "wikileet.firebasestorage.app"),
+    "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "179879905839"),
+    "appId": os.environ.get("FIREBASE_APP_ID", "1:179879905839:web:eeccfafc3a3fec117994da"),
+}
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',

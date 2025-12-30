@@ -116,6 +116,9 @@ FIREBASE_SITE_PROD = giftwiki-prod
 # Cloud Run Infrastructure Setup (idempotent)
 # These targets ensure infrastructure is set up correctly before deployment
 
+# Export Quota Project for Terraform (fixes ADC errors)
+export GOOGLE_CLOUD_QUOTA_PROJECT ?= $(shell $(GCLOUD) config get-value project)
+
 # Enable required GCP APIs (idempotent)
 cloud-run-enable-apis:
 	@echo "Enabling required GCP APIs..."
@@ -230,7 +233,7 @@ dev:
 	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase) with Terraform..."
 	@$(MAKE) terraform-init ENV=dev
 	@cd terraform && terraform workspace select dev
-	@cd terraform && terraform apply -auto-approve -var-file="dev.tfvars" -target=google_project_service.required_apis -target=google_firebase_project.default -target=google_firebase_web_app.app -target=google_secret_manager_secret.secrets -target=google_secret_manager_secret_version.secrets -target=google_secret_manager_secret_iam_member.secret_access -target=google_project_iam_member.firebase_admin || true
+	@cd terraform && terraform apply -auto-approve -var-file="dev.tfvars" -target=google_project_service.required_apis -target=google_firebase_project.default -target=google_firebase_web_app.app -target=google_secret_manager_secret.secrets -target=google_secret_manager_secret_version.secrets -target=google_secret_manager_secret_iam_member.secret_access -target=google_project_iam_member.firebase_admin -target=google_apikeys_key.firebase -target=google_secret_manager_secret.firebase_api_key -target=google_secret_manager_secret_version.firebase_api_key -target=google_secret_manager_secret_iam_member.firebase_api_key_access || true
 	@echo "Step 2: Skip Firebase Hosting site creation (managed outside Terraform for dev)..."
 	@echo "Step 3: Deploy Cloud Run application (creates image)..."
 	@$(MAKE) cloud-run-deploy-app
@@ -338,7 +341,7 @@ prod:
 	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase) with Terraform..."
 	@$(MAKE) terraform-init ENV=prod
 	@cd terraform && terraform workspace select prod
-	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars" -target=google_project_service.required_apis -target=google_firebase_project.default -target=google_firebase_web_app.app -target=google_firebase_hosting_site.app -target=google_secret_manager_secret.secrets -target=google_secret_manager_secret_version.secrets -target=google_secret_manager_secret_iam_member.secret_access -target=google_project_iam_member.firebase_admin || true
+	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars" -target=google_project_service.required_apis -target=google_firebase_project.default -target=google_firebase_web_app.app -target=google_firebase_hosting_site.app -target=google_secret_manager_secret.secrets -target=google_secret_manager_secret_version.secrets -target=google_secret_manager_secret_iam_member.secret_access -target=google_project_iam_member.firebase_admin -target=google_apikeys_key.firebase -target=google_secret_manager_secret.firebase_api_key -target=google_secret_manager_secret_version.firebase_api_key -target=google_secret_manager_secret_iam_member.firebase_api_key_access || true
 	@echo "Step 2: Deploy Cloud Run application (creates image)..."
 	@$(GCLOUD) builds submit \
 		--config=cloudbuild.yaml \

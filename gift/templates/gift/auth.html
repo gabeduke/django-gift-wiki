@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,15 +17,17 @@
             margin: 0;
             background: #f5f5f5;
         }
+
         .container {
             text-align: center;
             padding: 2rem;
             background: white;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             max-width: 400px;
             width: 100%;
         }
+
         .spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3498db;
@@ -34,15 +37,23 @@
             animation: spin 1s linear infinite;
             margin: 0 auto 1rem;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
+
         .error {
             color: #e74c3c;
             margin-top: 1rem;
             font-size: 14px;
         }
+
         button {
             background: #4285f4;
             color: white;
@@ -55,25 +66,31 @@
             transition: background 0.2s;
             width: 100%;
         }
+
         button:hover {
             background: #357ae8;
         }
+
         button.facebook {
             background: #1877f2;
         }
+
         button.facebook:hover {
             background: #166fe5;
         }
+
         h2 {
             margin-bottom: 1rem;
             color: #333;
         }
+
         p {
             color: #666;
             margin-bottom: 1.5rem;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div id="loading" style="display: none;">
@@ -92,15 +109,8 @@
     </div>
 
     <script>
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDbA0Ebild_tQu694MxBGJXrG01YYphRHA",
-            authDomain: "wikileet.firebaseapp.com",
-            projectId: "wikileet",
-            storageBucket: "wikileet.firebasestorage.app",
-            messagingSenderId: "179879905839",
-            appId: "1:179879905839:web:eeccfafc3a3fec117994da" 
-        };
+        // Firebase configuration (Injected from Django settings)
+        const firebaseConfig = {{ firebase_config| safe }};
 
         firebase.initializeApp(firebaseConfig);
 
@@ -173,7 +183,7 @@
             document.getElementById('error').textContent = '';
             document.getElementById('loading').style.display = 'block';
             document.getElementById('signin').style.display = 'none';
-            
+
             console.log('Starting Google sign-in...');
             const provider = new firebase.auth.GoogleAuthProvider();
             firebase.auth().signInWithPopup(provider)
@@ -183,11 +193,11 @@
                     try {
                         const idToken = await result.user.getIdToken(true); // Force refresh
                         console.log('Token refreshed after sign-in, length:', idToken.length);
-                        
+
                         // Immediately create session cookie (don't wait for onAuthStateChanged)
                         console.log('Creating session cookie immediately after sign-in...');
                         const cookieCreated = await createSessionCookie(idToken);
-                        
+
                         if (cookieCreated) {
                             // Get redirect URL
                             const urlParams = new URLSearchParams(window.location.search);
@@ -223,7 +233,7 @@
             document.getElementById('error').textContent = '';
             document.getElementById('loading').style.display = 'block';
             document.getElementById('signin').style.display = 'none';
-            
+
             console.log('Starting Facebook sign-in...');
             const provider = new firebase.auth.FacebookAuthProvider();
             provider.addScope('email');
@@ -234,11 +244,11 @@
                     try {
                         const idToken = await result.user.getIdToken(true); // Force refresh
                         console.log('Token refreshed after sign-in, length:', idToken.length);
-                        
+
                         // Immediately create session cookie (don't wait for onAuthStateChanged)
                         console.log('Creating session cookie immediately after sign-in...');
                         const cookieCreated = await createSessionCookie(idToken);
-                        
+
                         if (cookieCreated) {
                             // Get redirect URL
                             const urlParams = new URLSearchParams(window.location.search);
@@ -272,7 +282,7 @@
         // Check if this is a logout request
         const urlParams = new URLSearchParams(window.location.search);
         const isLogout = urlParams.get('logout') === 'true';
-        
+
         if (isLogout) {
             // Sign out from Firebase and clear cookie
             firebase.auth().signOut().then(() => {
@@ -289,41 +299,41 @@
         } else {
             // Handle authentication flow
             let redirecting = false; // Flag to prevent multiple redirects
-            
+
             firebase.auth().onAuthStateChanged(async (user) => {
                 // Prevent multiple redirects
                 if (redirecting) {
                     console.log('Already redirecting, skipping...');
                     return;
                 }
-                
+
                 if (user) {
                     // User is signed in
                     // Only create session cookie if we don't already have one
                     // The popup handler will create it when user actually signs in
                     // This prevents trying to create cookie with old tokens on page load
-                    
+
                     console.log('User is signed in:', user.email);
-                    
+
                     // Check if we're coming from a fresh sign-in by checking URL params
                     // If not, don't try to create session cookie (might be old token)
                     const urlParams = new URLSearchParams(window.location.search);
                     const hasNextParam = urlParams.has('next');
-                    
+
                     // Only try to create session cookie if:
                     // 1. We have a 'next' parameter (user was redirected here)
                     // 2. OR this is the first time onAuthStateChanged fires after page load
                     // But skip if token is likely old (user was already signed in)
-                    
+
                     // For now, let's just show the UI and let the popup handler create the cookie
                     // when user actually signs in
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('signin').style.display = 'block';
-                    
+
                     // If user is already signed in and has a valid session cookie,
                     // they should be able to navigate - the server will verify the cookie
                     // If they don't have a valid cookie, they'll be redirected back here
-                    
+
                 } else {
                     // Not signed in - show sign-in UI
                     document.getElementById('loading').style.display = 'none';
@@ -333,4 +343,5 @@
         }
     </script>
 </body>
+
 </html>
