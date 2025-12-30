@@ -125,6 +125,8 @@ resource "google_project_service" "required_apis" {
     "logging.googleapis.com",           # Cloud Logging API
     "clouderrorreporting.googleapis.com", # Error Reporting API
     "cloudtrace.googleapis.com",        # Cloud Trace API
+    "apikeys.googleapis.com",           # API Keys API
+    "cloudbilling.googleapis.com",      # Cloud Billing API
   ])
 
   project = var.project_id
@@ -168,6 +170,13 @@ locals {
       AWS_S3_REGION_NAME     = "us-east-1"
       AWS_STORAGE_BUCKET_NAME = "gift-wiki"
       DJANGO_LOG_LEVEL       = "INFO"
+      
+      # Firebase Configuration (Injected from Terraform)
+      FIREBASE_PROJECT_ID          = var.project_id
+      FIREBASE_AUTH_DOMAIN         = "${var.project_id}.firebaseapp.com"
+      FIREBASE_STORAGE_BUCKET      = "${var.project_id}.appspot.com"
+      FIREBASE_APP_ID              = google_firebase_web_app.app.app_id
+      FIREBASE_MESSAGING_SENDER_ID = data.google_project.project.number
     }
   )
   
@@ -179,6 +188,7 @@ locals {
     "DJANGO_DB_PASSWORD"      = "${var.environment}-django-db-password"
     "AWS_ACCESS_KEY_ID"       = "${var.environment}-aws-access-key-id"
     "AWS_SECRET_ACCESS_KEY"   = "${var.environment}-aws-secret-access-key"
+    "FIREBASE_API_KEY"        = "${var.environment}-firebase-api-key"
   }
   
   # Determine container image - use provided or construct from service name
@@ -228,6 +238,62 @@ resource "local_file" "env_vars_output" {
   lifecycle {
     ignore_changes = [content]
   }
+}
+
+# Generate Firebase API Key automatically
+resource "google_apikeys_key" "firebase" {
+  name         = "${var.service_name}-key"
+  display_name = "${var.service_name} Firebase Key"
+  project      = var.project_id
+
+  restrictions {
+    api_targets {
+      service = "identitytoolkit.googleapis.com" # Firebase Auth
+    }
+    api_targets {
+      service = "firebase.googleapis.com"
+    }
+    api_targets {
+      service = "firebaseinstallations.googleapis.com"
+    }
+    api_targets {
+      service = "securetoken.googleapis.com"
+    }
+    
+    # Restrict to the specific websites if needed (optional for now to ensure it works)
+    # browser_key_restrictions {
+    #   allowed_referrers = ["https://${var.service_name}.web.app/*", "https://${var.service_name}.firebaseapp.com/*", "http://localhost:*"]
+    # }
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Store the generated API key in Secret Manager
+resource "google_secret_manager_secret" "firebase_api_key" {
+  secret_id = "${var.environment}-firebase-api-key"
+  
+  replication {
+    auto {}
+  }
+  
+  labels = local.common_labels
+  
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "firebase_api_key" {
+  secret      = google_secret_manager_secret.firebase_api_key.id
+  secret_data = google_apikeys_key.firebase.key_string
+}
+
+# Grant access to the generated API Key secret
+resource "google_secret_manager_secret_iam_member" "firebase_api_key_access" {
+  secret_id = google_secret_manager_secret.firebase_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.compute_service_account}"
+  
+  depends_on = [google_secret_manager_secret_version.firebase_api_key]
 }
 
 # Grant Firebase Admin permissions to service account
@@ -297,6 +363,7 @@ resource "google_cloud_run_v2_service" "app" {
     google_project_service.required_apis,
     google_secret_manager_secret_version.secrets,
     google_secret_manager_secret_iam_member.secret_access,
+    google_secret_manager_secret_iam_member.firebase_api_key_access,
   ]
 }
 

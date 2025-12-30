@@ -39,6 +39,18 @@ def metrics_view(request):
         return HttpResponse("Prometheus client not installed", status=503)
 
 
+def auth_view(request):
+    """
+    Render the authentication page with Firebase configuration injected from settings.
+    This replaces the static auth.html file to avoid hardcoding API keys.
+    """
+    from django.conf import settings
+    context = {
+        'firebase_config': json.dumps(settings.FIREBASE_CLIENT_CONFIG)
+    }
+    return render(request, 'gift/auth.html', context)
+
+
 class SignUpView(generic.CreateView):
     form_class = CustomUserCreationForm
     success_url = reverse_lazy('gift:login')

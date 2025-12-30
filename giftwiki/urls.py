@@ -25,6 +25,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("__debug__/", include("debug_toolbar.urls")),
     path("metrics/", gift_views.metrics_view, name='metrics'),  # Prometheus metrics endpoint
+    path("auth.html", gift_views.auth_view, name='auth_page'),  # Auth page with injected config
 ]
 
 # Serve static files in development
