@@ -1,9 +1,11 @@
 """
 Pytest configuration and shared fixtures for the gift wiki project.
 """
+
 import pytest
 from django.contrib.auth import get_user_model
-from gift.models import Family, WishList, Item
+
+from gift.models import Family, Item, WishList
 
 User = get_user_model()
 
@@ -12,6 +14,7 @@ User = get_user_model()
 def api_client():
     """Fixture for Django REST framework APIClient."""
     from rest_framework.test import APIClient
+
     return APIClient()
 
 
@@ -19,9 +22,7 @@ def api_client():
 def user(db):
     """Create a test user."""
     return User.objects.create_user(
-        username='testuser',
-        email='test@example.com',
-        password='testpass123'
+        username='testuser', email='test@example.com', password='testpass123'
     )
 
 
@@ -29,19 +30,14 @@ def user(db):
 def other_user(db):
     """Create another test user."""
     return User.objects.create_user(
-        username='otheruser',
-        email='other@example.com',
-        password='otherpass123'
+        username='otheruser', email='other@example.com', password='otherpass123'
     )
 
 
 @pytest.fixture
 def family(db):
     """Create a test family."""
-    return Family.objects.create(
-        name='Test Family',
-        description='Test family for testing'
-    )
+    return Family.objects.create(name='Test Family', description='Test family for testing')
 
 
 @pytest.fixture
@@ -51,7 +47,7 @@ def wishlist(db, user, family):
         owner=user,
         title='Test Wishlist',
         description='Test wishlist description',
-        family_name=family
+        family_name=family,
     )
 
 
@@ -59,10 +55,7 @@ def wishlist(db, user, family):
 def item(db, wishlist):
     """Create a test item."""
     return Item.objects.create(
-        wishlist=wishlist,
-        name='Test Item',
-        description='Test item description',
-        price='29.99'
+        wishlist=wishlist, name='Test Item', description='Test item description', price='29.99'
     )
 
 
@@ -86,4 +79,3 @@ def django_db_setup(django_db_setup, django_db_blocker):
     with django_db_blocker.unblock():
         # Create necessary data for all tests
         pass
-

@@ -1,6 +1,7 @@
 {% load static %}
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>GiftWiki</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,136 +11,153 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'css/custom.css' %}">
 
+    {% if GOOGLE_ANALYTICS_ID %}
+    <!-- Firebase App and Analytics -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+    <script>
+        // Initialize Firebase with config from Django settings
+        const firebaseConfig = {{ firebase_config_json }};
+        firebase.initializeApp(firebaseConfig);
+        firebase.analytics();
+    </script>
+    {% endif %}
 </head>
-<body>
-<header class="bg-light py-3 text-center">
-    <h1>GiftWiki</h1>
-</header>
 
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <div class="container">
-        <a class="navbar-brand" href="{% url 'gift:home' %}">Home</a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ml-auto">
-                {% if request.user.is_authenticated %}
+<body>
+    <header class="bg-light py-3 text-center">
+        <h1>GiftWiki</h1>
+    </header>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'gift:home' %}">Home</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ml-auto">
+                    {% if request.user.is_authenticated %}
                     {% with user_wishlists=request.user.owned_wishlist.all %}
-                        {% if user_wishlists %}
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" id="listsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    My Lists
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="listsDropdown">
-                                    {% for wishlist in user_wishlists|slice:":10" %}
-                                        <a class="dropdown-item" href="{% url 'gift:wishlist_detail' wishlist.id %}">{{ wishlist.title }}</a>
-                                    {% endfor %}
-                                    {% if user_wishlists|length > 10 %}
-                                        <div class="dropdown-divider"></div>
-                                        <a class="dropdown-item" href="{% url 'gift:account' %}">View All Lists</a>
-                                    {% endif %}
-                                </div>
-                            </li>
-                        {% endif %}
+                    {% if user_wishlists %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="listsDropdown" role="button"
+                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            My Lists
+                        </a>
+                        <div class="dropdown-menu" aria-labelledby="listsDropdown">
+                            {% for wishlist in user_wishlists|slice:":10" %}
+                            <a class="dropdown-item" href="{% url 'gift:wishlist_detail' wishlist.id %}">{{
+                                wishlist.title }}</a>
+                            {% endfor %}
+                            {% if user_wishlists|length > 10 %}
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="{% url 'gift:account' %}">View All Lists</a>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endif %}
                     {% endwith %}
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a>
+                    </li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'gift:account' %}">Profile</a></li>
                     <li class="nav-item"><a class="nav-link" href="{% url 'gift:logout' %}">Logout</a></li>
-                {% else %}
+                    {% else %}
                     <li class="nav-item"><a class="nav-link" href="/auth.html">Login</a></li>
-                {% endif %}
-                <li class="nav-item">
-                    <button class="btn btn-sm btn-outline-secondary ml-2" id="themeToggle" title="Toggle dark mode">
-                        <i class="fas fa-moon" id="themeIcon"></i>
-                    </button>
-                </li>
-            </ul>
+                    {% endif %}
+                    <li class="nav-item">
+                        <button class="btn btn-sm btn-outline-secondary ml-2" id="themeToggle" title="Toggle dark mode">
+                            <i class="fas fa-moon" id="themeIcon"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
-{% if messages %}
+    {% if messages %}
     <div class="container mt-2">
         {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
+        <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
         {% endfor %}
     </div>
-{% endif %}
+    {% endif %}
 
-<main class="container py-2">
-    {% block content %}
+    <main class="container py-2">
+        {% block content %}
         <!-- Content will go here -->
-    {% endblock %}
-</main>
+        {% endblock %}
+    </main>
 
-<footer class="bg-dark text-white text-center py-3 mt-4">
-    <p>© 2023 Gift App</p>
-</footer>
+    <footer class="bg-dark text-white text-center py-3 mt-4">
+        <p>© 2023 Gift App</p>
+    </footer>
 
-<!-- Bootstrap JS and dependencies -->
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 
-<!-- Theme Toggle and Color Palette -->
-<script>
-(function() {
-    const themeToggle = document.getElementById('themeToggle');
-    const themeIcon = document.getElementById('themeIcon');
-    const html = document.documentElement;
-    
-    // Function to apply theme
-    function applyTheme(theme) {
-        if (theme === 'dark') {
-            html.setAttribute('data-theme', 'dark');
-            themeIcon.classList.remove('fa-moon');
-            themeIcon.classList.add('fa-sun');
-        } else {
-            html.removeAttribute('data-theme');
-            themeIcon.classList.remove('fa-sun');
-            themeIcon.classList.add('fa-moon');
-        }
-        localStorage.setItem('theme', theme);
-    }
-    
-    // Function to apply color palette
-    function applyPalette(palette) {
-        if (palette && palette !== 'default') {
-            html.setAttribute('data-palette', palette);
-        } else {
-            html.removeAttribute('data-palette');
-        }
-        localStorage.setItem('color_palette', palette || 'default');
-    }
-    
-    // Get user's color palette from the page (set in template context)
-    const userPalette = '{{ request.user.color_palette|default:"default" }}';
-    
-    // Check for saved theme preference or default to light mode
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    applyTheme(savedTheme);
-    
-    // Apply user's color palette (from database, or fallback to localStorage)
-    const savedPalette = localStorage.getItem('color_palette');
-    const paletteToUse = userPalette && userPalette !== 'default' ? userPalette : (savedPalette || 'default');
-    applyPalette(paletteToUse);
-    
-    // Toggle theme on button click
-    themeToggle.addEventListener('click', function() {
-        const currentTheme = html.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        applyTheme(newTheme);
-    });
-    
-    // Listen for palette changes (when user updates it on profile page)
-    // This will be triggered after form submission
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'color_palette') {
-            applyPalette(e.newValue || 'default');
-        }
-    });
-})();
-</script>
+    <!-- Theme Toggle and Color Palette -->
+    <script>
+        (function () {
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+            const html = document.documentElement;
+
+            // Function to apply theme
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    html.setAttribute('data-theme', 'dark');
+                    themeIcon.classList.remove('fa-moon');
+                    themeIcon.classList.add('fa-sun');
+                } else {
+                    html.removeAttribute('data-theme');
+                    themeIcon.classList.remove('fa-sun');
+                    themeIcon.classList.add('fa-moon');
+                }
+                localStorage.setItem('theme', theme);
+            }
+
+            // Function to apply color palette
+            function applyPalette(palette) {
+                if (palette && palette !== 'default') {
+                    html.setAttribute('data-palette', palette);
+                } else {
+                    html.removeAttribute('data-palette');
+                }
+                localStorage.setItem('color_palette', palette || 'default');
+            }
+
+            // Get user's color palette from the page (set in template context)
+            const userPalette = '{{ request.user.color_palette|default:"default" }}';
+
+            // Check for saved theme preference or default to light mode
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+
+            // Apply user's color palette (from database, or fallback to localStorage)
+            const savedPalette = localStorage.getItem('color_palette');
+            const paletteToUse = userPalette && userPalette !== 'default' ? userPalette : (savedPalette || 'default');
+            applyPalette(paletteToUse);
+
+            // Toggle theme on button click
+            themeToggle.addEventListener('click', function () {
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                applyTheme(newTheme);
+            });
+
+            // Listen for palette changes (when user updates it on profile page)
+            // This will be triggered after form submission
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'color_palette') {
+                    applyPalette(e.newValue || 'default');
+                }
+            });
+        })();
+    </script>
 </body>
+
 </html>

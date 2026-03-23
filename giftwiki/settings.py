@@ -7,6 +7,7 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
+
 import os
 from pathlib import Path
 
@@ -28,7 +29,9 @@ MEDIA_URL = '/media/'
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-k3as*djui($*yovvfforvv#8*ayh1!feuv)*i3$)_ka5k50lm-")
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY', 'django-insecure-k3as*djui($*yovvfforvv#8*ayh1!feuv)*i3$)_ka5k50lm-'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
@@ -47,8 +50,8 @@ LOGGING = {
         },
     },
     'handlers': {
-        "console": {
-            "class": "logging.StreamHandler",
+        'console': {
+            'class': 'logging.StreamHandler',
         },
     },
     'loggers': {
@@ -74,16 +77,16 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
     try:
         from google.cloud import logging as google_logging
         from google.cloud.logging.handlers import CloudLoggingHandler
-        
+
         client = google_logging.Client()
         cloud_handler = CloudLoggingHandler(client)
-        
+
         # Add cloud handler to root logger or specific loggers
         LOGGING['handlers']['cloud'] = {
             'class': 'google.cloud.logging.handlers.CloudLoggingHandler',
             'client': client,
         }
-        
+
         # Update loggers to use cloud handler
         LOGGING['loggers']['django']['handlers'] = ['cloud']
         LOGGING['loggers']['gift'] = {  # App specific logger
@@ -92,7 +95,7 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
             'propagate': True,
         }
     except Exception as e:
-        print(f"Failed to setup Cloud Logging: {e}")
+        print(f'Failed to setup Cloud Logging: {e}')
 
 # Only add file handler in debug mode
 if DEBUG:
@@ -110,7 +113,7 @@ if DEBUG:
 AUTH_USER_MODEL = 'gift.WikiUser'
 ROOT_URLCONF = 'giftwiki.urls'
 WSGI_APPLICATION = 'giftwiki.wsgi.application'
-INTERNAL_IPS = ["127.0.0.1"]
+INTERNAL_IPS = ['127.0.0.1']
 CORS_ALLOWED_ORIGINS = os.getenv('DJANGO_ALLOWED_ORIGINS', 'http://localhost').split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_ALLOWED_ORIGINS', 'http://localhost').split(',')
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
@@ -136,18 +139,18 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'widget_tweaks',
-    "gift.apps.GiftConfig",
+    'gift.apps.GiftConfig',
 ]
 
 # Only enable debug toolbar in development
 if DEBUG:
-    INSTALLED_APPS.append("debug_toolbar")
+    INSTALLED_APPS.append('debug_toolbar')
 
 MIDDLEWARE = [
     'gift.middleware.healthcheck.HealthCheckMiddleware',
     'gift.middleware.metrics.MetricsMiddleware',  # Handle /metrics endpoint early, before security checks
     'gift.middleware.prometheus.PrometheusMiddleware',  # Prometheus metrics - early in chain to track all requests
-    "corsheaders.middleware.CorsMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files in production
     'django.contrib.sessions.middleware.SessionMiddleware',  # Must run before AuthenticationMiddleware
@@ -161,7 +164,7 @@ MIDDLEWARE = [
 
 # Only enable debug toolbar middleware in development
 if DEBUG:
-    MIDDLEWARE.insert(2, "debug_toolbar.middleware.DebugToolbarMiddleware")
+    MIDDLEWARE.insert(2, 'debug_toolbar.middleware.DebugToolbarMiddleware')
 
 # Authentication backends - add Firebase auth backend
 AUTHENTICATION_BACKENDS = [
@@ -172,13 +175,16 @@ AUTHENTICATION_BACKENDS = [
 # Firebase Client Configuration for Frontend
 # Used to inject configuration into auth.html securely
 FIREBASE_CLIENT_CONFIG = {
-    "apiKey": os.environ.get("FIREBASE_API_KEY", ""),  # Must be set in environment
-    "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN", "wikileet.firebaseapp.com"),
-    "projectId": os.environ.get("FIREBASE_PROJECT_ID", "wikileet"),
-    "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "wikileet.firebasestorage.app"),
-    "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "179879905839"),
-    "appId": os.environ.get("FIREBASE_APP_ID", "1:179879905839:web:eeccfafc3a3fec117994da"),
+    'apiKey': os.environ.get('FIREBASE_API_KEY', ''),  # Must be set in environment
+    'authDomain': os.environ.get('FIREBASE_AUTH_DOMAIN', 'wikileet.firebaseapp.com'),
+    'projectId': os.environ.get('FIREBASE_PROJECT_ID', 'wikileet'),
+    'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET', 'wikileet.firebasestorage.app'),
+    'appId': os.environ.get('FIREBASE_APP_ID', '1:179879905839:web:eeccfafc3a3fec117994da'),
+    'measurementId': os.environ.get('GOOGLE_ANALYTICS_ID'),
 }
+
+# Google Analytics
+GOOGLE_ANALYTICS_ID = os.environ.get('GOOGLE_ANALYTICS_ID')
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -190,6 +196,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'gift.context_processors.google_analytics',
                 'giftwiki.feature_flags.get_context_processor',
             ],
         },
@@ -213,7 +220,9 @@ if os.getenv('DJANGO_DB_HOST'):
             'OPTIONS': {
                 'sslmode': 'require',
             },
-            'CONN_MAX_AGE': int(os.getenv('DJANGO_DB_CONN_MAX_AGE', '0')),  # 0 for serverless/Cloud Run to avoid closed connection errors
+            'CONN_MAX_AGE': int(
+                os.getenv('DJANGO_DB_CONN_MAX_AGE', '0')
+            ),  # 0 for serverless/Cloud Run to avoid closed connection errors
         }
     }
 else:
@@ -240,7 +249,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 LANGUAGE_CODE = 'en-us'
 # Allow TIME_ZONE to be overridden by environment variable, but default to valid IANA timezone
-TIME_ZONE = os.getenv('DJANGO_TIME_ZONE', 'America/New_York')  # Changed from 'EST' - Django 5.1 requires IANA timezone names
+TIME_ZONE = os.getenv(
+    'DJANGO_TIME_ZONE', 'America/New_York'
+)  # Changed from 'EST' - Django 5.1 requires IANA timezone names
 USE_I18N = True
 USE_TZ = True
 
@@ -271,4 +282,3 @@ if USE_S3:
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
