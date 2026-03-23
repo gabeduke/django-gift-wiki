@@ -5,11 +5,21 @@
 <div class="wishlist-edit-page">
     <div class="container mt-2">
         <div class="row mb-2">
-            <div class="col">
-                <h2>Edit Wishlist</h2>
-                <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-outline-secondary btn-sm">
-                    <i class="fas fa-arrow-left"></i> Back
-                </a>
+            <div class="col d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>Edit Wishlist</h2>
+                    <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                </div>
+                <div>
+                    <form method="post" action="{% url 'gift:clear_purchased' wishlist.id %}" onsubmit="return confirm('Are you sure you want to remove all purchased items from your list?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning btn-sm">
+                            <i class="fas fa-broom"></i> Clear Purchased Items
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -74,15 +84,13 @@
                             <label for="{{ wishlist_form.family_name.id_for_label }}" class="form-label">
                                 Family Group <span class="text-danger">*</span>
                             </label>
-                            {{ wishlist_form.family_name|add_class:"form-control
-                            form-control-sm"|attr:"data-toggle-field:new_family_name" }}
+                            {{ wishlist_form.family_name|add_class:"form-control form-control-sm"|attr:"data-toggle-field:new_family_name" }}
                             {% if wishlist_form.family_name.errors %}
                             <div class="text-danger small mt-1">{{ wishlist_form.family_name.errors }}</div>
                             {% endif %}
                             <div id="new_family_name_wrapper" class="mt-2" style="display: none;">
                                 <div class="mb-2">
-                                    {{ wishlist_form.new_family_name|add_class:"form-control
-                                    form-control-sm"|attr:"placeholder:Enter new family name..." }}
+                                    {{ wishlist_form.new_family_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new family name..." }}
                                     {% if wishlist_form.new_family_name.errors %}
                                     <div class="text-danger small mt-1">{{ wishlist_form.new_family_name.errors }}</div>
                                     {% endif %}
@@ -93,12 +101,9 @@
                                         class="form-label small">
                                         {{ wishlist_form.new_family_poem.label }}
                                     </label>
-                                    {{ wishlist_form.new_family_poem|add_class:"form-control
-                                    form-control-sm"|attr:"placeholder:Write a poem, story, or memory that captures your
-                                    family's spirit..." }}
+                                    {{ wishlist_form.new_family_poem|add_class:"form-control form-control-sm"|attr:"placeholder:Write a poem, story, or memory that captures your family's spirit..." }}
                                     {% if wishlist_form.new_family_poem.help_text %}
-                                    <small class="form-text text-muted">{{ wishlist_form.new_family_poem.help_text
-                                        }}</small>
+                                    <small class="form-text text-muted">{{ wishlist_form.new_family_poem.help_text }}</small>
                                     {% endif %}
                                     {% if wishlist_form.new_family_poem.errors %}
                                     <div class="text-danger small mt-1">{{ wishlist_form.new_family_poem.errors }}</div>
@@ -158,6 +163,7 @@
     createApp({
         setup() {
             // Initial Data Injection from Django
+            // prettier-ignore
             const initialForms = [
                 {% for form in formset %}
                 {
@@ -167,10 +173,10 @@
             price: `{{ form.price.value|default_if_none:'' }}`,
             price_range: `{{ form.price_range.value|default_if_none:''|escapejs }}`,
             url: `{{ form.url.value|default_if_none:''|escapejs }}`,
-            purchased: {{ form.purchased.value | yesno: "true,false" }},
+            purchased: {{ form.purchased.value|yesno:"true,false" }},
         category: `{{ form.category.value|default_if_none:''|escapejs }}`,
         new_category_name: `{{ form.new_category_name.value|default_if_none:''|escapejs }}`,
-        DELETE: {{ form.DELETE.value | yesno: "true,false" }},
+        DELETE: {{ form.DELETE.value|yesno:"true,false" }},
         prefix: `{{ form.prefix }}`,
         errors: {
         name: `{{ form.name.errors|striptags }}`,

@@ -4,6 +4,12 @@
 .PHONY: docker-build docker-build-no-load docker-build-local docker-push
 .PHONY: k8s-deploy k8s-clean
 
+# Load environment variables from .env natively if it exists
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
 # Variables
 PYTHON = pipenv run python
 PYTEST = pipenv run pytest

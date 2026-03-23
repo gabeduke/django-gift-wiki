@@ -13,12 +13,14 @@ urlpatterns = [
     path('profile/', views.profile, name='account'),
     path('select-scraped-page/', views.select_scraped_page, name='select_scraped_page'),
     path('logout/', views.logout_view, name='logout'),
+    path('accounts/logout/', views.logout_view),  # Override Django's default POST-only logout
     path('accounts/', include('django.contrib.auth.urls')),  # Keep for login if needed
     # Wishlists
     path('wishlist/create/', views.wishlist_create, name='create_wishlist'),
     path('wishlist/<int:wishlist_id>/', views.wishlist_detail, name='wishlist_detail'),
     path('wishlist/<int:wishlist_id>/edit/', views.wishlist_edit, name='edit_wishlist'),
     path('wishlist/<int:wishlist_id>/delete/', views.wishlist_delete, name='delete_wishlist'),
+    path('wishlist/<int:wishlist_id>/clear-purchased/', views.wishlist_clear_purchased, name='clear_purchased'),
     path('wishlist/<int:wishlist_id>/add_item/', views.item_add, name='add_item'),
     path('wishlist/<int:wishlist_id>/add_item_ajax/', views.item_add_ajax, name='item_add_ajax'),
     # Items

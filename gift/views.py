@@ -70,7 +70,10 @@ def logout_view(request):
 
     # Redirect to Firebase auth page which will handle Firebase logout
     # Pass a query parameter to indicate logout
-    return redirect('/auth.html?logout=true')
+    response = redirect('/auth.html?logout=true')
+    # The __session cookie is HttpOnly and cannot be deleted by JS, so backend must delete it
+    response.delete_cookie('__session')
+    return response
 
 
 @require_POST
@@ -770,6 +773,37 @@ def wishlist_edit(request, wishlist_id):
 
 @require_POST
 @login_required
+def wishlist_clear_purchased(request, wishlist_id):
+    wishlist = get_object_or_404(WishList, id=wishlist_id)
+
+    # Check if user is the owner, steward, or manager
+    is_owner = request.user == wishlist.owner
+    from giftwiki.feature_flags import get_steward_proxy_enabled
+
+    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
+    is_steward = STEWARD_PROXY_ENABLED and request.user == wishlist.dependent
+    is_manager = request.user in wishlist.managers.all()
+
+    if not (is_owner or is_steward or is_manager):
+        messages.error(request, 'You can only clear items from wishlists you own or manage.')
+        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+
+    # Perform soft delete on purchased items
+    purchased_items = wishlist.items.filter(is_deleted=False, purchased=True)
+    count = purchased_items.count()
+    if count > 0:
+        for item in purchased_items:
+            item.is_deleted = True
+            item.save(current_user=request.user)
+        messages.success(request, f'Successfully cleared {count} purchased item(s).')
+    else:
+        messages.info(request, 'No purchased items to clear.')
+
+    return redirect('gift:edit_wishlist', wishlist_id=wishlist.id)
+
+
+@require_POST
+@login_required
 def wishlist_delete(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
@@ -781,7 +815,7 @@ def wishlist_delete(request, wishlist_id):
     # Delete the wishlist
     wishlist.delete()
     messages.success(request, 'Wishlist deleted successfully.')
-    return redirect('gift:home')
+    return redirect('gift:account')
 
 
 @login_required
