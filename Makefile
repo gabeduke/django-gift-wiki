@@ -363,7 +363,7 @@ prod:
 	@echo "Step 2: Deploy Cloud Run application (creates image)..."
 	@$(GCLOUD) builds submit \
 		--config=cloudbuild.yaml \
-		--substitutions=_SERVICE_NAME=giftwiki-prod,_REGION=us-east1
+		--substitutions=_SERVICE_NAME=giftwiki-prod,_REGION=us-east1,_DB_HOST=ep-falling-morning-ae2u6rxv-pooler.c-2.us-east-2.aws.neon.tech,_DB_NAME=neondb,_FIREBASE_API_KEY_SECRET=prod-firebase-api-key
 	@echo "Step 3: Create Cloud Run service with Terraform (now that image exists)..."
 	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars" -target=google_cloud_run_v2_service.app -target=google_cloud_run_service_iam_member.public_access
 	@echo "Step 4: Deploy Firebase Hosting..."
