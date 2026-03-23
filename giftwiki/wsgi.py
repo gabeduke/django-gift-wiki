@@ -26,7 +26,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'giftwiki.settings')
 
 
 def https_app(environ, start_response):
-    environ["wsgi.url_scheme"] = "https"
+    environ['wsgi.url_scheme'] = 'https'
     return get_wsgi_application()(environ, start_response)
 
 
@@ -44,12 +44,12 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
 
         # Instrument Django
         DjangoInstrumentor().instrument()
-        
+
         # Instrument Psycopg2 (Database)
         Psycopg2Instrumentor().instrument(enable_commenter=True, commenter_options={})
-        
+
     except Exception as e:
-        print(f"Failed to setup OpenTelemetry: {e}")
+        print(f'Failed to setup OpenTelemetry: {e}')
 
 application = https_app
 # application = get_wsgi_application()

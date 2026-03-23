@@ -57,6 +57,18 @@ test-parallel:
 run: build
 	$(MANAGE) runserver
 
+# Run E2E tests
+# Usage: make test-e2e URL=https://giftwiki-dev.leetserve.com
+URL ?= https://giftwiki-dev.leetserve.com
+test-e2e:
+	@echo "Running E2E tests against $(URL)..."
+	pipenv run pytest tests/e2e/ --base-url=$(URL) --headless
+
+# Run E2E tests in visible mode (for local debugging/watching)
+test-e2e-watch:
+	@echo "Running E2E tests (visible mode) against $(URL)..."
+	pipenv run pytest tests/e2e/ --base-url=$(URL)
+
 # Fast dev server - skips collectstatic for faster iteration (CSS/JS changes work without it)
 local:
 	@echo "🚀 Starting dev server (fast mode - no collectstatic)..."

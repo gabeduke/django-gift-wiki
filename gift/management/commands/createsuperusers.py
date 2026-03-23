@@ -1,7 +1,7 @@
 import os
 
-from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand
 
 User = get_user_model()
 
@@ -23,6 +23,8 @@ class Command(BaseCommand):
                 created_users.append(username)
             i += 1
         if created_users:
-            self.stdout.write(self.style.SUCCESS(f'Successfully created superusers: {", ".join(created_users)}'))
+            self.stdout.write(
+                self.style.SUCCESS(f'Successfully created superusers: {", ".join(created_users)}')
+            )
         else:
             self.stdout.write(self.style.WARNING('No new superusers were created'))
