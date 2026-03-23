@@ -26,7 +26,7 @@ python manage.py runserver
 ```
 gift/                    # Main Django app (models, views, forms, templates, middleware)
 giftwiki/                # Project settings, feature flags, URL config
-tests/                   # pytest suite (api/, e2e/, steps/)
+tests/                   # pytest suite (api/)
 deploy/                  # Kubernetes manifests
 terraform/               # Infrastructure as code
 firebase-functions/      # Cloud Functions (Node.js) for session cookie creation
@@ -84,11 +84,9 @@ See `env.example` for full list. Critical ones:
 - `STEWARD_PROXY_ENABLED`, `PROFILE_PICTURE_ENABLED` — feature flag env overrides
 
 ## Lint / Format
-No linter or formatter is currently configured. Consider adding ruff or black.
+Configured with Ruff for both linting and formatting. Settings are managed in `pyproject.toml`.
+- Run formatting: `pipenv run ruff format .`
+- Run linting: `pipenv run ruff check .`
 
 ## Known Gotchas
-- `debug_toolbar` URLs are always included in `giftwiki/urls.py` even when `DEBUG=False` — will 404 but still registers the URL pattern
-- The `Item.description` field is `TextField()` without `blank=True`, so it's required at the DB level even though forms mark it optional
-- Feature flag cache is invalidated on every call to `get_steward_proxy_enabled()` / `get_profile_picture_enabled()`, causing a DB query per flag check per request
-- `item_add_ajax` has no ownership check — any authenticated user can add items to any wishlist
-- `wishlist_delete` and `item_delete` accept GET requests (no `require_POST`)
+- No major technical debt or critical gotchas currently identified.
