@@ -143,8 +143,8 @@ staticfiles/
 # Terraform
 terraform/.terraform/
 terraform/.terraform.lock.hcl
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
+terraform/*.tfstate*
+terraform/**/*.tfstate*
 terraform/terraform.tfvars
 terraform/dev.tfvars
 terraform/prod.tfvars
