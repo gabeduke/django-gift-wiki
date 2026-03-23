@@ -88,5 +88,11 @@ Configured with Ruff for both linting and formatting. Settings are managed in `p
 - Run formatting: `pipenv run ruff format .`
 - Run linting: `pipenv run ruff check .`
 
+## Project Tracking & TODOs
+All future features, bugs, and TODOs should be tracked using the [Django Gift Wiki Tracker](https://github.com/users/gabeduke/projects/1) GitHub Project. This helps ensure prioritization and visibility of upcoming work. 
+- Use `gh issue create` to add new tasks.
+- Reference issue numbers in commit messages and PRs.
+- Link all new issues to the GitHub Project board.
+
 ## Known Gotchas
 - No major technical debt or critical gotchas currently identified.
