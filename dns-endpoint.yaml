@@ -1,0 +1,17 @@
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: wikileet-prod
+  namespace: wikileet
+spec:
+  endpoints:
+  - dnsName: giftwiki.leetserve.com
+    recordType: CNAME
+    targets:
+    - giftwiki-prod-v2.web.app
+    recordTTL: 300
+  - dnsName: giftwiki-dev.leetserve.com
+    recordType: CNAME
+    targets:
+    - giftwiki-dev.web.app
+    recordTTL: 300
