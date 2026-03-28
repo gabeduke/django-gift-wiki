@@ -5,11 +5,11 @@
   "targets": {
     "wikileet": {
       "hosting": {
-        "prod": [
-          "giftwiki-prod"
-        ],
         "dev": [
           "giftwiki-dev-42be6"
+        ],
+        "prod": [
+          "giftwiki-prod-v2"
         ]
       }
     }
