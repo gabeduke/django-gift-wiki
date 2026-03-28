@@ -39,14 +39,21 @@ jobs:
         run: npm install -g firebase-tools
 
       - name: Recreate Dev Secrets Environment
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DJANGO_DB_USER: ${{ secrets.DJANGO_DB_USER }}
+          DJANGO_DB_PASSWORD: ${{ secrets.DJANGO_DB_PASSWORD }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: |
           mkdir -p deploy/dev
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> deploy/dev/secrets.env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> deploy/dev/secrets.env
-          echo "DJANGO_DB_USER=${{ secrets.DJANGO_DB_USER }}" >> deploy/dev/secrets.env
-          echo "DJANGO_DB_PASSWORD=${{ secrets.DJANGO_DB_PASSWORD }}" >> deploy/dev/secrets.env
-          echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> deploy/dev/secrets.env
-          echo "FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}" > .env
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> deploy/dev/secrets.env
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> deploy/dev/secrets.env
+          echo "DJANGO_DB_USER=$DJANGO_DB_USER" >> deploy/dev/secrets.env
+          echo "DJANGO_DB_PASSWORD=$DJANGO_DB_PASSWORD" >> deploy/dev/secrets.env
+          echo "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY" >> deploy/dev/secrets.env
+          echo "FIREBASE_API_KEY=$FIREBASE_API_KEY" > .env
           echo "CLOUDSDK_CORE_PROJECT=wikileet" >> .env
 
       - name: Deploy Dev
