@@ -146,8 +146,7 @@ terraform/.terraform.lock.hcl
 terraform/*.tfstate*
 terraform/**/*.tfstate*
 terraform/terraform.tfvars
-terraform/dev.tfvars
-terraform/prod.tfvars
+terraform/*.auto.tfvars
 terraform/.terraform.tfstate.lock.info
 terraform/crash.log
 terraform/override.tf
