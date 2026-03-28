@@ -518,6 +518,34 @@ resource "google_monitoring_alert_policy" "log_error" {
   depends_on = [google_project_service.required_apis]
 }
 
+# 2. Log-based Alert Policy (Unauthorized access attempts - WARNING)
+resource "google_monitoring_alert_policy" "log_warning_unauthorized" {
+  display_name = "${var.service_name} - Unauthorized Access Warning"
+  combiner     = "OR"
+  project      = var.project_id
+
+  conditions {
+    display_name = "Unauthorized Access Warning"
+    condition_matched_log {
+      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${var.service_name}\" AND severity=WARNING AND (jsonPayload.message=~\"Unauthorized\" OR jsonPayload.message=~\"DisallowedHost\")"
+    }
+  }
+
+  alert_strategy {
+    notification_rate_limit {
+      period = "3600s" # 1 hour — less urgent than errors
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.name]
+
+  documentation {
+    content = "The ${var.service_name} service logged repeated unauthorized access attempts or host validation bypasses."
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
 # High Latency Alert - DISABLED
 # This alert is too sensitive for low-traffic personal sites.
 # For a personal gift wiki, occasional high latency is acceptable.

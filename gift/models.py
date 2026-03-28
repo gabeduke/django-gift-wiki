@@ -1,7 +1,11 @@
+import logging
+
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 class WikiUser(AbstractUser):
@@ -117,9 +121,6 @@ class WikiUser(AbstractUser):
                             self.profile_picture_web = web_size
                     except Exception as e:
                         # Log error but don't fail the save
-                        import logging
-
-                        logger = logging.getLogger(__name__)
                         logger.error(f'Error processing profile picture: {e}')
                 elif hasattr(self.profile_picture, 'name'):
                     # Existing file path - check if file actually exists
@@ -130,9 +131,6 @@ class WikiUser(AbstractUser):
                     file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture.name)
                     if not os.path.exists(file_path):
                         # File doesn't exist - clear the reference
-                        import logging
-
-                        logger = logging.getLogger(__name__)
                         logger.warning(
                             f'Profile picture file not found: {file_path}, clearing reference'
                         )
@@ -259,6 +257,31 @@ class Item(models.Model):
         if 'current_user' in kwargs:
             self.updated_by = kwargs['current_user']
             del kwargs['current_user']
+        if self.pk:
+            try:
+                previous = Item.objects.get(pk=self.pk)
+                if not previous.is_deleted and self.is_deleted:
+                    logger.info(
+                        "Item soft-deleted",
+                        extra={"item_id": self.pk, "wishlist_id": self.wishlist_id},
+                    )
+                if previous.purchased != self.purchased:
+                    if self.purchased:
+                        logger.info(
+                            "Item purchased",
+                            extra={
+                                "item_id": self.pk,
+                                "wishlist_id": self.wishlist_id,
+                                "purchased_by": getattr(self.purchased_by, "email", None),
+                            },
+                        )
+                    else:
+                        logger.info(
+                            "Item unpurchased",
+                            extra={"item_id": self.pk, "wishlist_id": self.wishlist_id},
+                        )
+            except Item.DoesNotExist:
+                pass
         super().save(*args, **kwargs)
 
     def __str__(self):

@@ -65,6 +65,7 @@ class SignUpView(generic.CreateView):
 @csrf_protect
 def logout_view(request):
     """Custom logout view that clears Django session and redirects to Firebase logout."""
+    logger.info("User logged out", extra={"user": getattr(request.user, "email", str(request.user))})
     auth_logout(request)
     messages.success(request, 'You have been logged out successfully.')
 
@@ -91,18 +92,25 @@ def item_add_ajax(request, wishlist_id):
         is_steward = get_steward_proxy_enabled() and request.user == wishlist.dependent
 
         if not (is_owner or is_manager or is_steward):
+            logger.warning(
+                "Unauthorized item add attempt",
+                extra={"wishlist_id": wishlist_id, "user": request.user.email},
+            )
             return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
 
         # Create a new item
         item = Item(name=data['name'], wishlist=wishlist)
         # Set other fields as necessary
         item.save(current_user=request.user)
+        logger.info(
+            "Item added", extra={"item_id": item.id, "wishlist_id": wishlist_id, "user": request.user.email}
+        )
 
         # Return the new item details
         return JsonResponse({'id': item.id, 'name': item.name})
     except Exception as e:
         # Log the exception for debugging
-        print(e)
+        logger.error(f'Error in item_add_ajax: {e}', exc_info=True)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
@@ -114,6 +122,10 @@ def item_add(request, wishlist_id):
     is_owner = request.user == wishlist.owner
     is_manager = request.user in wishlist.managers.all()
     if not (is_owner or is_manager):
+        logger.warning(
+            "Unauthorized item add attempt",
+            extra={"wishlist_id": wishlist_id, "user": request.user.email},
+        )
         messages.error(request, 'You can only add items to wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
@@ -121,7 +133,11 @@ def item_add(request, wishlist_id):
         form = ItemForm(request.POST, wishlist=wishlist)
         if form.is_valid():
             try:
-                form.save(commit=True, wishlist=wishlist, current_user=request.user)
+                item = form.save(commit=True, wishlist=wishlist, current_user=request.user)
+                logger.info(
+                    "Item added",
+                    extra={"item_id": item.id if item else None, "wishlist_id": wishlist_id, "user": request.user.email},
+                )
                 messages.success(request, 'Item added successfully.')
                 return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
             except Exception as e:
@@ -145,6 +161,10 @@ def item_edit(request, item_id):
     is_owner = request.user == item.wishlist.owner
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
+        logger.warning(
+            "Unauthorized item edit attempt",
+            extra={"item_id": item_id, "user": request.user.email},
+        )
         messages.error(
             request, 'You can only edit items in your own wishlists or wishlists you manage.'
         )
@@ -181,12 +201,17 @@ def item_delete(request, item_id):
     is_owner = request.user == item.wishlist.owner
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
+        logger.warning(
+            "Unauthorized item delete attempt",
+            extra={"item_id": item_id, "user": request.user.email},
+        )
         messages.error(request, 'You can only delete items in wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=item.wishlist.id)
 
     wishlist_id = item.wishlist.id
     item.is_deleted = True  # Soft delete
     item.save(current_user=request.user)
+    logger.info("Item deleted", extra={"item_id": item_id, "wishlist_id": wishlist_id, "user": request.user.email})
     messages.success(request, 'Item deleted successfully.')
     return redirect('gift:wishlist_detail', wishlist_id=wishlist_id)
 
@@ -207,6 +232,10 @@ def item_purchase(request, item_id):
 
     # List owners/managers cannot mark items on their own list as purchased
     if is_list_manager:
+        logger.warning(
+            "Owner/manager attempted to purchase own list item",
+            extra={"item_id": item_id, "wishlist_id": wishlist.id, "user": request.user.email},
+        )
         messages.warning(request, 'You cannot mark items as purchased on your own list.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
@@ -276,6 +305,14 @@ def wishlist_create(request):
                         messages.success(request, f'Created new family: {new_family_name}')
 
                 wishlist.save()
+                logger.info(
+                    "Wishlist created",
+                    extra={
+                        "wishlist_id": wishlist.id,
+                        "family_id": wishlist.family_name_id,
+                        "user": request.user.email,
+                    },
+                )
 
                 # Save managers (ManyToMany field needs to be saved after the instance)
                 if 'managers' in form.cleaned_data:
@@ -491,9 +528,11 @@ def profile(request):
             profile_form = ProfilePictureForm(request.POST, request.FILES, instance=request.user)
             if profile_form.is_valid():
                 profile_form.save()
+                logger.info("Profile picture updated", extra={"user": request.user.email})
                 messages.success(request, 'Profile picture updated successfully!')
                 return redirect('gift:account')
             else:
+                logger.warning("Profile picture update failed", extra={"user": request.user.email, "errors": str(profile_form.errors)})
                 messages.error(request, 'Error updating profile picture. Please try again.')
         else:
             profile_form = ProfilePictureForm(instance=request.user)
@@ -506,6 +545,7 @@ def profile(request):
         palette_form = ColorPaletteForm(request.POST, instance=request.user)
         if palette_form.is_valid():
             palette_form.save()
+            logger.info("Color palette updated", extra={"user": request.user.email, "palette": palette_form.cleaned_data.get("color_palette")})
             messages.success(request, 'Color palette updated successfully!')
             return redirect('gift:account')
         else:
@@ -785,6 +825,10 @@ def wishlist_clear_purchased(request, wishlist_id):
     is_manager = request.user in wishlist.managers.all()
 
     if not (is_owner or is_steward or is_manager):
+        logger.warning(
+            "Unauthorized wishlist clear purchased attempt",
+            extra={"wishlist_id": wishlist_id, "user": request.user.email},
+        )
         messages.error(request, 'You can only clear items from wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
@@ -795,6 +839,10 @@ def wishlist_clear_purchased(request, wishlist_id):
         for item in purchased_items:
             item.is_deleted = True
             item.save(current_user=request.user)
+        logger.info(
+            "Wishlist purchased items cleared",
+            extra={"wishlist_id": wishlist_id, "count": count, "user": request.user.email},
+        )
         messages.success(request, f'Successfully cleared {count} purchased item(s).')
     else:
         messages.info(request, 'No purchased items to clear.')
@@ -809,9 +857,14 @@ def wishlist_delete(request, wishlist_id):
 
     # Check if user is the owner
     if request.user != wishlist.owner:
+        logger.warning(
+            "Unauthorized wishlist delete attempt",
+            extra={"wishlist_id": wishlist_id, "user": request.user.email},
+        )
         messages.error(request, 'You can only delete your own wishlists.')
         return redirect('gift:home')
 
+    logger.info("Wishlist deleted", extra={"wishlist_id": wishlist_id, "user": request.user.email})
     # Delete the wishlist
     wishlist.delete()
     messages.success(request, 'Wishlist deleted successfully.')
