@@ -22,6 +22,8 @@ opentelemetry-sdk = "*"
 opentelemetry-instrumentation-django = "*"
 opentelemetry-instrumentation-psycopg2 = "*"
 opentelemetry-exporter-gcp-trace = "*"
+firebase-admin = "*"
+requests = "*"
 
 [dev-packages]
 pytest = "*"
@@ -31,6 +33,7 @@ selenium = "*"
 factory-boy = "*"
 coverage = "*"
 pytest-cov = "*"
+ruff = "*"
 
 [requires]
 python_version = "3.10"

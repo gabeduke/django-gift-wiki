@@ -8,9 +8,10 @@ Usage:
     python manage.py fix_sequences
     python manage.py fix_sequences --app gift --model WishList
 """
+
+from django.apps import apps
 from django.core.management.base import BaseCommand
 from django.db import connection
-from django.apps import apps
 
 
 class Command(BaseCommand):
@@ -46,9 +47,7 @@ class Command(BaseCommand):
                 model = apps.get_model(app_name, model_name)
                 self.fix_model_sequence(model, dry_run)
             except LookupError:
-                self.stdout.write(
-                    self.style.ERROR(f'Model {app_name}.{model_name} not found')
-                )
+                self.stdout.write(self.style.ERROR(f'Model {app_name}.{model_name} not found'))
         elif app_name:
             # Fix all models in app
             try:
@@ -56,9 +55,7 @@ class Command(BaseCommand):
                 for model in app_config.get_models():
                     self.fix_model_sequence(model, dry_run)
             except LookupError:
-                self.stdout.write(
-                    self.style.ERROR(f'App {app_name} not found')
-                )
+                self.stdout.write(self.style.ERROR(f'App {app_name} not found'))
         else:
             # Fix all models
             for app_config in apps.get_app_configs():
@@ -72,76 +69,69 @@ class Command(BaseCommand):
         """Fix the sequence for a specific model."""
         # Get the primary key field
         pk_field = model._meta.pk
-        
+
         # Only fix sequences for integer primary keys
         if not hasattr(pk_field, 'get_internal_type'):
             return
-        
+
         if pk_field.get_internal_type() not in ('AutoField', 'BigAutoField'):
             return
-        
+
         # Get table name
         table_name = model._meta.db_table
-        
+
         # Get sequence name (PostgreSQL convention)
-        sequence_name = f"{table_name}_{pk_field.column}_seq"
-        
+        sequence_name = f'{table_name}_{pk_field.column}_seq'
+
         with connection.cursor() as cursor:
             # Get current max ID
-            cursor.execute(f"SELECT MAX({pk_field.column}) FROM {table_name}")
+            cursor.execute(f'SELECT MAX({pk_field.column}) FROM {table_name}')
             max_id_row = cursor.fetchone()
             max_id = max_id_row[0] if max_id_row[0] is not None else 0
-            
+
             # Get current sequence value
             try:
-                cursor.execute(
-                    f"SELECT last_value FROM {sequence_name}"
-                )
+                cursor.execute(f'SELECT last_value FROM {sequence_name}')
                 current_seq_value = cursor.fetchone()[0]
             except Exception as e:
                 # Sequence might not exist or we don't have permission
                 self.stdout.write(
                     self.style.WARNING(
-                        f"Could not read sequence {sequence_name} for {model._meta.label}: {e}"
+                        f'Could not read sequence {sequence_name} for {model._meta.label}: {e}'
                     )
                 )
                 return
-            
+
             # Check if sequence needs fixing
             if current_seq_value < max_id:
                 if dry_run:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"[DRY RUN] Would fix {model._meta.label}: "
-                            f"sequence at {current_seq_value}, max ID is {max_id}"
+                            f'[DRY RUN] Would fix {model._meta.label}: '
+                            f'sequence at {current_seq_value}, max ID is {max_id}'
                         )
                     )
                 else:
                     # Set sequence to max_id + 1
                     new_seq_value = max_id + 1
                     try:
-                        cursor.execute(
-                            f"SELECT setval('{sequence_name}', {new_seq_value}, false)"
-                        )
+                        cursor.execute(f"SELECT setval('{sequence_name}', {new_seq_value}, false)")
                         self.stdout.write(
                             self.style.SUCCESS(
-                                f"Fixed {model._meta.label}: "
-                                f"sequence set from {current_seq_value} to {new_seq_value}"
+                                f'Fixed {model._meta.label}: '
+                                f'sequence set from {current_seq_value} to {new_seq_value}'
                             )
                         )
                     except Exception as e:
                         self.stdout.write(
-                            self.style.ERROR(
-                                f"Error fixing sequence for {model._meta.label}: {e}"
-                            )
+                            self.style.ERROR(f'Error fixing sequence for {model._meta.label}: {e}')
                         )
             else:
                 # Sequence is already correct or ahead
                 if current_seq_value > max_id:
                     self.stdout.write(
                         self.style.SUCCESS(
-                            f"{model._meta.label}: sequence is correct "
-                            f"(sequence: {current_seq_value}, max ID: {max_id})"
+                            f'{model._meta.label}: sequence is correct '
+                            f'(sequence: {current_seq_value}, max ID: {max_id})'
                         )
                     )
-

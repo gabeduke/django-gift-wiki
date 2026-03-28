@@ -112,6 +112,16 @@ variable "alert_email" {
   default     = "gabeduke@gmail.com"
 }
 
+variable "google_analytics_ids" {
+  description = "Map of environment to Google Analytics Measurement ID"
+  type        = map(string)
+  default     = {
+    dev  = "G-2SKXZF1EPF"
+    prod = "G-QT62MRCHZ8"
+  }
+}
+
+
 # Enable required APIs
 resource "google_project_service" "required_apis" {
   for_each = toset([
@@ -177,6 +187,9 @@ locals {
       FIREBASE_STORAGE_BUCKET      = "${var.project_id}.appspot.com"
       FIREBASE_APP_ID              = google_firebase_web_app.app.app_id
       FIREBASE_MESSAGING_SENDER_ID = data.google_project.project.number
+      
+      # Google Analytics
+      GOOGLE_ANALYTICS_ID          = lookup(var.google_analytics_ids, var.environment, "")
     }
   )
   
@@ -505,37 +518,47 @@ resource "google_monitoring_alert_policy" "log_error" {
   depends_on = [google_project_service.required_apis]
 }
 
-# 2. Metric Alert Policy (High Latency > 2s p99)
-resource "google_monitoring_alert_policy" "high_latency" {
-  display_name = "${var.service_name} - High Latency Alert"
-  combiner     = "OR"
-  project      = var.project_id
-  
-  conditions {
-    display_name = "p99 Latency > 2s"
-    condition_threshold {
-      filter     = "resource.type = \"cloud_run_revision\" AND resource.labels.service_name = \"${var.service_name}\" AND metric.type = \"run.googleapis.com/request_latencies\""
-      duration   = "60s"
-      comparison = "COMPARISON_GT"
-      
-      aggregations {
-        alignment_period   = "60s"
-        per_series_aligner = "ALIGN_PERCENTILE_99"
-        cross_series_reducer = "REDUCE_MAX"
-      }
-      
-      threshold_value = 2000 # 2000ms = 2s
-    }
-  }
+# High Latency Alert - DISABLED
+# This alert is too sensitive for low-traffic personal sites.
+# For a personal gift wiki, occasional high latency is acceptable.
+# The other alerts (log errors, 5xx errors) are more appropriate.
+#
+# To re-enable, uncomment the resource block below and adjust thresholds as needed.
+# Consider:
+#   - Increasing threshold from 2000ms to 5000ms or higher
+#   - Increasing duration from 60s to 300s (5 minutes)
+#   - Adding minimum request count requirement
 
-  notification_channels = [google_monitoring_notification_channel.email.name]
-  
-  documentation {
-    content = "The ${var.service_name} service is experiencing high latency (p99 > 2s)."
-  }
-
-  depends_on = [google_project_service.required_apis]
-}
+# resource "google_monitoring_alert_policy" "high_latency" {
+#   display_name = "${var.service_name} - High Latency Alert"
+#   combiner     = "OR"
+#   project      = var.project_id
+#   
+#   conditions {
+#     display_name = "p99 Latency > 2s"
+#     condition_threshold {
+#       filter     = "resource.type = \"cloud_run_revision\" AND resource.labels.service_name = \"${var.service_name}\" AND metric.type = \"run.googleapis.com/request_latencies\""
+#       duration   = "60s"
+#       comparison = "COMPARISON_GT"
+#       
+#       aggregations {
+#         alignment_period   = "60s"
+#         per_series_aligner = "ALIGN_PERCENTILE_99"
+#         cross_series_reducer = "REDUCE_MAX"
+#       }
+#       
+#       threshold_value = 2000 # 2000ms = 2s
+#     }
+#   }
+#
+#   notification_channels = [google_monitoring_notification_channel.email.name]
+#   
+#   documentation {
+#     content = "The ${var.service_name} service is experiencing high latency (p99 > 2s)."
+#   }
+#
+#   depends_on = [google_project_service.required_apis]
+# }
 
 # 3. Metric Alert Policy (High Error Rate - 5xx Errors)
 resource "google_monitoring_alert_policy" "error_rate" {
@@ -632,40 +655,49 @@ resource "google_monitoring_slo" "latency" {
   }
 }
 
-# Burn Rate Alerts (Alert if we burn 2% of budget in 1 hour)
-# This detects fast burns (major outages)
-# Note: For SLO burn rate, we use a specific filter format
-resource "google_monitoring_alert_policy" "burn_rate" {
-  display_name = "${var.service_name} - SLO Burn Rate Alert"
-  combiner     = "OR"
-  project      = var.project_id
-  
-  conditions {
-    display_name = "High Burn Rate (Availability)"
-    condition_threshold {
-      filter     = "select_slo_burn_rate(\"${google_monitoring_slo.availability.name}\", \"3600s\")"
-      duration   = "0s"
-      comparison = "COMPARISON_GT"
-      threshold_value = 2
-    }
-  }
+# Burn Rate Alerts - DISABLED
+# These alerts are too sensitive for low-traffic personal sites.
+# They were triggering constantly despite minimal traffic.
+# The other alerts (log errors, high latency, 5xx errors) are more appropriate.
+#
+# To re-enable, uncomment the resource block below and adjust thresholds as needed.
+# Consider:
+#   - Increasing threshold_value from 2 to 10+
+#   - Increasing duration from "0s" to "300s" (5 minutes)
+#   - Changing time window from "3600s" to "21600s" (6 hours)
+#   - Changing combiner from "OR" to "AND"
 
-  conditions {
-    display_name = "High Burn Rate (Latency)"
-    condition_threshold {
-      filter     = "select_slo_burn_rate(\"${google_monitoring_slo.latency.name}\", \"3600s\")"
-      duration   = "0s"
-      comparison = "COMPARISON_GT"
-      threshold_value = 2
-    }
-  }
-
-  notification_channels = [google_monitoring_notification_channel.email.name]
-  
-  documentation {
-    content = "The ${var.service_name} service is consuming its error budget too quickly (Burn Rate > 2)."
-  }
-  
-  depends_on = [google_project_service.required_apis]
-}
+# resource "google_monitoring_alert_policy" "burn_rate" {
+#   display_name = "${var.service_name} - SLO Burn Rate Alert"
+#   combiner     = "OR"
+#   project      = var.project_id
+#   
+#   conditions {
+#     display_name = "High Burn Rate (Availability)"
+#     condition_threshold {
+#       filter     = "select_slo_burn_rate(\"${google_monitoring_slo.availability.name}\", \"3600s\")"
+#       duration   = "0s"
+#       comparison = "COMPARISON_GT"
+#       threshold_value = 2
+#     }
+#   }
+#
+#   conditions {
+#     display_name = "High Burn Rate (Latency)"
+#     condition_threshold {
+#       filter     = "select_slo_burn_rate(\"${google_monitoring_slo.latency.name}\", \"3600s\")"
+#       duration   = "0s"
+#       comparison = "COMPARISON_GT"
+#       threshold_value = 2
+#     }
+#   }
+#
+#   notification_channels = [google_monitoring_notification_channel.email.name]
+#   
+#   documentation {
+#     content = "The ${var.service_name} service is consuming its error budget too quickly (Burn Rate > 2)."
+#   }
+#   
+#   depends_on = [google_project_service.required_apis]
+# }
 

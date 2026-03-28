@@ -16,7 +16,9 @@ class Command(BaseCommand):
         call_command('collectstatic', '--noinput')
 
         # Define source and destination
-        source_dir = os.path.join(os.getcwd(), 'staticfiles')  # Adjust if your STATIC_ROOT is different
+        source_dir = os.path.join(
+            os.getcwd(), 'staticfiles'
+        )  # Adjust if your STATIC_ROOT is different
         destination_dir = options['destination']
 
         # Copy files from source to destination
@@ -30,4 +32,6 @@ class Command(BaseCommand):
             else:
                 shutil.copy2(s, d)
 
-        self.stdout.write(self.style.SUCCESS('Successfully copied static files to {}'.format(destination_dir)))
+        self.stdout.write(
+            self.style.SUCCESS(f'Successfully copied static files to {destination_dir}')
+        )

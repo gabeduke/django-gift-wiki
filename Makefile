@@ -4,6 +4,12 @@
 .PHONY: docker-build docker-build-no-load docker-build-local docker-push
 .PHONY: k8s-deploy k8s-clean
 
+# Load environment variables from .env natively if it exists
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
 # Variables
 PYTHON = pipenv run python
 PYTEST = pipenv run pytest
@@ -56,6 +62,18 @@ test-parallel:
 # Run development server (depends on build, but not tests for faster iteration)
 run: build
 	$(MANAGE) runserver
+
+# Run E2E tests
+# Usage: make test-e2e URL=https://giftwiki-dev.leetserve.com
+URL ?= https://giftwiki-dev.leetserve.com
+test-e2e:
+	@echo "Running E2E tests against $(URL)..."
+	pipenv run pytest tests/e2e/ --base-url=$(URL) --headless
+
+# Run E2E tests in visible mode (for local debugging/watching)
+test-e2e-watch:
+	@echo "Running E2E tests (visible mode) against $(URL)..."
+	pipenv run pytest tests/e2e/ --base-url=$(URL)
 
 # Fast dev server - skips collectstatic for faster iteration (CSS/JS changes work without it)
 local:
@@ -345,7 +363,7 @@ prod:
 	@echo "Step 2: Deploy Cloud Run application (creates image)..."
 	@$(GCLOUD) builds submit \
 		--config=cloudbuild.yaml \
-		--substitutions=_SERVICE_NAME=giftwiki-prod,_REGION=us-east1
+		--substitutions=_SERVICE_NAME=giftwiki-prod,_REGION=us-east1,_DB_HOST=ep-falling-morning-ae2u6rxv-pooler.c-2.us-east-2.aws.neon.tech,_DB_NAME=neondb,_FIREBASE_API_KEY_SECRET=prod-firebase-api-key
 	@echo "Step 3: Create Cloud Run service with Terraform (now that image exists)..."
 	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars" -target=google_cloud_run_v2_service.app -target=google_cloud_run_service_iam_member.public_access
 	@echo "Step 4: Deploy Firebase Hosting..."
