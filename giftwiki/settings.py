@@ -59,6 +59,11 @@ LOGGING = {
             'handlers': ['console'],
             'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
         },
+        'gift': {
+            'handlers': ['console'],
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG' if DEBUG else 'INFO'),
+            'propagate': False,
+        },
         'boto3': {
             'handlers': ['console'],
             'level': os.getenv('DJANGO_LOG_LEVEL', 'WARNING' if not DEBUG else 'DEBUG'),
@@ -92,10 +97,11 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
         LOGGING['loggers']['gift'] = {  # App specific logger
             'handlers': ['cloud'],
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
         }
     except Exception as e:
-        print(f'Failed to setup Cloud Logging: {e}')
+        import sys
+        print(f'Failed to setup Cloud Logging: {e}', file=sys.stderr)
 
 # Only add file handler in debug mode
 if DEBUG:
