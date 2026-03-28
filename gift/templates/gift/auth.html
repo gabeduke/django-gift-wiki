@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gift Wiki - Sign In</title>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -237,9 +237,28 @@
             console.log('Starting Facebook sign-in...');
             const provider = new firebase.auth.FacebookAuthProvider();
             provider.addScope('email');
+            provider.setCustomParameters({
+              'auth_type': 'rerequest' // Force Facebook to re-ask for declined permissions like email
+            });
             firebase.auth().signInWithPopup(provider)
                 .then(async (result) => {
                     console.log('Sign-in popup completed, user:', result.user.email);
+                    
+                    if (!result.user.email) {
+                        console.error('Facebook did not return an email address.');
+                        const errorElement = document.getElementById('error');
+                        errorElement.textContent = 'Facebook did not provide an email address. This app requires an email for the allowlist. Please sign in with Google or update your Facebook settings.';
+                        errorElement.style.display = 'block';
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('signin').style.display = 'block';
+                        try {
+                            await firebase.auth().signOut();
+                        } catch (e) {
+                            console.error('Sign out error:', e);
+                        }
+                        return;
+                    }
+
                     // Force refresh token immediately after sign-in to get fresh auth_time
                     try {
                         const idToken = await result.user.getIdToken(true); // Force refresh
@@ -271,9 +290,54 @@
                         document.getElementById('signin').style.display = 'block';
                     }
                 })
-                .catch((error) => {
+                .catch(async (error) => {
                     console.error('Sign-in popup error:', error);
-                    document.getElementById('error').textContent = 'Sign in failed: ' + error.message;
+                    
+                    if (error.code === 'auth/account-exists-with-different-credential') {
+                        const errorElement = document.getElementById('error');
+                        errorElement.textContent = 'Account exists with Google. Prompting Google sign-in to link accounts...';
+                        errorElement.style.display = 'block';
+                        
+                        const pendingCred = error.credential;
+                        const email = error.email;
+                        
+                        try {
+                            const methods = await firebase.auth().fetchSignInMethodsForEmail(email);
+                            if (methods.includes('google.com')) {
+                                document.getElementById('signin').style.display = 'none';
+                                document.getElementById('loading').style.display = 'block';
+                                document.querySelector('#loading p').textContent = 'Please complete the Google popup to link your Facebook account.';
+                                
+                                const googleProvider = new firebase.auth.GoogleAuthProvider();
+                                googleProvider.setCustomParameters({login_hint: email});
+                                
+                                const result = await firebase.auth().signInWithPopup(googleProvider);
+                                await result.user.linkWithCredential(pendingCred);
+                                console.log('Successfully linked Facebook account to Google account');
+                                
+                                const idToken = await result.user.getIdToken(true);
+                                const cookieCreated = await createSessionCookie(idToken);
+                                
+                                if (cookieCreated) {
+                                    const urlParams = new URLSearchParams(window.location.search);
+                                    const next = urlParams.get('next');
+                                    const redirectUrl = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
+                                    setTimeout(() => window.location.replace(redirectUrl), 300);
+                                } else {
+                                    throw new Error('Failed to create session after linking accounts');
+                                }
+                                return;
+                            }
+                        } catch (linkError) {
+                            console.error('Error linking accounts:', linkError);
+                            errorElement.textContent = 'Failed to link accounts: ' + linkError.message;
+                        }
+                    } else {
+                        const errorElement = document.getElementById('error');
+                        errorElement.textContent = 'Sign in failed: ' + error.message;
+                        errorElement.style.display = 'block';
+                    }
+                    
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('signin').style.display = 'block';
                 });

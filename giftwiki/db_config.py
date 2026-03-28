@@ -1,7 +1,7 @@
 """
 Database configuration for SQLite with WAL mode for concurrent access.
 """
-import os
+
 from django.db.backends.sqlite3.base import DatabaseWrapper
 
 
@@ -36,4 +36,3 @@ def get_new_connection_with_wal(self, conn_params):
 
 
 DatabaseWrapper.get_new_connection = get_new_connection_with_wal
-

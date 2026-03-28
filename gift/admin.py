@@ -1,7 +1,17 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
-from gift.models import Suggestion, WishList, Item, ItemGroup, Category, Family, FeatureFlag, ScrapedWikiPage, ScrapedWikiItem
+from gift.models import (
+    Category,
+    Family,
+    FeatureFlag,
+    Item,
+    ItemGroup,
+    ScrapedWikiItem,
+    ScrapedWikiPage,
+    Suggestion,
+    WishList,
+)
 
 User = get_user_model()
 
@@ -22,13 +32,8 @@ class FeatureFlagAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at']
     list_editable = ['enabled']  # Allow enabling/disabling from list view
     fieldsets = (
-        ('Flag Information', {
-            'fields': ('name', 'description', 'enabled')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
+        ('Flag Information', {'fields': ('name', 'description', 'enabled')}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
 
     def save_model(self, request, obj, form, change):
@@ -36,6 +41,7 @@ class FeatureFlagAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         # Clear the in-memory cache when flags are changed
         from giftwiki.feature_flags import _clear_cache
+
         _clear_cache()
 
 
@@ -46,16 +52,9 @@ class ScrapedWikiPageAdmin(admin.ModelAdmin):
     search_fields = ['title', 'url']
     readonly_fields = ['created_at', 'updated_at']
     fieldsets = (
-        ('Page Information', {
-            'fields': ('title', 'url', 'item_count', 'scraped_at')
-        }),
-        ('Import Status', {
-            'fields': ('is_imported', 'imported_by')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
+        ('Page Information', {'fields': ('title', 'url', 'item_count', 'scraped_at')}),
+        ('Import Status', {'fields': ('is_imported', 'imported_by')}),
+        ('Timestamps', {'fields': ('created_at', 'updated_at'), 'classes': ('collapse',)}),
     )
     actions = ['reset_import_status']
 
@@ -64,12 +63,13 @@ class ScrapedWikiPageAdmin(admin.ModelAdmin):
         count = queryset.update(is_imported=False, imported_by=None)
         # Also reset user selections
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
         User.objects.filter(selected_scraped_page__in=queryset).update(
-            scraped_page_selected=False,
-            selected_scraped_page=None
+            scraped_page_selected=False, selected_scraped_page=None
         )
         self.message_user(request, f'Reset import status for {count} page(s).')
+
     reset_import_status.short_description = 'Reset import status (for testing)'
 
 

@@ -1,7 +1,8 @@
-from django.core.management.base import BaseCommand
-from django.contrib.auth import get_user_model
 import os
+
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand
 
 User = get_user_model()
 
@@ -11,7 +12,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         users_cleaned = 0
-        
+
         for user in User.objects.exclude(profile_picture=''):
             if user.profile_picture:
                 try:
@@ -20,7 +21,7 @@ class Command(BaseCommand):
                         file_path = os.path.join(settings.MEDIA_ROOT, user.profile_picture.name)
                         if not os.path.exists(file_path):
                             self.stdout.write(
-                                f"Clearing missing profile picture for user: {user.username}"
+                                f'Clearing missing profile picture for user: {user.username}'
                             )
                             user.profile_picture = None
                             user.profile_picture_thumbnail = None
@@ -30,10 +31,10 @@ class Command(BaseCommand):
                 except Exception as e:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Error checking profile picture for {user.username}: {e}"
+                            f'Error checking profile picture for {user.username}: {e}'
                         )
                     )
-        
+
         if users_cleaned > 0:
             self.stdout.write(
                 self.style.SUCCESS(

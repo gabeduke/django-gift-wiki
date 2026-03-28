@@ -85,8 +85,14 @@ make test-cov         # Run with coverage report
 make test-unit        # Run unit tests only
 make test-api         # Run API tests only
 make test-bdd         # Run BDD tests only
+make test-e2e         # Run E2E browser tests (headless)
 make test-parallel    # Run tests in parallel
 ```
+
+> **Note:** E2E tests require a running server. By default (with `make test-e2e`), they run against the development environment (`https://giftwiki-dev.leetserve.com`). You can override this by setting `E2E_BASE_URL`:
+> ```bash
+> make test-e2e E2E_BASE_URL=http://localhost:8000
+> ```
 
 ### Test Structure
 
