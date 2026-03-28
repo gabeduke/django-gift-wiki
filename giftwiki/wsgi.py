@@ -16,6 +16,8 @@ try:
     from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
     from opentelemetry.instrumentation.django import DjangoInstrumentor
     from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
+    from opentelemetry.propagate import set_global_textmap
+    from opentelemetry.propagators.cloud_trace_propagator import CloudTraceFormatPropagator
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -36,6 +38,10 @@ def https_app(environ, start_response):
 # Initialize OpenTelemetry in Production/Dev
 if _otel_available and os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
     try:
+        # Propagate Cloud Run's X-Cloud-Trace-Context header so OTel spans
+        # are children of the Cloud Run request trace (not orphan traces)
+        set_global_textmap(CloudTraceFormatPropagator())
+
         # Set up tracer provider
         tracer_provider = TracerProvider()
         trace.set_tracer_provider(tracer_provider)
