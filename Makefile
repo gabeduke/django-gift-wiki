@@ -123,13 +123,13 @@ docker-build-local: test
 # Cloud Run Configuration
 CLOUD_RUN_SERVICE = giftwiki-dev
 CLOUD_RUN_REGION = us-east1
-GCLOUD = /Users/gabeduke/google-cloud-sdk/bin/gcloud
+GCLOUD ?= gcloud
 
 # Firebase Configuration
 FIREBASE = firebase
 # Note: giftwiki-dev name was reserved, using giftwiki-dev-42be6 instead
 FIREBASE_SITE_DEV = giftwiki-dev-42be6
-FIREBASE_SITE_PROD = giftwiki-prod
+FIREBASE_SITE_PROD = giftwiki-prod-v2
 
 # Cloud Run Infrastructure Setup (idempotent)
 # These targets ensure infrastructure is set up correctly before deployment
@@ -255,11 +255,9 @@ dev:
 	@echo "Step 2: Skip Firebase Hosting site creation (managed outside Terraform for dev)..."
 	@echo "Step 3: Deploy Cloud Run application (creates image)..."
 	@$(MAKE) cloud-run-deploy-app
-	@echo "Step 4: Create Cloud Run service with Terraform (now that image exists)..."
-	@cd terraform && terraform apply -auto-approve -var-file="dev.tfvars" -target=google_cloud_run_v2_service.app -target=google_cloud_run_service_iam_member.public_access
-	@echo "Step 5: Deploy Firebase Hosting..."
+	@echo "Step 4: Deploy Firebase Hosting..."
 	@$(MAKE) firebase-deploy-dev
-	@echo "Step 6: Ensure full infrastructure state (Monitoring, Alerts, etc)..."
+	@echo "Step 5: Ensure baseline infrastructure state (Secrets, IAM, etc)..."
 	@cd terraform && terraform apply -auto-approve -var-file="dev.tfvars"
 	@echo ""
 	@echo "Getting Cloud Run service URL..."
@@ -364,11 +362,9 @@ prod:
 	@$(GCLOUD) builds submit \
 		--config=cloudbuild.yaml \
 		--substitutions=_SERVICE_NAME=giftwiki-prod,_REGION=us-east1,_DB_HOST=ep-falling-morning-ae2u6rxv-pooler.c-2.us-east-2.aws.neon.tech,_DB_NAME=neondb,_FIREBASE_API_KEY_SECRET=prod-firebase-api-key
-	@echo "Step 3: Create Cloud Run service with Terraform (now that image exists)..."
-	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars" -target=google_cloud_run_v2_service.app -target=google_cloud_run_service_iam_member.public_access
-	@echo "Step 4: Deploy Firebase Hosting..."
+	@echo "Step 3: Deploy Firebase Hosting..."
 	@$(MAKE) firebase-deploy-prod
-	@echo "Step 5: Ensure full infrastructure state (Monitoring, Alerts, etc)..."
+	@echo "Step 4: Ensure baseline infrastructure state (Secrets, IAM, etc)..."
 	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars"
 	@echo ""
 	@echo "Firebase Hosting URL: https://$(FIREBASE_SITE_PROD).web.app"
