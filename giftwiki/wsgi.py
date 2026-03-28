@@ -10,6 +10,7 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/wsgi/
 import os
 
 # OpenTelemetry Imports
+_otel_available = False
 try:
     from opentelemetry import trace
     from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
@@ -17,8 +18,10 @@ try:
     from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
-except ImportError:
-    pass
+
+    _otel_available = True
+except ImportError as e:
+    print(f'OpenTelemetry packages not available, tracing disabled: {e}')
 
 from django.core.wsgi import get_wsgi_application
 
@@ -31,7 +34,7 @@ def https_app(environ, start_response):
 
 
 # Initialize OpenTelemetry in Production/Dev
-if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
+if _otel_available and os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
     try:
         # Set up tracer provider
         tracer_provider = TracerProvider()
