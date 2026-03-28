@@ -28,14 +28,14 @@ steps:
           --image gcr.io/$PROJECT_ID/${_SERVICE_NAME} \
           --region ${_REGION} \
           --command "python,manage.py,migrate,--noinput" \
-          --set-env-vars DJANGO_SETTINGS_MODULE=giftwiki.settings,DJANGO_DB_HOST=${_DB_HOST},DJANGO_DB_NAME=${_DB_NAME},DJANGO_DB_PORT=${_DB_PORT},DJANGO_DB_CONN_MAX_AGE=600,USE_S3=TRUE,AWS_S3_REGION_NAME=us-east-1,AWS_STORAGE_BUCKET_NAME=gift-wiki,DJANGO_LOG_LEVEL=INFO \
+          --set-env-vars "^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}" \
           --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest \
           --quiet || \
         gcloud run jobs create ${_SERVICE_NAME}-migrate \
           --image gcr.io/$PROJECT_ID/${_SERVICE_NAME} \
           --region ${_REGION} \
           --command "python,manage.py,migrate,--noinput" \
-          --set-env-vars DJANGO_SETTINGS_MODULE=giftwiki.settings,DJANGO_DB_HOST=${_DB_HOST},DJANGO_DB_NAME=${_DB_NAME},DJANGO_DB_PORT=${_DB_PORT},DJANGO_DB_CONN_MAX_AGE=600,USE_S3=TRUE,AWS_S3_REGION_NAME=us-east-1,AWS_STORAGE_BUCKET_NAME=gift-wiki,DJANGO_LOG_LEVEL=INFO \
+          --set-env-vars "^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}" \
           --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest \
           --quiet
 
@@ -52,7 +52,6 @@ steps:
 
   # 3. Deploy container image to Cloud Run service
   - name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
@@ -61,54 +60,21 @@ steps:
       - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
       - '--region'
       - '${_REGION}'
-      - '--allow-unauthenticated'
       - '--platform'
       - 'managed'
+      - '--allow-unauthenticated'
       - '--set-env-vars'
-      - '^@^DJANGO_SETTINGS_MODULE=giftwiki.settings@DJANGO_ALLOWED_HOSTS=*@DJANGO_ALLOWED_ORIGINS=http://localhost,https://*.run.app@DJANGO_DB_HOST=${_DB_HOST}@DJANGO_DB_NAME=${_DB_NAME}@DJANGO_DB_PORT=${_DB_PORT}@DJANGO_DB_CONN_MAX_AGE=600@USE_S3=TRUE@AWS_S3_REGION_NAME=us-east-1@AWS_STORAGE_BUCKET_NAME=gift-wiki@DJANGO_LOG_LEVEL=INFO'
+      - '^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}'
       - '--set-secrets'
       - 'DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest'
-      - '--quiet'
-
-  # 4b. Build E2E Test Runner Image
-  # - name: 'gcr.io/cloud-builders/docker'
-  #   args:
-  #     - 'build'
-  #     - '-f'
-  #     - 'Dockerfile.e2e'
-  #     - '-t'
-  #     - 'gcr.io/$PROJECT_ID/giftwiki-e2e'
-  #     - '.'
-
-  # 5. Get Service URL (persist to file for next step)
-  # - name: 'gcr.io/cloud-builders/gcloud'
-  #   entrypoint: 'bash'
-  #   args:
-  #     - '-c'
-  #     - |
-  #       echo "Retrieving Service URL..."
-  #       gcloud run services describe ${_SERVICE_NAME} --region ${_REGION} --format 'value(status.url)' > service_url.txt
-  #       echo "Detected URL: $(cat service_url.txt)"
-
-  # 6. Run E2E Verification Tests (using custom container)
-  # - name: 'gcr.io/$PROJECT_ID/giftwiki-e2e'
-  #   entrypoint: 'bash'
-  #   args:
-  #     - '-c'
-  #     - |
-  #       echo "Running E2E tests containerized..."
-  #       # /workspace is mounted by default.
-  #       # Remove root conftest.py files that reference Django (not installed in this container)
-  #       # Also remove pytest.ini to avoid loading plugins (pytest-cov, pytest-django) not present in this container
-  #       rm -f conftest.py tests/conftest.py pytest.ini
-        
-  #       # Now run the tests, it will only pick up tests/e2e/conftest.py
-  #       pytest tests/e2e/ --base-url=$(cat service_url.txt) --headless -v -s
-  #   secretEnv: ['FIREBASE_API_KEY']
+  
+  # (Steps 4 and 6 are commented out or removed)
 
 substitutions:
   _SERVICE_NAME: giftwiki-dev
   _REGION: us-east1
+  _ALLOWED_HOSTS: 'giftwiki.leetserve.com,giftwiki-prod-v2.web.app,giftwiki-prod-179879905839.us-east1.run.app,giftwiki-prod-tshpxht2la-ue.a.run.app,.a.run.app'
+  _ALLOWED_ORIGINS: 'https://giftwiki.leetserve.com,https://giftwiki-prod-v2.web.app,https://giftwiki-prod-tshpxht2la-ue.a.run.app'
   # Database configuration (from deploy/dev/config.env)
   _DB_HOST: ep-floral-paper-aenqf3t7-pooler.c-2.us-east-2.aws.neon.tech
   _DB_NAME: neondb
