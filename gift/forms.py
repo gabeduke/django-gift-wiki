@@ -1,5 +1,7 @@
 # forms.py
 
+import logging
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
@@ -9,6 +11,8 @@ from django.forms import formset_factory, modelformset_factory
 from .models import Category, Item, ScrapedWikiPage, Suggestion, WishList
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 
 class ItemForm(forms.ModelForm):
@@ -156,6 +160,11 @@ class ItemForm(forms.ModelForm):
                         family=wishlist.family_name,
                         defaults={'description': f'Category for {new_category_name}'},
                     )
+                    if created:
+                        logger.info(
+                            "Category created",
+                            extra={"category_id": category_obj.id, "name": new_category_name, "family_id": wishlist.family_name_id},
+                        )
                     instance.categories.add(category_obj)
             elif new_category_name and wishlist and wishlist.family_name:
                 # If new category name provided, create it (takes precedence)
@@ -166,6 +175,11 @@ class ItemForm(forms.ModelForm):
                     family=wishlist.family_name,
                     defaults={'description': f'Category for {new_category_name}'},
                 )
+                if created:
+                    logger.info(
+                        "Category created",
+                        extra={"category_id": category_obj.id, "name": new_category_name, "family_id": wishlist.family_name_id},
+                    )
                 instance.categories.add(category_obj)
             elif category and category != '__CREATE_NEW__':
                 instance.categories.add(category)
