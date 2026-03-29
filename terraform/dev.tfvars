@@ -44,4 +44,3 @@ env_vars = {
   DJANGO_ENVIRONMENT     = "dev"
 }
 
-alert_email = "gabeduke@gmail.com"
