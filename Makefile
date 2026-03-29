@@ -244,25 +244,22 @@ firebase-deploy-prod: firebase-ensure-logged-in
 	@$(FIREBASE) deploy --only hosting:prod
 	@echo "✅ Firebase Functions and Hosting deployed (prod)"
 
-# Deploy to Kubernetes and Cloud Run (Dev) - Full deployment with infrastructure setup
 # Deploy to Cloud Run (Dev)
+# App deployment is handled by GitHub Actions (deploy-dev.yml) using repository variables.
+# To deploy locally, set DEV_* env vars (DEV_SERVICE_NAME, DEV_REGION) and run: make deploy-app-dev
 dev: ENV=dev
 dev:
 	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase Auth) with Terraform..."
 	@$(MAKE) terraform-init ENV=dev
 	@cd terraform && terraform workspace select dev
 	@cd terraform && terraform apply -auto-approve -var-file="dev.tfvars"
-	@echo "Step 2: Deploy Cloud Run application (builds image)..."
-	@$(MAKE) cloud-run-deploy-app
-	@echo ""
-	@echo "Getting Cloud Run service URL..."
-	@SERVICE_URL=$$($(GCLOUD) run services describe $(CLOUD_RUN_SERVICE) \
-		--region $(CLOUD_RUN_REGION) \
-		--format 'value(status.url)' 2>/dev/null) && \
-	if [ -n "$$SERVICE_URL" ]; then \
-		echo "✅ Service URL: $$SERVICE_URL"; \
-	fi
-	@echo "✅ Domain: https://giftwiki-dev.leetserve.com (update DNS if not already pointing to Cloud Run)"
+	@echo "✅ Infrastructure ready."
+	@echo "   To deploy the app locally, set DEV_* env vars and run: make deploy-app-dev"
+
+deploy-app-dev:
+	@echo "Deploying Cloud Run application (dev)..."
+	@$(GCLOUD) builds submit --config=cloudbuild.yaml \
+		--substitutions="_SERVICE_NAME=giftwiki-dev,_REGION=us-east1"
 
 # Verify Cloud Run secrets are set up correctly
 cloud-run-verify-secrets:
@@ -346,14 +343,28 @@ terraform-ensure-infra: terraform-init
 	@echo "✅ Infrastructure managed by Terraform"
 
 # Deploy to Cloud Run (Prod)
+# App deployment is handled by GitHub Actions (deploy.yml) using repository variables.
+# To deploy locally, set PROD_* env vars (PROD_SERVICE_NAME, PROD_REGION, PROD_DB_HOST,
+# PROD_DB_NAME, PROD_FIREBASE_API_KEY_SECRET, PROD_ALLOWED_USERS_SECRET,
+# PROD_ALLOWED_HOSTS, PROD_ALLOWED_ORIGINS) and run: make deploy-app-prod
 prod: ENV=prod
 prod:
 	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase Auth) with Terraform..."
 	@$(MAKE) terraform-init ENV=prod
 	@cd terraform && terraform workspace select prod
 	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars"
-	@echo "Step 2: Deploy Cloud Run application (builds image)..."
-	@$(GCLOUD) builds submit \
-		--config=cloudbuild.yaml \
-		--substitutions=^;^_SERVICE_NAME=giftwiki-prod;_REGION=us-east1;_DB_HOST=ep-falling-morning-ae2u6rxv-pooler.c-2.us-east-2.aws.neon.tech;_DB_NAME=neondb;_FIREBASE_API_KEY_SECRET=prod-firebase-api-key;_ALLOWED_USERS_SECRET=prod-django-allowed-users;_ALLOWED_HOSTS=giftwiki.leetserve.com,giftwiki-prod-tshpxht2la-ue.a.run.app,.a.run.app;_ALLOWED_ORIGINS=https://giftwiki.leetserve.com,https://giftwiki-prod-tshpxht2la-ue.a.run.app
-	@echo "✅ Domain: https://giftwiki.leetserve.com (update DNS if not already pointing to Cloud Run)"
+	@echo "✅ Infrastructure ready."
+	@echo "   To deploy the app locally, set PROD_* env vars and run: make deploy-app-prod"
+
+deploy-app-prod:
+	@echo "Deploying Cloud Run application (prod)..."
+	@SUBS="^;^"; \
+	SUBS+="_SERVICE_NAME=$$PROD_SERVICE_NAME;"; \
+	SUBS+="_REGION=$$PROD_REGION;"; \
+	SUBS+="_DB_HOST=$$PROD_DB_HOST;"; \
+	SUBS+="_DB_NAME=$$PROD_DB_NAME;"; \
+	SUBS+="_FIREBASE_API_KEY_SECRET=$$PROD_FIREBASE_API_KEY_SECRET;"; \
+	SUBS+="_ALLOWED_USERS_SECRET=$$PROD_ALLOWED_USERS_SECRET;"; \
+	SUBS+="_ALLOWED_HOSTS=$$PROD_ALLOWED_HOSTS;"; \
+	SUBS+="_ALLOWED_ORIGINS=$$PROD_ALLOWED_ORIGINS"; \
+	$(GCLOUD) builds submit --config=cloudbuild.yaml --substitutions="$$SUBS"
