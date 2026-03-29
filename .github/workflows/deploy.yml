@@ -75,5 +75,21 @@ jobs:
             '{"django-secret-key":$dsk,"django-db-user":$dbu,"django-db-password":$dbp,"aws-access-key-id":$aki,"aws-secret-access-key":$ask}')
           echo "TF_VAR_secret_values=$TF_VAR_secret_values" >> $GITHUB_ENV
 
-      - name: Deploy Production
-        run: make prod
+      - name: Apply Terraform (prod)
+        run: |
+          make terraform-init ENV=prod
+          cd terraform && terraform workspace select prod
+          cd terraform && terraform apply -auto-approve -var-file="prod.tfvars"
+
+      - name: Deploy Cloud Run (prod)
+        run: |
+          SUBS="^;^"
+          SUBS+="_SERVICE_NAME=${{ vars.PROD_SERVICE_NAME }};"
+          SUBS+="_REGION=${{ vars.PROD_REGION }};"
+          SUBS+="_DB_HOST=${{ vars.PROD_DB_HOST }};"
+          SUBS+="_DB_NAME=${{ vars.PROD_DB_NAME }};"
+          SUBS+="_FIREBASE_API_KEY_SECRET=${{ vars.PROD_FIREBASE_API_KEY_SECRET }};"
+          SUBS+="_ALLOWED_USERS_SECRET=${{ vars.PROD_ALLOWED_USERS_SECRET }};"
+          SUBS+="_ALLOWED_HOSTS=${{ vars.PROD_ALLOWED_HOSTS }};"
+          SUBS+="_ALLOWED_ORIGINS=${{ vars.PROD_ALLOWED_ORIGINS }}"
+          gcloud builds submit --config=cloudbuild.yaml --substitutions="${SUBS}"
