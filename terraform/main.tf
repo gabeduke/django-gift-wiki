@@ -90,7 +90,7 @@ variable "container_image" {
 }
 
 variable "custom_domain" {
-  description = "Custom domain for Firebase Hosting"
+  description = "Custom domain for Cloud Run domain mapping"
   type        = string
   default     = ""
 }
@@ -380,7 +380,7 @@ resource "google_firebase_web_app" "app" {
 }
 
 # Firebase Hosting Site
-# Only create if manage_firebase_hosting is true (allows skipping for dev if site exists outside Terraform)
+# Only create if manage_firebase_hosting is true
 resource "google_firebase_hosting_site" "app" {
   count    = var.manage_firebase_hosting ? 1 : 0
   provider = google-beta
@@ -395,24 +395,30 @@ resource "google_firebase_hosting_site" "app" {
   ]
 }
 
-# Firebase Hosting Custom Domain
-resource "google_firebase_hosting_custom_domain" "app" {
+# Cloud Run Domain Mapping
+# Maps a custom domain directly to the Cloud Run service (no Firebase Hosting needed)
+resource "google_cloud_run_domain_mapping" "app" {
   count    = var.custom_domain != "" ? 1 : 0
-  provider = google-beta
-  project  = var.project_id
-  site_id  = var.environment == "prod" ? "${var.service_name}-v2" : var.service_name
-  custom_domain = var.custom_domain
+  location = var.region
+  name     = var.custom_domain
+
+  metadata {
+    namespace = var.project_id
+  }
+
+  spec {
+    route_name = var.service_name
+  }
 }
 
-# Output Firebase Hosting URL
-output "firebase_hosting_url" {
-  description = "Firebase Hosting URL (use this instead of Cloud Run URL directly)"
-  value       = var.manage_firebase_hosting ? (google_firebase_hosting_site.app[0].default_url != "" ? google_firebase_hosting_site.app[0].default_url : "https://${google_firebase_hosting_site.app[0].site_id}.web.app") : "https://${var.service_name}.web.app"
+output "custom_domain_url" {
+  description = "Custom domain URL (after DNS is configured)"
+  value       = var.custom_domain != "" ? "https://${var.custom_domain}" : ""
 }
 
-output "firebase_hosting_alternate_url" {
-  description = "Firebase Hosting alternate URL"
-  value       = var.manage_firebase_hosting ? "https://${google_firebase_hosting_site.app[0].site_id}.firebaseapp.com" : "https://${var.service_name}.firebaseapp.com"
+output "cloud_run_url" {
+  description = "Direct Cloud Run service URL"
+  value       = "https://${var.service_name}-${data.google_project.project.number}.${var.region}.run.app"
 }
 
 output "firebase_app_id" {

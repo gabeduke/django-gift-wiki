@@ -8,10 +8,10 @@ spec:
   - dnsName: giftwiki.leetserve.com
     recordType: CNAME
     targets:
-    - giftwiki-prod-v2.web.app
+    - ghs.googlehosted.com
     recordTTL: 300
   - dnsName: giftwiki-dev.leetserve.com
     recordType: CNAME
     targets:
-    - giftwiki-dev.web.app
+    - ghs.googlehosted.com
     recordTTL: 300

@@ -4,23 +4,18 @@ commonLabels:
   app: wikileet
 
 resources:
-    # Firebase Hosting forwarding (replaces k3s deployment)
-    # This creates a CNAME record via ExternalDNS pointing to Firebase Hosting
-    - ingress-firebase.yaml
-    # Preview ingress for testing before switching production
-    - ingress-firebase-preview.yaml
-    # Legacy k3s resources (can be removed after migration)
-    # - deployment.yaml  # Using Deployment with Neon PostgreSQL (stateless)
-    # - statefulset.yaml  # Keep for rollback capability (can be scaled to 0)
-    # - pvc.yaml  # Keep PVC for SQLite backup/rollback
-    # - service.yaml
-    # - ingress.yaml
-    # ServiceMonitor for Prometheus Operator
-    # Make sure the labels match what your Prometheus serviceMonitorSelector expects
+    # Direct k3s serving (Firebase Hosting disabled — domain flagged as phishing)
+    - deployment.yaml   # Stateless Deployment with Neon PostgreSQL
+    - service.yaml
+    - ingress.yaml
+    # Firebase Hosting resources disabled
+    # - ingress-firebase.yaml
+    # - ingress-firebase-preview.yaml
+    # Legacy resources (not needed with Neon PostgreSQL)
+    # - statefulset.yaml
+    # - pvc.yaml
+    # Monitoring (optional)
     # - servicemonitor.yaml
-    # Grafana dashboard ConfigMap
-    # Deploy this in your app namespace - Grafana can discover it cross-namespace
-    # if configured with proper RBAC and namespace watching
     # - grafana-dashboard.yaml
 
 # Secrets are managed separately in homelab repo and applied via 'make secrets'

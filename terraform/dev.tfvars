@@ -13,8 +13,9 @@ db_port = "5432"
 # Container image (leave empty to use latest from gcr.io/PROJECT_ID/SERVICE_NAME)
 container_image = ""
 
-# Skip Firebase Hosting site creation (site exists outside Terraform)
 manage_firebase_hosting = false
+
+custom_domain = "giftwiki-dev.leetserve.com"
 
 # Common labels applied to all resources
 common_labels = {
