@@ -9,12 +9,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     env:
       GOOGLE_PROJECT: wikileet
       GOOGLE_PROJECT_ID: wikileet
       GOOGLE_CLOUD_QUOTA_PROJECT: wikileet
       GCLOUD: gcloud
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -85,12 +86,12 @@ jobs:
       - name: Deploy Cloud Run (prod)
         run: |
           SUBS="^;^"
-          SUBS+="_SERVICE_NAME=${{ vars.PROD_SERVICE_NAME }};"
-          SUBS+="_REGION=${{ vars.PROD_REGION }};"
-          SUBS+="_DB_HOST=${{ vars.PROD_DB_HOST }};"
-          SUBS+="_DB_NAME=${{ vars.PROD_DB_NAME }};"
-          SUBS+="_FIREBASE_API_KEY_SECRET=${{ vars.PROD_FIREBASE_API_KEY_SECRET }};"
-          SUBS+="_ALLOWED_USERS_SECRET=${{ vars.PROD_ALLOWED_USERS_SECRET }};"
-          SUBS+="_ALLOWED_HOSTS=${{ vars.PROD_ALLOWED_HOSTS }};"
-          SUBS+="_ALLOWED_ORIGINS=${{ vars.PROD_ALLOWED_ORIGINS }}"
+          SUBS+="_SERVICE_NAME=${{ vars.SERVICE_NAME }};"
+          SUBS+="_REGION=${{ vars.REGION }};"
+          SUBS+="_DB_HOST=${{ vars.DB_HOST }};"
+          SUBS+="_DB_NAME=${{ vars.DB_NAME }};"
+          SUBS+="_FIREBASE_API_KEY_SECRET=${{ vars.FIREBASE_API_KEY_SECRET }};"
+          SUBS+="_ALLOWED_USERS_SECRET=${{ vars.ALLOWED_USERS_SECRET }};"
+          SUBS+="_ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS }};"
+          SUBS+="_ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }}"
           gcloud builds submit --config=cloudbuild.yaml --substitutions="${SUBS}"

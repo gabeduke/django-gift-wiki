@@ -6,12 +6,13 @@ on:
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
+    environment: development
     env:
       GOOGLE_PROJECT: wikileet
       GOOGLE_PROJECT_ID: wikileet
       GOOGLE_CLOUD_QUOTA_PROJECT: wikileet
       GCLOUD: gcloud
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -81,5 +82,7 @@ jobs:
 
       - name: Deploy Cloud Run (dev)
         run: |
-          gcloud builds submit --config=cloudbuild.yaml \
-            --substitutions="_SERVICE_NAME=giftwiki-dev,_REGION=us-east1"
+          SUBS="^;^"
+          SUBS+="_SERVICE_NAME=${{ vars.SERVICE_NAME }};"
+          SUBS+="_REGION=${{ vars.REGION }}"
+          gcloud builds submit --config=cloudbuild.yaml --substitutions="${SUBS}"
