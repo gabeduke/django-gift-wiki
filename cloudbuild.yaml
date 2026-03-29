@@ -73,8 +73,8 @@ steps:
 substitutions:
   _SERVICE_NAME: giftwiki-dev
   _REGION: us-east1
-  _ALLOWED_HOSTS: 'giftwiki.leetserve.com,giftwiki-prod-v2.web.app,giftwiki-prod-179879905839.us-east1.run.app,giftwiki-prod-tshpxht2la-ue.a.run.app,.a.run.app'
-  _ALLOWED_ORIGINS: 'https://giftwiki.leetserve.com,https://giftwiki-prod-v2.web.app,https://giftwiki-prod-tshpxht2la-ue.a.run.app'
+  _ALLOWED_HOSTS: 'giftwiki-dev.leetserve.com,giftwiki-dev-tshpxht2la-ue.a.run.app,.a.run.app'
+  _ALLOWED_ORIGINS: 'https://giftwiki-dev.leetserve.com'
   # Database configuration (from deploy/dev/config.env)
   _DB_HOST: ep-floral-paper-aenqf3t7-pooler.c-2.us-east-2.aws.neon.tech
   _DB_NAME: neondb
