@@ -78,8 +78,9 @@ jobs:
       - name: Apply Terraform (prod)
         run: |
           make terraform-init ENV=prod
-          cd terraform && terraform workspace select prod
-          cd terraform && terraform apply -auto-approve -var-file="prod.tfvars"
+          cd terraform
+          terraform workspace select prod
+          terraform apply -auto-approve -var-file="prod.tfvars"
 
       - name: Deploy Cloud Run (prod)
         run: |
