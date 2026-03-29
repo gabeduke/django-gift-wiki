@@ -14,22 +14,28 @@ python manage.py runserver
 ## Architecture
 
 - **Django 5.1** with custom user model (`WikiUser` extends `AbstractUser`)
-- **Firebase Auth** — session cookie–based authentication via `FirebaseAuthMiddleware`; no Django username/password login in production
+- **Firebase Auth** — session cookie–based authentication via `FirebaseAuthMiddleware`; `sessionLogin` endpoint is a Django view (not a Firebase Function); no Django username/password login in production
 - **Database** — PostgreSQL (Neon) in prod, SQLite locally (auto-detected via `DJANGO_DB_HOST`)
 - **Static files** — WhiteNoise (not S3)
 - **Media/uploads** — S3 when `USE_S3=TRUE`, local filesystem otherwise
 - **Feature flags** — DB-first via `FeatureFlag` model (admin-togglable), env var fallback
 - **Monitoring** — Prometheus metrics middleware
-- **Deployment** — Cloud Run (primary), Kubernetes manifests in `deploy/`, Terraform in `terraform/`
+- **Deployment** — Cloud Run (primary) via Terraform + GitHub Actions; Kubernetes manifests in `deploy/` are k3s reference/backup only
+- **Terraform state** — Remote backend in GCS bucket `wikileet-terraform-state`
+- **CI/CD** — GitHub Actions: `deploy.yml` (prod, triggers on push to `main`), `deploy-dev.yml` (dev, triggers on PRs)
 
 ## Key Directories
 ```
 gift/                    # Main Django app (models, views, forms, templates, middleware)
 giftwiki/                # Project settings, feature flags, URL config
 tests/                   # pytest suite (api/)
-deploy/                  # Kubernetes manifests
-terraform/               # Infrastructure as code
-firebase-functions/      # Cloud Functions (Node.js) for session cookie creation
+deploy/base/             # k3s Kubernetes base manifests (reference/backup only)
+deploy/dev/              # k3s dev overlay (reference/backup — gitignored config.env)
+deploy/prod/             # k3s prod overlay (reference/backup — gitignored config.env)
+deploy/cloudrun/         # Active: external-dns DNSEndpoint for Cloud Run domain mapping
+terraform/               # Infrastructure as code (remote state: GCS wikileet-terraform-state)
+.github/workflows/       # CI/CD: deploy.yml (prod), deploy-dev.yml (dev/PR)
+firebase-functions/      # Legacy Cloud Functions (sessionLogin moved to Django)
 local-docs/              # Extensive internal documentation
 scripts/                 # Helper/utility scripts
 ```
@@ -83,6 +89,8 @@ See `env.example` for full list. Critical ones:
 - `DJANGO_ALLOWED_USERS` — comma-separated email allowlist override
 - `STEWARD_PROXY_ENABLED`, `PROFILE_PICTURE_ENABLED` — feature flag env overrides
 
+> **Note:** `deploy/dev/config.env` and `deploy/prod/config.env` are gitignored. `FIREBASE_API_KEY` must be set via `.env` or GH Actions secret — it is not committed.
+
 ## Lint / Format
 Configured with Ruff for both linting and formatting. Settings are managed in `pyproject.toml`.
 - Run formatting: `pipenv run ruff format .`
@@ -95,4 +103,7 @@ All future features, bugs, and TODOs should be tracked using the [Django Gift Wi
 - Link all new issues to the GitHub Project board.
 
 ## Known Gotchas
-- No major technical debt or critical gotchas currently identified.
+- `deploy/dev/` and `deploy/prod/` are k3s overlays kept for reference — the app is **not** deployed to k3s. Active deployment is Cloud Run via `make prod` / `make dev` (Terraform).
+- `deploy/cloudrun/` contains the external-dns `DNSEndpoint` — apply with `kubectl apply -k deploy/cloudrun` to sync DNS on the homelab cluster.
+- `firebase-functions/index.js` still contains a `sessionLogin` function but it is superseded by the Django view. The Firebase Functions deployment may be stale.
+- Terraform state is remote (GCS). Run `terraform init` before local `terraform` commands if the `.terraform/` dir is missing.
