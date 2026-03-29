@@ -131,6 +131,29 @@
         #email-form button:hover {
             background: #333;
         }
+
+        .link-btn {
+            background: none;
+            border: none;
+            color: #4285f4;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 0;
+            margin-top: 0.25rem;
+            width: auto;
+            text-decoration: underline;
+        }
+
+        .link-btn:hover {
+            background: none;
+            color: #357ae8;
+        }
+
+        .success {
+            color: #27ae60;
+            margin-top: 0.5rem;
+            font-size: 14px;
+        }
     </style>
 </head>
 
@@ -152,7 +175,9 @@
                 <input type="email" id="email" placeholder="Email address">
                 <input type="password" id="password" placeholder="Password">
                 <button onclick="signInWithEmailPassword()">Sign in with email</button>
+                <button class="link-btn" onclick="sendPasswordReset()">Forgot password?</button>
             </div>
+            <div id="success" class="success" style="display:none;"></div>
             <div id="error" class="error"></div>
         </div>
     </div>
@@ -428,6 +453,31 @@
                     : 'Sign in failed: ' + error.message;
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('signin').style.display = 'block';
+            }
+        }
+
+        // Send password reset email
+        async function sendPasswordReset() {
+            const email = document.getElementById('email').value.trim();
+            const errorEl = document.getElementById('error');
+            const successEl = document.getElementById('success');
+            errorEl.textContent = '';
+            successEl.style.display = 'none';
+
+            if (!email) {
+                errorEl.textContent = 'Enter your email address above, then click "Forgot password?"';
+                return;
+            }
+
+            try {
+                await firebase.auth().sendPasswordResetEmail(email);
+                successEl.textContent = `Password reset email sent to ${email}. Check your inbox.`;
+                successEl.style.display = 'block';
+            } catch (error) {
+                console.error('Password reset error:', error);
+                errorEl.textContent = error.code === 'auth/user-not-found'
+                    ? 'No account found with that email.'
+                    : 'Failed to send reset email: ' + error.message;
             }
         }
 
