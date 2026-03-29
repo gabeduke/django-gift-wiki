@@ -13,6 +13,7 @@ import os
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
+from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpResponseForbidden
 
 logger = logging.getLogger(__name__)
@@ -196,42 +197,18 @@ class FirebaseAuthMiddleware:
     - If DJANGO_ALLOWED_USERS is not set, uses default allowlist
     """
 
-    # Default allowlist
-    DEFAULT_ALLOWLIST = {
-        'gabeduke@gmail.com',
-        'zepterfd@gmail.com',
-        'rachellison214@gmail.com',
-        'antoniafd@gmail.com',
-        'john.k.duke@gmail.com',
-        'darienduke@gmail.com',
-        'jonathanvassar@gmail.com',
-        'oconn2sh@gmail.com',
-        'jodyksanchez@gmail.com',
-        'skipjody@gmail.com',
-        'cocadukes1@gmail.com',
-        'gladysmduke@gmail.com',
-        'elise.duke45@gmail.com',
-        'ffejekud@gmail.com',
-        'nocherobot@gmail.com',
-        'msjenduke@aol.com',
-    }
-
     def __init__(self, get_response):
         self.get_response = get_response
-        # Load allowlist from environment variable, or use default
         allowed_users_env = os.getenv('DJANGO_ALLOWED_USERS', '').strip()
-        if allowed_users_env:
-            # Split by comma and strip whitespace, filter out empty strings
-            self.allowed_users = {
-                email.strip().lower() for email in allowed_users_env.split(',') if email.strip()
-            }
-            logger.info(
-                f'Allowlist enabled with {len(self.allowed_users)} allowed users (from environment)'
+        if not allowed_users_env:
+            raise ImproperlyConfigured(
+                'DJANGO_ALLOWED_USERS environment variable is not set. '
+                'Set it to a comma-separated list of allowed email addresses.'
             )
-        else:
-            # Use default allowlist
-            self.allowed_users = self.DEFAULT_ALLOWLIST
-            logger.info(f'Using default allowlist with {len(self.allowed_users)} allowed users')
+        self.allowed_users = {
+            email.strip().lower() for email in allowed_users_env.split(',') if email.strip()
+        }
+        logger.info(f'Allowlist loaded with {len(self.allowed_users)} allowed users')
 
     def _is_user_allowed(self, email):
         """
