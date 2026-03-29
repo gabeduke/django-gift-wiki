@@ -29,8 +29,7 @@ secret_names = [
   "django-db-user",
   "django-db-password",
   "aws-access-key-id",
-  "aws-secret-access-key",
-  "django-allowed-users"
+  "aws-secret-access-key"
 ]
 
 # Secret values are passed via TF_VAR_secret_values env var (not stored in VCS)
