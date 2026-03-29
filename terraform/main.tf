@@ -117,11 +117,6 @@ variable "db_port" {
   default     = "5432"
 }
 
-variable "alert_email" {
-  description = "Email address for alerts"
-  type        = string
-  default     = "gabeduke@gmail.com"
-}
 
 variable "google_analytics_ids" {
   description = "Map of environment to Google Analytics Measurement ID"
@@ -182,7 +177,7 @@ locals {
     var.env_vars,
     {
       DJANGO_SETTINGS_MODULE = "giftwiki.settings"
-      DJANGO_ALLOWED_HOSTS   = "*"
+      DJANGO_ALLOWED_HOSTS   = lookup(var.env_vars, "DJANGO_ALLOWED_HOSTS", "*")
       DJANGO_ALLOWED_ORIGINS = lookup(var.env_vars, "DJANGO_ALLOWED_ORIGINS", "http://localhost,https://*.run.app")
       DJANGO_DB_HOST         = var.db_host
       DJANGO_DB_NAME         = var.db_name
@@ -254,16 +249,6 @@ resource "google_secret_manager_secret_iam_member" "secret_access" {
   depends_on = [google_secret_manager_secret_version.secrets]
 }
 
-# Output environment variables for use in Cloud Build
-resource "local_file" "env_vars_output" {
-  count    = length(var.env_vars) > 0 ? 1 : 0
-  filename = "${path.module}/.env_vars_${var.environment}.txt"
-  content  = join("\n", [for k, v in var.env_vars : "${k}=${v}"])
-
-  lifecycle {
-    ignore_changes = [content]
-  }
-}
 
 # Generate Firebase API Key automatically
 resource "google_apikeys_key" "firebase" {
