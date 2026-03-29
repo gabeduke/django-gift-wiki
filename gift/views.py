@@ -56,6 +56,97 @@ def auth_view(request):
     return render(request, 'gift/auth.html', context)
 
 
+@csrf_exempt
+@require_POST
+def session_login_view(request):
+    """
+    Create a Firebase session cookie from an ID token.
+
+    This replaces the Firebase Cloud Function /sessionLogin endpoint,
+    allowing Firebase Auth to work when the app is served directly from
+    k3s/Kubernetes instead of Firebase Hosting.
+
+    Flow: Browser gets ID token from Firebase Auth popup → POSTs to /sessionLogin
+    → This view verifies the token and sets __session cookie → Browser is authenticated.
+    """
+    import math
+    import time
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Invalid JSON body'}, status=400)
+
+    id_token = body.get('idToken')
+    if not id_token:
+        return JsonResponse({'error': 'ID token is required'}, status=400)
+
+    # Get Firebase Admin auth module
+    from gift.middleware.firebase_auth import _get_firebase_auth
+
+    firebase_auth = _get_firebase_auth()
+    if not firebase_auth:
+        logger.error('Firebase Admin SDK not available for session login')
+        return JsonResponse({'error': 'Firebase Admin SDK not configured'}, status=500)
+
+    # Verify the ID token
+    try:
+        decoded_token = firebase_auth.verify_id_token(id_token)
+    except Exception as e:
+        logger.warning(f'ID token verification failed: {e}')
+        return JsonResponse({'error': 'Invalid ID token'}, status=401)
+
+    # Check token freshness (same logic as the Cloud Function)
+    auth_time = decoded_token.get('auth_time', 0)
+    token_issued_at = decoded_token.get('iat', 0)
+    current_time = math.floor(time.time())
+    five_minutes = 5 * 60
+
+    is_auth_recent = (current_time - auth_time) < five_minutes
+    is_token_fresh = (current_time - token_issued_at) < five_minutes
+
+    if not is_auth_recent and not is_token_fresh:
+        logger.warning(
+            f'Token too old: auth_time={current_time - auth_time}s ago, '
+            f'iat={current_time - token_issued_at}s ago'
+        )
+        return JsonResponse(
+            {'error': 'Recent sign-in required', 'details': 'Token is too old. Please sign in again.'},
+            status=401,
+        )
+
+    # Create session cookie (expires in 5 days)
+    expires_in_seconds = 60 * 60 * 24 * 5  # 5 days
+    try:
+        session_cookie = firebase_auth.create_session_cookie(
+            id_token, expires_in=expires_in_seconds * 1000  # SDK expects milliseconds
+        )
+    except Exception as e:
+        logger.error(f'Failed to create session cookie: {e}')
+        return JsonResponse({'error': 'Failed to create session cookie'}, status=500)
+
+    # Build response with cookie
+    response = JsonResponse({
+        'status': 'success',
+        'expiresIn': expires_in_seconds,
+        'message': 'Session cookie created successfully',
+    })
+
+    is_secure = request.is_secure() or request.META.get('HTTP_X_FORWARDED_PROTO') == 'https'
+    response.set_cookie(
+        '__session',
+        session_cookie,
+        max_age=expires_in_seconds,
+        httponly=True,
+        secure=is_secure,
+        samesite='Lax',
+        path='/',
+    )
+
+    logger.info(f'Session cookie created for user: {decoded_token.get("email", "unknown")}')
+    return response
+
+
 class SignUpView(generic.CreateView):
     form_class = CustomUserCreationForm
     success_url = reverse_lazy('gift:login')

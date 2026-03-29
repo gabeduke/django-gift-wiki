@@ -27,6 +27,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('metrics/', gift_views.metrics_view, name='metrics'),  # Prometheus metrics endpoint
     path('auth.html', gift_views.auth_view, name='auth_page'),  # Auth page with injected config
+    path('sessionLogin', gift_views.session_login_view, name='session_login'),  # Firebase session cookie creation (replaces Cloud Function)
 ]
 
 # Serve static files in development

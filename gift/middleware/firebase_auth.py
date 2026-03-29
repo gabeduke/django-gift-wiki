@@ -249,6 +249,7 @@ class FirebaseAuthMiddleware:
             '/metrics',
             '/metrics/',
             '/auth.html',
+            '/sessionLogin',
         ] or request.path.startswith('/auth.html'):
             return self.get_response(request)
 
