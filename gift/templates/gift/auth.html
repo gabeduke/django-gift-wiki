@@ -88,6 +88,49 @@
             color: #666;
             margin-bottom: 1.5rem;
         }
+
+        input[type=email],
+        input[type=password] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-top: 0.5rem;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #999;
+            font-size: 13px;
+            margin: 1rem 0 0.5rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #ddd;
+        }
+
+        #email-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        #email-form button {
+            background: #555;
+            margin-top: 0.25rem;
+        }
+
+        #email-form button:hover {
+            background: #333;
+        }
     </style>
 </head>
 
@@ -103,6 +146,12 @@
             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                 <button onclick="signInWithGoogle()">Sign in with Google</button>
                 <button onclick="signInWithFacebook()" class="facebook">Sign in with Facebook</button>
+            </div>
+            <div class="divider">or sign in with email</div>
+            <div id="email-form">
+                <input type="email" id="email" placeholder="Email address">
+                <input type="password" id="password" placeholder="Password">
+                <button onclick="signInWithEmailPassword()">Sign in with email</button>
             </div>
             <div id="error" class="error"></div>
         </div>
@@ -341,6 +390,45 @@
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('signin').style.display = 'block';
                 });
+        }
+
+        // Sign in with Email/Password
+        async function signInWithEmailPassword() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = '';
+
+            if (!email || !password) {
+                errorEl.textContent = 'Please enter your email and password.';
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('signin').style.display = 'none';
+
+            try {
+                const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+                const idToken = await result.user.getIdToken(true);
+                const cookieCreated = await createSessionCookie(idToken);
+
+                if (cookieCreated) {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const next = urlParams.get('next');
+                    const redirectUrl = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
+                    setTimeout(() => window.location.replace(redirectUrl), 300);
+                } else {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('signin').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Email sign-in error:', error);
+                errorEl.textContent = error.code === 'auth/invalid-credential'
+                    ? 'Invalid email or password.'
+                    : 'Sign in failed: ' + error.message;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('signin').style.display = 'block';
+            }
         }
 
         // Check if this is a logout request
