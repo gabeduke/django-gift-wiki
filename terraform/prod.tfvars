@@ -42,6 +42,5 @@ env_vars = {
   DJANGO_ENVIRONMENT     = "prod"
 }
 
-alert_email = "gabeduke@gmail.com"
 
 custom_domain = "giftwiki.leetserve.com"
