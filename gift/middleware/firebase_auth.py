@@ -212,6 +212,7 @@ class FirebaseAuthMiddleware:
         'gladysmduke@gmail.com',
         'elise.duke45@gmail.com',
         'ffejekud@gmail.com',
+        'nocherobot@gmail.com',
     }
 
     def __init__(self, get_response):
