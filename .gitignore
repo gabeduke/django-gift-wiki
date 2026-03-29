@@ -99,7 +99,6 @@ celerybeat-schedule.*
 
 # Environments
 **/*.env
-!deploy/**/config.env
 .venv
 env/
 venv/
