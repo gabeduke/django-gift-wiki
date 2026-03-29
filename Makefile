@@ -355,5 +355,5 @@ prod:
 	@echo "Step 2: Deploy Cloud Run application (builds image)..."
 	@$(GCLOUD) builds submit \
 		--config=cloudbuild.yaml \
-		--substitutions=_SERVICE_NAME=giftwiki-prod,_REGION=us-east1,_DB_HOST=ep-falling-morning-ae2u6rxv-pooler.c-2.us-east-2.aws.neon.tech,_DB_NAME=neondb,_FIREBASE_API_KEY_SECRET=prod-firebase-api-key
+		--substitutions=^:^_SERVICE_NAME=giftwiki-prod:_REGION=us-east1:_DB_HOST=ep-falling-morning-ae2u6rxv-pooler.c-2.us-east-2.aws.neon.tech:_DB_NAME=neondb:_FIREBASE_API_KEY_SECRET=prod-firebase-api-key:_ALLOWED_HOSTS=giftwiki.leetserve.com,giftwiki-prod-tshpxht2la-ue.a.run.app,.a.run.app:_ALLOWED_ORIGINS=https://giftwiki.leetserve.com,https://giftwiki-prod-tshpxht2la-ue.a.run.app
 	@echo "✅ Domain: https://giftwiki.leetserve.com (update DNS if not already pointing to Cloud Run)"
