@@ -245,20 +245,15 @@ firebase-deploy-prod: firebase-ensure-logged-in
 	@echo "✅ Firebase Functions and Hosting deployed (prod)"
 
 # Deploy to Kubernetes and Cloud Run (Dev) - Full deployment with infrastructure setup
-# Uses cloudbuild.yaml with Secret Manager (more secure)
+# Deploy to Cloud Run (Dev)
 dev: ENV=dev
 dev:
-	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase) with Terraform..."
+	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase Auth) with Terraform..."
 	@$(MAKE) terraform-init ENV=dev
 	@cd terraform && terraform workspace select dev
-	@cd terraform && terraform apply -auto-approve -var-file="dev.tfvars" -target=google_project_service.required_apis -target=google_firebase_project.default -target=google_firebase_web_app.app -target=google_secret_manager_secret.secrets -target=google_secret_manager_secret_version.secrets -target=google_secret_manager_secret_iam_member.secret_access -target=google_project_iam_member.firebase_admin -target=google_apikeys_key.firebase -target=google_secret_manager_secret.firebase_api_key -target=google_secret_manager_secret_version.firebase_api_key -target=google_secret_manager_secret_iam_member.firebase_api_key_access || true
-	@echo "Step 2: Skip Firebase Hosting site creation (managed outside Terraform for dev)..."
-	@echo "Step 3: Deploy Cloud Run application (creates image)..."
-	@$(MAKE) cloud-run-deploy-app
-	@echo "Step 4: Deploy Firebase Hosting..."
-	@$(MAKE) firebase-deploy-dev
-	@echo "Step 5: Ensure baseline infrastructure state (Secrets, IAM, etc)..."
 	@cd terraform && terraform apply -auto-approve -var-file="dev.tfvars"
+	@echo "Step 2: Deploy Cloud Run application (builds image)..."
+	@$(MAKE) cloud-run-deploy-app
 	@echo ""
 	@echo "Getting Cloud Run service URL..."
 	@SERVICE_URL=$$($(GCLOUD) run services describe $(CLOUD_RUN_SERVICE) \
@@ -267,8 +262,7 @@ dev:
 	if [ -n "$$SERVICE_URL" ]; then \
 		echo "✅ Service URL: $$SERVICE_URL"; \
 	fi
-	@echo ""
-	@echo "Firebase Hosting URL: https://$(FIREBASE_SITE_DEV).web.app"
+	@echo "✅ Domain: https://giftwiki-dev.leetserve.com (update DNS if not already pointing to Cloud Run)"
 
 # Verify Cloud Run secrets are set up correctly
 cloud-run-verify-secrets:
@@ -351,20 +345,15 @@ terraform-ensure-infra: terraform-init
 	@cd terraform && terraform apply -auto-approve -var-file="$(ENV).tfvars"
 	@echo "✅ Infrastructure managed by Terraform"
 
-# Deploy to Kubernetes and Cloud Run (Prod)
+# Deploy to Cloud Run (Prod)
 prod: ENV=prod
 prod:
-	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase) with Terraform..."
+	@echo "Step 1: Ensure infrastructure (secrets, IAM, Firebase Auth) with Terraform..."
 	@$(MAKE) terraform-init ENV=prod
 	@cd terraform && terraform workspace select prod
-	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars" -target=google_project_service.required_apis -target=google_firebase_project.default -target=google_firebase_web_app.app -target=google_firebase_hosting_site.app -target=google_secret_manager_secret.secrets -target=google_secret_manager_secret_version.secrets -target=google_secret_manager_secret_iam_member.secret_access -target=google_project_iam_member.firebase_admin -target=google_apikeys_key.firebase -target=google_secret_manager_secret.firebase_api_key -target=google_secret_manager_secret_version.firebase_api_key -target=google_secret_manager_secret_iam_member.firebase_api_key_access || true
-	@echo "Step 2: Deploy Cloud Run application (creates image)..."
+	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars"
+	@echo "Step 2: Deploy Cloud Run application (builds image)..."
 	@$(GCLOUD) builds submit \
 		--config=cloudbuild.yaml \
 		--substitutions=_SERVICE_NAME=giftwiki-prod,_REGION=us-east1,_DB_HOST=ep-falling-morning-ae2u6rxv-pooler.c-2.us-east-2.aws.neon.tech,_DB_NAME=neondb,_FIREBASE_API_KEY_SECRET=prod-firebase-api-key
-	@echo "Step 3: Deploy Firebase Hosting..."
-	@$(MAKE) firebase-deploy-prod
-	@echo "Step 4: Ensure baseline infrastructure state (Secrets, IAM, etc)..."
-	@cd terraform && terraform apply -auto-approve -var-file="prod.tfvars"
-	@echo ""
-	@echo "Firebase Hosting URL: https://$(FIREBASE_SITE_PROD).web.app"
+	@echo "✅ Domain: https://giftwiki.leetserve.com (update DNS if not already pointing to Cloud Run)"

@@ -13,6 +13,8 @@ db_port = "5432"
 # Container image (leave empty to use latest from gcr.io/PROJECT_ID/SERVICE_NAME)
 container_image = ""
 
+manage_firebase_hosting = false
+
 # Common labels applied to all resources
 common_labels = {
   namespace   = "wikileet"
