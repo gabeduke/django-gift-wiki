@@ -81,7 +81,5 @@ jobs:
 
       - name: Deploy Cloud Run (dev)
         run: |
-          SUBS="^;^"
-          SUBS+="_SERVICE_NAME=${{ vars.DEV_SERVICE_NAME }};"
-          SUBS+="_REGION=${{ vars.DEV_REGION }}"
-          gcloud builds submit --config=cloudbuild.yaml --substitutions="${SUBS}"
+          gcloud builds submit --config=cloudbuild.yaml \
+            --substitutions="_SERVICE_NAME=giftwiki-dev,_REGION=us-east1"

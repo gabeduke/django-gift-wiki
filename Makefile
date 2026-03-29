@@ -258,10 +258,8 @@ dev:
 
 deploy-app-dev:
 	@echo "Deploying Cloud Run application (dev)..."
-	@SUBS="^;^"; \
-	SUBS+="_SERVICE_NAME=$$DEV_SERVICE_NAME;"; \
-	SUBS+="_REGION=$$DEV_REGION"; \
-	$(GCLOUD) builds submit --config=cloudbuild.yaml --substitutions="$$SUBS"
+	@$(GCLOUD) builds submit --config=cloudbuild.yaml \
+		--substitutions="_SERVICE_NAME=giftwiki-dev,_REGION=us-east1"
 
 # Verify Cloud Run secrets are set up correctly
 cloud-run-verify-secrets:
