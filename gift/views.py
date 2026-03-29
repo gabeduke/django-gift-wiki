@@ -56,6 +56,14 @@ def auth_view(request):
     return render(request, 'gift/auth.html', context)
 
 
+def privacy_view(request):
+    return render(request, 'gift/privacy.html')
+
+
+def data_deletion_view(request):
+    return render(request, 'gift/data_deletion.html')
+
+
 @csrf_exempt
 @require_POST
 def session_login_view(request):
