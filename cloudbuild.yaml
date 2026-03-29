@@ -29,14 +29,14 @@ steps:
           --region ${_REGION} \
           --command "python,manage.py,migrate,--noinput" \
           --set-env-vars "^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}" \
-          --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest \
+          --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest,DJANGO_ALLOWED_USERS=${_ALLOWED_USERS_SECRET}:latest \
           --quiet || \
         gcloud run jobs create ${_SERVICE_NAME}-migrate \
           --image gcr.io/$PROJECT_ID/${_SERVICE_NAME} \
           --region ${_REGION} \
           --command "python,manage.py,migrate,--noinput" \
           --set-env-vars "^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}" \
-          --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest \
+          --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest,DJANGO_ALLOWED_USERS=${_ALLOWED_USERS_SECRET}:latest \
           --quiet
 
   # 2. Execute the migration job and wait for completion
@@ -66,15 +66,15 @@ steps:
       - '--set-env-vars'
       - '^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}'
       - '--set-secrets'
-      - 'DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest'
+      - 'DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest,DJANGO_ALLOWED_USERS=${_ALLOWED_USERS_SECRET}:latest'
   
   # (Steps 4 and 6 are commented out or removed)
 
 substitutions:
   _SERVICE_NAME: giftwiki-dev
   _REGION: us-east1
-  _ALLOWED_HOSTS: 'giftwiki.leetserve.com,giftwiki-prod-v2.web.app,giftwiki-prod-179879905839.us-east1.run.app,giftwiki-prod-tshpxht2la-ue.a.run.app,.a.run.app'
-  _ALLOWED_ORIGINS: 'https://giftwiki.leetserve.com,https://giftwiki-prod-v2.web.app,https://giftwiki-prod-tshpxht2la-ue.a.run.app'
+  _ALLOWED_HOSTS: 'giftwiki-dev.leetserve.com,giftwiki-dev-tshpxht2la-ue.a.run.app,.a.run.app'
+  _ALLOWED_ORIGINS: 'https://giftwiki-dev.leetserve.com'
   # Database configuration (from deploy/dev/config.env)
   _DB_HOST: ep-floral-paper-aenqf3t7-pooler.c-2.us-east-2.aws.neon.tech
   _DB_NAME: neondb
@@ -87,6 +87,7 @@ substitutions:
   _AWS_ACCESS_KEY_SECRET: aws-access-key-id
   _AWS_SECRET_KEY_SECRET: aws-secret-access-key
   _FIREBASE_API_KEY_SECRET: dev-firebase-api-key
+  _ALLOWED_USERS_SECRET: dev-django-allowed-users
 
 images:
   - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
