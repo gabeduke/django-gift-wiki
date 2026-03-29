@@ -12,11 +12,10 @@ terraform {
     }
   }
   
-  # Optional: Use GCS backend for state (recommended for team collaboration)
-  # backend "gcs" {
-  #   bucket = "your-terraform-state-bucket"
-  #   prefix = "gift-wiki"
-  # }
+  backend "gcs" {
+    bucket = "wikileet-terraform-state"
+    prefix = "terraform/state"
+  }
 }
 
 provider "google" {
@@ -90,6 +89,12 @@ variable "container_image" {
   default     = ""
 }
 
+variable "custom_domain" {
+  description = "Custom domain for Cloud Run domain mapping"
+  type        = string
+  default     = ""
+}
+
 variable "db_host" {
   description = "Database host"
   type        = string
@@ -98,6 +103,12 @@ variable "db_host" {
 variable "db_name" {
   description = "Database name"
   type        = string
+}
+
+variable "firebase_api_key_id" {
+  description = "Specific ID for the Firebase API key (to match existing resources). If empty, a name will be generated."
+  type        = string
+  default     = ""
 }
 
 variable "db_port" {
@@ -172,6 +183,7 @@ locals {
     {
       DJANGO_SETTINGS_MODULE = "giftwiki.settings"
       DJANGO_ALLOWED_HOSTS   = "*"
+      DJANGO_ALLOWED_ORIGINS = lookup(var.env_vars, "DJANGO_ALLOWED_ORIGINS", "http://localhost,https://*.run.app")
       DJANGO_DB_HOST         = var.db_host
       DJANGO_DB_NAME         = var.db_name
       DJANGO_DB_PORT         = var.db_port
@@ -255,7 +267,7 @@ resource "local_file" "env_vars_output" {
 
 # Generate Firebase API Key automatically
 resource "google_apikeys_key" "firebase" {
-  name         = "${var.service_name}-key"
+  name         = var.firebase_api_key_id != "" ? var.firebase_api_key_id : "${var.service_name}-key-v2"
   display_name = "${var.service_name} Firebase Key"
   project      = var.project_id
 
@@ -318,78 +330,6 @@ resource "google_project_iam_member" "firebase_admin" {
   depends_on = [google_project_service.required_apis]
 }
 
-# Cloud Run Service
-resource "google_cloud_run_v2_service" "app" {
-  name     = var.service_name
-  location = var.region
-  project  = var.project_id
-
-  template {
-    labels = local.common_labels
-    
-    containers {
-      image = local.container_image_url
-      
-      # Environment variables
-      dynamic "env" {
-        for_each = local.cloud_run_env_vars
-        content {
-          name  = env.key
-          value = env.value
-        }
-      }
-      
-      # Secrets from Secret Manager
-      dynamic "env" {
-        for_each = local.cloud_run_secrets
-        content {
-          name = env.key
-          value_source {
-            secret_key_ref {
-              secret  = env.value
-              version = "latest"
-            }
-          }
-        }
-      }
-      
-      resources {
-        limits = {
-          cpu    = "1"
-          memory = "512Mi"
-        }
-      }
-    }
-    
-    service_account = local.compute_service_account
-  }
-
-  traffic {
-    percent = 100
-    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
-  }
-
-  # Allow unauthenticated access (Firebase Auth handles authentication)
-  ingress = "INGRESS_TRAFFIC_ALL"
-
-  depends_on = [
-    google_project_service.required_apis,
-    google_secret_manager_secret_version.secrets,
-    google_secret_manager_secret_iam_member.secret_access,
-    google_secret_manager_secret_iam_member.firebase_api_key_access,
-  ]
-}
-
-# Allow unauthenticated access to Cloud Run service
-resource "google_cloud_run_service_iam_member" "public_access" {
-  service  = google_cloud_run_v2_service.app.name
-  location = google_cloud_run_v2_service.app.location
-  project  = var.project_id
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-
-  depends_on = [google_cloud_run_v2_service.app]
-}
 
 # Outputs
 output "compute_service_account" {
@@ -414,14 +354,9 @@ output "environment" {
   value       = var.environment
 }
 
-output "cloud_run_service_url" {
-  description = "Cloud Run service URL"
-  value       = google_cloud_run_v2_service.app.uri
-}
-
 output "cloud_run_service_name" {
   description = "Cloud Run service name"
-  value       = google_cloud_run_v2_service.app.name
+  value       = var.service_name
 }
 
 # Firebase Project (enables Firebase for the GCP project)
@@ -445,12 +380,12 @@ resource "google_firebase_web_app" "app" {
 }
 
 # Firebase Hosting Site
-# Only create if manage_firebase_hosting is true (allows skipping for dev if site exists outside Terraform)
+# Only create if manage_firebase_hosting is true
 resource "google_firebase_hosting_site" "app" {
   count    = var.manage_firebase_hosting ? 1 : 0
   provider = google-beta
   project  = var.project_id
-  site_id  = var.service_name
+  site_id  = var.environment == "prod" ? "${var.service_name}-v2" : var.service_name
   app_id   = google_firebase_web_app.app.app_id
 
   depends_on = [
@@ -460,15 +395,30 @@ resource "google_firebase_hosting_site" "app" {
   ]
 }
 
-# Output Firebase Hosting URL
-output "firebase_hosting_url" {
-  description = "Firebase Hosting URL (use this instead of Cloud Run URL directly)"
-  value       = var.manage_firebase_hosting ? (google_firebase_hosting_site.app[0].default_url != "" ? google_firebase_hosting_site.app[0].default_url : "https://${google_firebase_hosting_site.app[0].site_id}.web.app") : "https://${var.service_name}.web.app"
+# Cloud Run Domain Mapping
+# Maps a custom domain directly to the Cloud Run service (no Firebase Hosting needed)
+resource "google_cloud_run_domain_mapping" "app" {
+  count    = var.custom_domain != "" ? 1 : 0
+  location = var.region
+  name     = var.custom_domain
+
+  metadata {
+    namespace = var.project_id
+  }
+
+  spec {
+    route_name = var.service_name
+  }
 }
 
-output "firebase_hosting_alternate_url" {
-  description = "Firebase Hosting alternate URL"
-  value       = var.manage_firebase_hosting ? "https://${google_firebase_hosting_site.app[0].site_id}.firebaseapp.com" : "https://${var.service_name}.firebaseapp.com"
+output "custom_domain_url" {
+  description = "Custom domain URL (after DNS is configured)"
+  value       = var.custom_domain != "" ? "https://${var.custom_domain}" : ""
+}
+
+output "cloud_run_url" {
+  description = "Direct Cloud Run service URL"
+  value       = "https://${var.service_name}-${data.google_project.project.number}.${var.region}.run.app"
 }
 
 output "firebase_app_id" {
@@ -476,256 +426,5 @@ output "firebase_app_id" {
   value       = google_firebase_web_app.app.app_id
 }
 
-# Monitoring and Alerting
-
-# Notification Channel (Email)
-resource "google_monitoring_notification_channel" "email" {
-  display_name = "Email Notification (${var.environment})"
-  type         = "email"
-  labels = {
-    email_address = var.alert_email
-  }
-  project = var.project_id
-  
-  depends_on = [google_project_service.required_apis]
-}
-
-# 1. Log-based Alert Policy (Severity >= ERROR)
-resource "google_monitoring_alert_policy" "log_error" {
-  display_name = "${var.service_name} - Log Error Alert"
-  combiner     = "OR"
-  project      = var.project_id
-  
-  conditions {
-    display_name = "Log Error"
-    condition_matched_log {
-      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${var.service_name}\" AND severity >= ERROR"
-    }
-  }
-
-  alert_strategy {
-    notification_rate_limit {
-      period = "300s" # 5 minutes
-    }
-  }
-
-  notification_channels = [google_monitoring_notification_channel.email.name]
-  
-  documentation {
-    content = "The ${var.service_name} service logged an error with severity >= ERROR."
-  }
-  
-  depends_on = [google_project_service.required_apis]
-}
-
-# 2. Log-based Alert Policy (Unauthorized access attempts - WARNING)
-resource "google_monitoring_alert_policy" "log_warning_unauthorized" {
-  display_name = "${var.service_name} - Unauthorized Access Warning"
-  combiner     = "OR"
-  project      = var.project_id
-
-  conditions {
-    display_name = "Unauthorized Access Warning"
-    condition_matched_log {
-      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${var.service_name}\" AND severity=WARNING AND (jsonPayload.message=~\"Unauthorized\" OR jsonPayload.message=~\"DisallowedHost\")"
-    }
-  }
-
-  alert_strategy {
-    notification_rate_limit {
-      period = "3600s" # 1 hour — less urgent than errors
-    }
-  }
-
-  notification_channels = [google_monitoring_notification_channel.email.name]
-
-  documentation {
-    content = "The ${var.service_name} service logged repeated unauthorized access attempts or host validation bypasses."
-  }
-
-  depends_on = [google_project_service.required_apis]
-}
-
-# High Latency Alert - DISABLED
-# This alert is too sensitive for low-traffic personal sites.
-# For a personal gift wiki, occasional high latency is acceptable.
-# The other alerts (log errors, 5xx errors) are more appropriate.
-#
-# To re-enable, uncomment the resource block below and adjust thresholds as needed.
-# Consider:
-#   - Increasing threshold from 2000ms to 5000ms or higher
-#   - Increasing duration from 60s to 300s (5 minutes)
-#   - Adding minimum request count requirement
-
-# resource "google_monitoring_alert_policy" "high_latency" {
-#   display_name = "${var.service_name} - High Latency Alert"
-#   combiner     = "OR"
-#   project      = var.project_id
-#   
-#   conditions {
-#     display_name = "p99 Latency > 2s"
-#     condition_threshold {
-#       filter     = "resource.type = \"cloud_run_revision\" AND resource.labels.service_name = \"${var.service_name}\" AND metric.type = \"run.googleapis.com/request_latencies\""
-#       duration   = "60s"
-#       comparison = "COMPARISON_GT"
-#       
-#       aggregations {
-#         alignment_period   = "60s"
-#         per_series_aligner = "ALIGN_PERCENTILE_99"
-#         cross_series_reducer = "REDUCE_MAX"
-#       }
-#       
-#       threshold_value = 2000 # 2000ms = 2s
-#     }
-#   }
-#
-#   notification_channels = [google_monitoring_notification_channel.email.name]
-#   
-#   documentation {
-#     content = "The ${var.service_name} service is experiencing high latency (p99 > 2s)."
-#   }
-#
-#   depends_on = [google_project_service.required_apis]
-# }
-
-# 3. Metric Alert Policy (High Error Rate - 5xx Errors)
-resource "google_monitoring_alert_policy" "error_rate" {
-  display_name = "${var.service_name} - High Error Rate Alert"
-  combiner     = "OR"
-  project      = var.project_id
-  
-  conditions {
-    display_name = "5xx Errors > 0"
-    condition_threshold {
-      filter     = "resource.type = \"cloud_run_revision\" AND resource.labels.service_name = \"${var.service_name}\" AND metric.type = \"run.googleapis.com/request_count\" AND metric.label.response_code_class = \"5xx\""
-      duration   = "60s"
-      comparison = "COMPARISON_GT"
-      
-      aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_RATE"
-        cross_series_reducer = "REDUCE_SUM"
-      }
-      
-      threshold_value = 0 # Any 5xx error rate > 0
-    }
-  }
-
-  notification_channels = [google_monitoring_notification_channel.email.name]
-  
-  documentation {
-    content = "The ${var.service_name} service is returning 5xx errors."
-  }
-
-  depends_on = [google_project_service.required_apis]
-}
-
-# Service Level Objectives (SLOs)
-
-# Define a custom service for monitoring to ensure stable ID
-resource "google_monitoring_custom_service" "app" {
-  service_id   = "${var.service_name}-monitoring"
-  display_name = "${var.service_name} Monitoring"
-  
-  telemetry {
-    resource_name = "//run.googleapis.com/projects/${var.project_id}/locations/${var.region}/services/${var.service_name}"
-  }
-}
-
-# 1. Availability SLO (99.9%)
-resource "google_monitoring_slo" "availability" {
-  service      = google_monitoring_custom_service.app.service_id
-  slo_id       = "availability-slo"
-  display_name = "Availability SLO (99.9%)"
-  project      = var.project_id
-  
-  goal                = 0.999
-  rolling_period_days = 28
-  
-  request_based_sli {
-    good_total_ratio {
-      good_service_filter = join(" AND ", [
-        "resource.type=\"cloud_run_revision\"",
-        "resource.labels.service_name=\"${var.service_name}\"",
-        "metric.type=\"run.googleapis.com/request_count\"",
-        "metric.label.response_code_class!=\"5xx\""
-      ])
-      total_service_filter = join(" AND ", [
-        "resource.type=\"cloud_run_revision\"",
-        "resource.labels.service_name=\"${var.service_name}\"",
-        "metric.type=\"run.googleapis.com/request_count\""
-      ])
-    }
-  }
-}
-
-# 2. Latency SLO (99% < 1000ms)
-resource "google_monitoring_slo" "latency" {
-  service      = google_monitoring_custom_service.app.service_id
-  slo_id       = "latency-slo"
-  display_name = "Latency SLO (99% < 1s)"
-  project      = var.project_id
-  
-  goal                = 0.99
-  rolling_period_days = 28
-  
-  request_based_sli {
-    distribution_cut {
-      distribution_filter = join(" AND ", [
-        "resource.type=\"cloud_run_revision\"",
-        "resource.labels.service_name=\"${var.service_name}\"",
-        "metric.type=\"run.googleapis.com/request_latencies\""
-      ])
-      range {
-        max = 1000
-      }
-    }
-  }
-}
-
-# Burn Rate Alerts - DISABLED
-# These alerts are too sensitive for low-traffic personal sites.
-# They were triggering constantly despite minimal traffic.
-# The other alerts (log errors, high latency, 5xx errors) are more appropriate.
-#
-# To re-enable, uncomment the resource block below and adjust thresholds as needed.
-# Consider:
-#   - Increasing threshold_value from 2 to 10+
-#   - Increasing duration from "0s" to "300s" (5 minutes)
-#   - Changing time window from "3600s" to "21600s" (6 hours)
-#   - Changing combiner from "OR" to "AND"
-
-# resource "google_monitoring_alert_policy" "burn_rate" {
-#   display_name = "${var.service_name} - SLO Burn Rate Alert"
-#   combiner     = "OR"
-#   project      = var.project_id
-#   
-#   conditions {
-#     display_name = "High Burn Rate (Availability)"
-#     condition_threshold {
-#       filter     = "select_slo_burn_rate(\"${google_monitoring_slo.availability.name}\", \"3600s\")"
-#       duration   = "0s"
-#       comparison = "COMPARISON_GT"
-#       threshold_value = 2
-#     }
-#   }
-#
-#   conditions {
-#     display_name = "High Burn Rate (Latency)"
-#     condition_threshold {
-#       filter     = "select_slo_burn_rate(\"${google_monitoring_slo.latency.name}\", \"3600s\")"
-#       duration   = "0s"
-#       comparison = "COMPARISON_GT"
-#       threshold_value = 2
-#     }
-#   }
-#
-#   notification_channels = [google_monitoring_notification_channel.email.name]
-#   
-#   documentation {
-#     content = "The ${var.service_name} service is consuming its error budget too quickly (Burn Rate > 2)."
-#   }
-#   
-#   depends_on = [google_project_service.required_apis]
-# }
+# Monitoring and Alerting removed to restore original flow
 
