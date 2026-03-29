@@ -29,6 +29,9 @@ urlpatterns = [
     path('item/purchase/<int:item_id>/', views.item_purchase, name='purchase_item'),
     # Categories
     path('category/edit/<int:category_id>/', views.category_edit, name='edit_category'),
+    # Public pages (no auth required)
+    path('privacy/', views.privacy_view, name='privacy'),
+    path('data-deletion/', views.data_deletion_view, name='data_deletion'),
 ]
 
 if settings.DEBUG:

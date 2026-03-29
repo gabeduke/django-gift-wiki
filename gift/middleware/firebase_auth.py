@@ -250,6 +250,8 @@ class FirebaseAuthMiddleware:
             '/metrics/',
             '/auth.html',
             '/sessionLogin',
+            '/privacy/',
+            '/data-deletion/',
         ] or request.path.startswith('/auth.html'):
             return self.get_response(request)
 
