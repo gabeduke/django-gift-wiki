@@ -119,7 +119,7 @@ def session_login_view(request):
     expires_in_seconds = 60 * 60 * 24 * 5  # 5 days
     try:
         session_cookie = firebase_auth.create_session_cookie(
-            id_token, expires_in=expires_in_seconds * 1000  # SDK expects milliseconds
+            id_token, expires_in=expires_in_seconds  # Python SDK expects seconds (not ms like JS SDK)
         )
     except Exception as e:
         logger.error(f'Failed to create session cookie: {e}')
