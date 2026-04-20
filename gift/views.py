@@ -737,6 +737,9 @@ def wishlist_detail(request, wishlist_id):
 
     # List owners/managers should NOT see purchase information or be able to mark items as purchased
     # Only other users can see and mark items as purchased
+    
+    total_count = len(items)
+    purchased_count = sum(1 for item in items if item.purchased)
 
     try:
         return render(
@@ -750,6 +753,8 @@ def wishlist_detail(request, wishlist_id):
                 'is_steward': is_steward,
                 'is_manager': is_manager,
                 'is_list_manager': is_list_manager,
+                'total_count': total_count,
+                'purchased_count': purchased_count,
             },
         )
     except Exception as e:

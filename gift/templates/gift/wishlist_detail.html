@@ -20,9 +20,11 @@
         {% if wishlist.description %}
         <p class="wl-page-subtitle">{{ wishlist.description }}</p>
         {% endif %}
-        {# Progress — requires purchased_count and total_count in view context.
+        {% comment %}
+           Progress — requires purchased_count and total_count in view context.
            Add to view: context['total_count'] and context['purchased_count']
-           by iterating sorted_category_items + uncategorized_items. #}
+           by iterating sorted_category_items + uncategorized_items.
+        {% endcomment %}
         {% if total_count %}
         <div class="wl-progress">
           <span class="wl-progress-label">
