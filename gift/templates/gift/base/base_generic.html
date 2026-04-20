@@ -1,162 +1,93 @@
 {% load static %}
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>GiftWiki</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+  <meta charset="UTF-8">
+  <title>Wikileet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap CSS (grid + JS utilities) -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <!-- Wikileet Design System -->
+  <link rel="stylesheet" href="{% static 'css/custom.css' %}">
 
-    {% if GOOGLE_ANALYTICS_ID %}
-    <!-- Firebase App and Analytics -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
-    <script>
-        // Initialize Firebase with config from Django settings
-        const firebaseConfig = {{ firebase_config_json }};
-        firebase.initializeApp(firebaseConfig);
-        firebase.analytics();
-    </script>
-    {% endif %}
+  {% if GOOGLE_ANALYTICS_ID %}
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+  <script>
+    const firebaseConfig = {{ firebase_config_json }};
+    firebase.initializeApp(firebaseConfig);
+    firebase.analytics();
+  </script>
+  {% endif %}
+  {% block extra_head %}{% endblock %}
 </head>
 
 <body>
-    <header class="bg-light py-3 text-center">
-        <h1>GiftWiki</h1>
-    </header>
 
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container">
-            <a class="navbar-brand" href="{% url 'gift:home' %}">Home</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
-                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ml-auto">
-                    {% if request.user.is_authenticated %}
-                    {% with user_wishlists=request.user.owned_wishlist.all %}
-                    {% if user_wishlists %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="listsDropdown" role="button"
-                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            My Lists
-                        </a>
-                        <div class="dropdown-menu" aria-labelledby="listsDropdown">
-                            {% for wishlist in user_wishlists|slice:":10" %}
-                            <a class="dropdown-item" href="{% url 'gift:wishlist_detail' wishlist.id %}">{{ wishlist.title }}</a>
-                            {% endfor %}
-                            {% if user_wishlists|length > 10 %}
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="{% url 'gift:account' %}">View All Lists</a>
-                            {% endif %}
-                        </div>
-                    </li>
-                    {% endif %}
-                    {% endwith %}
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:create_wishlist' %}">Create Wishlist</a>
-                    </li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:account' %}">Profile</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{% url 'gift:logout' %}">Logout</a></li>
-                    {% else %}
-                    <li class="nav-item"><a class="nav-link" href="/auth.html">Login</a></li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <button class="btn btn-sm btn-outline-secondary ml-2" id="themeToggle" title="Toggle dark mode">
-                            <i class="fas fa-moon" id="themeIcon"></i>
-                        </button>
-                    </li>
-                </ul>
-            </div>
+  <!-- NAV -->
+  <nav class="wl-nav">
+    <div class="wl-nav-inner">
+
+      <a class="wl-logo" href="{% url 'gift:home' %}">
+        <div class="wl-logo-mark">
+          <!-- W wordmark -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 4 8 20 12 10 16 20 20 4"/>
+          </svg>
         </div>
-    </nav>
+        <span>Wikileet</span>
+      </a>
 
-    {% if messages %}
-    <div class="container mt-2">
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
-        {% endfor %}
+      <div class="wl-nav-links">
+        <a class="wl-nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}"
+           href="{% url 'gift:home' %}">Browse</a>
+        {% if request.user.is_authenticated %}
+        <a class="wl-nav-link {% if request.resolver_match.url_name == 'account' %}active{% endif %}"
+           href="{% url 'gift:account' %}">My Lists</a>
+        {% endif %}
+      </div>
+
+      <div class="wl-nav-right">
+        {% if request.user.is_authenticated %}
+          <a href="{% url 'gift:create_wishlist' %}" class="btn btn-primary btn-sm">+ New List</a>
+          <a href="{% url 'gift:account' %}" class="wl-avatar" title="{{ request.user.get_full_name|default:request.user.username }}">
+            {% if request.user.first_name %}
+              {{ request.user.first_name|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}
+            {% else %}
+              {{ request.user.username|slice:":2"|upper }}
+            {% endif %}
+          </a>
+        {% else %}
+          <a href="/auth.html" class="btn btn-primary btn-sm">Sign in</a>
+        {% endif %}
+      </div>
+
     </div>
-    {% endif %}
+  </nav>
+  <!-- /NAV -->
 
-    <main class="container py-2">
-        {% block content %}
-        <!-- Content will go here -->
-        {% endblock %}
-    </main>
+  {% if messages %}
+  <div style="max-width:1100px;margin:12px auto 0;padding:0 20px;">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
-    <footer class="bg-dark text-white text-center py-3 mt-4">
-        <p>© 2023 Gift App</p>
-    </footer>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
 
-    <!-- Bootstrap JS and dependencies -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+  <footer class="wl-footer">
+    <p style="margin:0;">© {% now "Y" %} Wikileet</p>
+  </footer>
 
-    <!-- Theme Toggle and Color Palette -->
-    <script>
-        (function () {
-            const themeToggle = document.getElementById('themeToggle');
-            const themeIcon = document.getElementById('themeIcon');
-            const html = document.documentElement;
+  <!-- Bootstrap JS -->
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 
-            // Function to apply theme
-            function applyTheme(theme) {
-                if (theme === 'dark') {
-                    html.setAttribute('data-theme', 'dark');
-                    themeIcon.classList.remove('fa-moon');
-                    themeIcon.classList.add('fa-sun');
-                } else {
-                    html.removeAttribute('data-theme');
-                    themeIcon.classList.remove('fa-sun');
-                    themeIcon.classList.add('fa-moon');
-                }
-                localStorage.setItem('theme', theme);
-            }
-
-            // Function to apply color palette
-            function applyPalette(palette) {
-                if (palette && palette !== 'default') {
-                    html.setAttribute('data-palette', palette);
-                } else {
-                    html.removeAttribute('data-palette');
-                }
-                localStorage.setItem('color_palette', palette || 'default');
-            }
-
-            // Get user's color palette from the page (set in template context)
-            const userPalette = '{{ request.user.color_palette|default:"default" }}';
-
-            // Check for saved theme preference or default to light mode
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            applyTheme(savedTheme);
-
-            // Apply user's color palette (from database, or fallback to localStorage)
-            const savedPalette = localStorage.getItem('color_palette');
-            const paletteToUse = userPalette && userPalette !== 'default' ? userPalette : (savedPalette || 'default');
-            applyPalette(paletteToUse);
-
-            // Toggle theme on button click
-            themeToggle.addEventListener('click', function () {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                applyTheme(newTheme);
-            });
-
-            // Listen for palette changes (when user updates it on profile page)
-            // This will be triggered after form submission
-            window.addEventListener('storage', function (e) {
-                if (e.key === 'color_palette') {
-                    applyPalette(e.newValue || 'default');
-                }
-            });
-        })();
-    </script>
 </body>
-
 </html>

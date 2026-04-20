@@ -636,22 +636,6 @@ def profile(request):
         else:
             profile_form = ProfilePictureForm(instance=request.user)
 
-    # Handle color palette selection
-    from .forms import ColorPaletteForm
-
-    palette_form = None
-    if request.method == 'POST' and 'update_color_palette' in request.POST:
-        palette_form = ColorPaletteForm(request.POST, instance=request.user)
-        if palette_form.is_valid():
-            palette_form.save()
-            logger.info("Color palette updated", extra={"user": request.user.email, "palette": palette_form.cleaned_data.get("color_palette")})
-            messages.success(request, 'Color palette updated successfully!')
-            return redirect('gift:account')
-        else:
-            messages.error(request, 'Error updating color palette. Please try again.')
-    else:
-        palette_form = ColorPaletteForm(instance=request.user)
-
     # Check if user needs to select a scraped page
     show_scraped_page_prompt = False
     if not request.user.scraped_page_selected:
@@ -662,7 +646,6 @@ def profile(request):
     context = {
         'wishlists': wishlists,
         'profile_form': profile_form,
-        'palette_form': palette_form,
         'show_scraped_page_prompt': show_scraped_page_prompt,
         'PROFILE_PICTURE_ENABLED': PROFILE_PICTURE_ENABLED,
     }
@@ -737,6 +720,9 @@ def wishlist_detail(request, wishlist_id):
 
     # List owners/managers should NOT see purchase information or be able to mark items as purchased
     # Only other users can see and mark items as purchased
+    
+    total_count = len(items)
+    purchased_count = sum(1 for item in items if item.purchased)
 
     try:
         return render(
@@ -750,6 +736,8 @@ def wishlist_detail(request, wishlist_id):
                 'is_steward': is_steward,
                 'is_manager': is_manager,
                 'is_list_manager': is_list_manager,
+                'total_count': total_count,
+                'purchased_count': purchased_count,
             },
         )
     except Exception as e:
