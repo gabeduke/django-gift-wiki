@@ -1,230 +1,261 @@
 {% extends 'gift/base/base_generic.html' %}
 
 {% block content %}
-<div class="container mt-2">
-    <div class="row mb-2">
-        <div class="col">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div>
-                    <h2 class="mb-0">{{ wishlist.title }}</h2>
-                    {% if wishlist.description %}
-                    <p class="text-muted mb-0">{{ wishlist.description }}</p>
-                    {% endif %}
-                </div>
-                {% if is_list_manager %}
-                <button id="viewToggle" class="btn btn-sm btn-outline-info"
-                    title="Toggle between owner view and guest view">
-                    <i class="fas fa-eye" id="viewToggleIcon"></i>
-                    <span id="viewToggleText">View as Guest</span>
-                </button>
-                {% endif %}
-            </div>
-            <div id="ownerActions" class="owner-view d-flex flex-wrap">
-                {% if is_list_manager %}
-                <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm mr-2 mb-1">Add Item</a>
-                <a href="{% url 'gift:edit_wishlist' wishlist.id %}"
-                    class="btn btn-outline-secondary btn-sm mr-2 mb-1">Edit Wishlist</a>
-                {% if is_owner %}
-                <form action="{% url 'gift:delete_wishlist' wishlist.id %}" method="post" class="d-inline mb-1">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger btn-sm"
-                        onclick="return confirm('Are you sure you want to delete this wishlist? This action cannot be undone.');">
-                        Delete Wishlist
-                    </button>
-                </form>
-                {% endif %}
-                {% endif %}
-            </div>
-        </div>
-    </div>
+<div class="wl-page">
 
-    {% if sorted_category_items or uncategorized_items %}
-    {# Display items grouped by category #}
-    {% for category, category_items in sorted_category_items %}
-    <div class="mb-2">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h4 class="mb-0">
-                <span class="badge badge-secondary">{{ category.name }}</span>
-                {% if category.description %}
-                <small class="text-muted">- {{ category.description }}</small>
-                {% endif %}
-            </h4>
-            <div class="owner-view">
-                {% if is_list_manager %}
-                <a href="{% url 'gift:edit_category' category.id %}?wishlist_id={{ wishlist.id }}"
-                    class="btn btn-sm btn-outline-primary" title="Edit category name and description">
-                    <i class="fas fa-edit"></i> Edit Category
-                </a>
-                {% endif %}
-            </div>
+  {# Back link #}
+  <a class="wl-back" href="{% url 'gift:home' %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    All Lists
+  </a>
+
+  {# Page header #}
+  <div class="wl-page-header">
+    <div class="wl-page-header-row">
+      <div>
+        <h1 class="wl-page-title">{{ wishlist.title }}</h1>
+        {% if wishlist.description %}
+        <p class="wl-page-subtitle">{{ wishlist.description }}</p>
+        {% endif %}
+        {# Progress — requires purchased_count and total_count in view context.
+           Add to view: context['total_count'] and context['purchased_count']
+           by iterating sorted_category_items + uncategorized_items. #}
+        {% if total_count %}
+        <div class="wl-progress">
+          <span class="wl-progress-label">
+            <span class="wl-progress-mono">{{ purchased_count }}/{{ total_count }}</span> purchased
+          </span>
+          <div class="wl-progress-track">
+            <div class="wl-progress-fill"
+                 style="width:{% widthratio purchased_count total_count 100 %}%"></div>
+          </div>
         </div>
-        <ul class="list-group">
-            {% for item in category_items %}
-            <li
-                class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
-                <div class="mb-2 mb-md-0">
-                    <strong>
-                        {% if item.url %}
-                        <a href="{{ item.url }}" target="_blank" class="text-dark" title="Visit link: {{ item.url }}">{{ item.name }} <i class="fas fa-external-link-alt fa-xs text-muted ml-1"></i></a>
-                        {% else %}
-                        {{ item.name }}
-                        {% endif %}
-                    </strong>
-                    {% if item.description %}
-                    - {{ item.description }}
-                    {% endif %}
-                    {% if item.price_range %}
-                    <span class="badge badge-info ml-2">{{ item.get_price_range_display }}</span>
-                    {% endif %}
-                    {# Only show purchase info to non-list-managers #}
-                    {% if not is_list_manager %}
-                    {% if item.purchased and item.purchased_by %}
-                    <span class="badge badge-success ml-2">Purchased by {{ item.purchased_by.username }}</span>
-                    {% elif item.purchased %}
-                    <span class="badge badge-success ml-2">Purchased</span>
-                    {% endif %}
-                    {% endif %}
-                </div>
-                <div class="d-flex flex-wrap">
-                    {# Only show purchase button to non-list-managers #}
-                    {% if not is_list_manager %}
-                    <a href="{% url 'gift:purchase_item' item.id %}" class="btn btn-sm btn-outline-secondary mr-1 mb-1">
-                        {% if item.purchased_by == request.user %}Mark as Not Purchased{% else %}Mark as Purchased{% endif %}
-                    </a>
-                    {% endif %}
-                    <div class="owner-view d-flex flex-wrap">
-                        {% if is_list_manager %}
-                        <a href="{% url 'gift:edit_item' item.id %}"
-                            class="btn btn-sm btn-outline-primary mr-1 mb-1">Edit</a>
-                        <form action="{% url 'gift:delete_item' item.id %}" method="post" class="d-inline mb-1">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
+        {% endif %}
+      </div>
+
+      <div class="wl-page-actions">
+        {% if is_list_manager %}
+        {# Owner/guest view toggle #}
+        <button id="viewToggle" class="btn btn-outline-secondary btn-sm"
+                title="Toggle owner / guest view">
+          <span id="viewToggleText">View as Guest</span>
+        </button>
+        <a href="{% url 'gift:edit_wishlist' wishlist.id %}" class="btn btn-outline-secondary btn-sm">Edit List</a>
+        <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm">+ Add Item</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Items #}
+  {% if sorted_category_items or uncategorized_items %}
+
+    {% for category, category_items in sorted_category_items %}
+    <div class="wl-cat-section">
+      <div class="wl-cat-header">
+        <span class="wl-cat-label">{{ category.name }}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="wl-count-badge">{{ category_items|length }}</span>
+          {% if is_list_manager %}
+          <a href="{% url 'gift:edit_category' category.id %}?wishlist_id={{ wishlist.id }}"
+             class="btn btn-outline-secondary btn-sm"
+             style="padding:2px 8px;font-size:11px;">Edit</a>
+          {% endif %}
+        </div>
+      </div>
+
+      {% for item in category_items %}
+      <div class="wl-item-row{% if item.purchased %} purchased{% endif %}">
+        <div class="wl-item-main">
+          <div class="wl-item-name">
+            {% if item.url %}
+              <a href="{{ item.url }}" target="_blank" rel="noopener" class="wl-item-name-link">{{ item.name }}
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     style="color:var(--text-muted);display:inline;">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </a>
+            {% else %}
+              <span>{{ item.name }}</span>
+            {% endif %}
+            {% if item.price_range %}
+              <span class="badge-price">{{ item.get_price_range_display }}</span>
+            {% endif %}
+            {% if not is_list_manager and item.purchased %}
+              {% if item.purchased_by %}
+                <span class="badge badge-success">Purchased by {{ item.purchased_by.get_full_name|default:item.purchased_by.username }}</span>
+              {% else %}
+                <span class="badge badge-success">Purchased</span>
+              {% endif %}
+            {% endif %}
+          </div>
+          {% if item.description %}
+          <div class="wl-item-desc">{{ item.description }}</div>
+          {% endif %}
+        </div>
+
+        <div class="wl-item-actions owner-view">
+          {% if is_list_manager %}
+            <a href="{% url 'gift:edit_item' item.id %}" class="btn btn-outline-secondary btn-sm">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </a>
+            <form action="{% url 'gift:delete_item' item.id %}" method="post" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm"
+                      onclick="return confirm('Remove {{ item.name }} from this list?');">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            </form>
+          {% endif %}
+          {% if not is_list_manager %}
+            <a href="{% url 'gift:purchase_item' item.id %}"
+               class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+              {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
     </div>
     {% endfor %}
 
-    {# Display uncategorized items #}
+    {# Uncategorized #}
     {% if uncategorized_items %}
-    <div class="mb-2">
-        <h4 class="mb-2">
-            <span class="badge badge-light">Uncategorized</span>
-        </h4>
-        <ul class="list-group">
-            {% for item in uncategorized_items %}
-            <li
-                class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
-                <div class="mb-2 mb-md-0">
-                    <strong>
-                        {% if item.url %}
-                        <a href="{{ item.url }}" target="_blank" class="text-dark" title="Visit link: {{ item.url }}">{{ item.name }} <i class="fas fa-external-link-alt fa-xs text-muted ml-1"></i></a>
-                        {% else %}
-                        {{ item.name }}
-                        {% endif %}
-                    </strong>
-                    {% if item.description %}
-                    - {{ item.description }}
-                    {% endif %}
-                    {% if item.price_range %}
-                    <span class="badge badge-info ml-2">{{ item.get_price_range_display }}</span>
-                    {% endif %}
-                    {# Only show purchase info to non-list-managers #}
-                    {% if not is_list_manager %}
-                    {% if item.purchased and item.purchased_by %}
-                    <span class="badge badge-success ml-2">Purchased by {{ item.purchased_by.username }}</span>
-                    {% elif item.purchased %}
-                    <span class="badge badge-success ml-2">Purchased</span>
-                    {% endif %}
-                    {% endif %}
-                </div>
-                <div class="d-flex flex-wrap">
-                    {# Only show purchase button to non-list-managers #}
-                    {% if not is_list_manager %}
-                    <a href="{% url 'gift:purchase_item' item.id %}" class="btn btn-sm btn-outline-secondary mr-1 mb-1">
-                        {% if item.purchased_by == request.user %}Mark as Not Purchased{% else %}Mark as Purchased{% endif %}
-                    </a>
-                    {% endif %}
-                    <div class="owner-view d-flex flex-wrap">
-                        {% if is_list_manager %}
-                        <a href="{% url 'gift:edit_item' item.id %}"
-                            class="btn btn-sm btn-outline-primary mr-1 mb-1">Edit</a>
-                        <form action="{% url 'gift:delete_item' item.id %}" method="post" class="d-inline mb-1">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-    {% else %}
-    <div class="alert alert-info">
-        <p>No items in this wishlist yet.</p>
-        <div class="owner-view">
-            {% if is_list_manager %}
-            <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm">Add Your First Item</a>
+    <div class="wl-cat-section">
+      <div class="wl-cat-header">
+        <span class="wl-cat-label">Uncategorized</span>
+        <span class="wl-count-badge">{{ uncategorized_items|length }}</span>
+      </div>
+
+      {% for item in uncategorized_items %}
+      <div class="wl-item-row{% if item.purchased %} purchased{% endif %}">
+        <div class="wl-item-main">
+          <div class="wl-item-name">
+            {% if item.url %}
+              <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.name }}
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     style="color:var(--text-muted);display:inline;">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </a>
+            {% else %}
+              <span>{{ item.name }}</span>
             {% endif %}
+            {% if item.price_range %}
+              <span class="badge-price">{{ item.get_price_range_display }}</span>
+            {% endif %}
+            {% if not is_list_manager and item.purchased %}
+              {% if item.purchased_by %}
+                <span class="badge badge-success">Purchased by {{ item.purchased_by.get_full_name|default:item.purchased_by.username }}</span>
+              {% else %}
+                <span class="badge badge-success">Purchased</span>
+              {% endif %}
+            {% endif %}
+          </div>
+          {% if item.description %}
+          <div class="wl-item-desc">{{ item.description }}</div>
+          {% endif %}
         </div>
+
+        <div class="wl-item-actions owner-view">
+          {% if is_list_manager %}
+            <a href="{% url 'gift:edit_item' item.id %}" class="btn btn-outline-secondary btn-sm">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </a>
+            <form action="{% url 'gift:delete_item' item.id %}" method="post" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm"
+                      onclick="return confirm('Remove {{ item.name }} from this list?');">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            </form>
+          {% endif %}
+          {% if not is_list_manager %}
+            <a href="{% url 'gift:purchase_item' item.id %}"
+               class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+              {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
+
+  {% else %}
+
+    <div style="text-align:center;padding:56px 24px;color:var(--text-muted);">
+      <p style="font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">No items yet</p>
+      <p style="font-size:13px;margin-bottom:20px;">Add the first item to this list.</p>
+      {% if is_list_manager %}
+      <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary">+ Add Item</a>
+      {% endif %}
+    </div>
+
+  {% endif %}
+
+  {# Danger zone (owner only) #}
+  {% if is_owner %}
+  <div style="margin-top:48px;padding-top:24px;border-top:1px solid var(--border);">
+    <form action="{% url 'gift:delete_wishlist' wishlist.id %}" method="post" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger btn-sm"
+              onclick="return confirm('Delete {{ wishlist.title }}? This cannot be undone.');">
+        Delete Wishlist
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
 </div>
 
 {% if is_list_manager %}
 <script>
-    (function () {
-        const viewToggle = document.getElementById('viewToggle');
-        const viewToggleIcon = document.getElementById('viewToggleIcon');
-        const viewToggleText = document.getElementById('viewToggleText');
-        const ownerViews = document.querySelectorAll('.owner-view');
-        let isGuestView = false;
+(function () {
+  const toggle = document.getElementById('viewToggle');
+  const toggleText = document.getElementById('viewToggleText');
+  const ownerViews = document.querySelectorAll('.owner-view');
+  const KEY = 'wl_view_{{ wishlist.id }}';
+  let isGuest = localStorage.getItem(KEY) === 'guest';
 
-        // Initialize from localStorage if available
-        const savedView = localStorage.getItem('wishlist_view_mode_' + {{ wishlist.id }});
-    if (savedView === 'guest') {
-        isGuestView = true;
-        toggleView();
-    }
+  function apply() {
+    ownerViews.forEach(el => { el.style.display = isGuest ? 'none' : ''; });
+    toggleText.textContent = isGuest ? 'View as Owner' : 'View as Guest';
+    toggle.classList.toggle('btn-outline-secondary', !isGuest);
+    toggle.classList.toggle('btn-secondary', isGuest);
+    localStorage.setItem(KEY, isGuest ? 'guest' : 'owner');
+  }
 
-    function toggleView() {
-        isGuestView = !isGuestView;
-
-        ownerViews.forEach(function (element) {
-            if (isGuestView) {
-                element.style.display = 'none';
-            } else {
-                element.style.display = '';
-            }
-        });
-
-        // Update button text and icon
-        if (isGuestView) {
-            viewToggleIcon.classList.remove('fa-eye');
-            viewToggleIcon.classList.add('fa-eye-slash');
-            viewToggleText.textContent = 'View as Owner';
-            viewToggle.classList.remove('btn-outline-info');
-            viewToggle.classList.add('btn-info');
-        } else {
-            viewToggleIcon.classList.remove('fa-eye-slash');
-            viewToggleIcon.classList.add('fa-eye');
-            viewToggleText.textContent = 'View as Guest';
-            viewToggle.classList.remove('btn-info');
-            viewToggle.classList.add('btn-outline-info');
-        }
-
-        // Save preference
-        localStorage.setItem('wishlist_view_mode_' + {{ wishlist.id }}, isGuestView ? 'guest' : 'owner');
-        }
-
-    viewToggle.addEventListener('click', toggleView);
-    }) ();
+  apply();
+  toggle.addEventListener('click', function () { isGuest = !isGuest; apply(); });
+})();
 </script>
 {% endif %}
+
 {% endblock %}
