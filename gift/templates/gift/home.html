@@ -4,6 +4,11 @@
 {% block content %}
 <div class="wl-page">
 
+  <!-- Family Photo Banner -->
+  <div style="text-align: center; margin-bottom: 32px; overflow: hidden; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+    <img src="{% static 'images/welcome-image.jpg' %}" alt="Our Family" style="width: 100%; max-height: 350px; object-fit: cover; display: block;">
+  </div>
+
   {% if request.user.is_authenticated %}
 
     <div class="wl-page-header">
