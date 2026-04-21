@@ -2,6 +2,10 @@
 Pytest configuration and shared fixtures for the gift wiki project.
 """
 
+import os
+
+os.environ.setdefault('DJANGO_ALLOWED_USERS', 'test@example.com,other@example.com')
+
 import pytest
 from django.contrib.auth import get_user_model
 
