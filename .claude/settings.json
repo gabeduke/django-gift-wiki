@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue edit *)",
+      "Bash(gh issue close *)",
+      "Bash(gh label create *)",
+      "Bash(gh label list *)",
+      "Bash(gh pr create *)",
+      "Bash(gh project item-add *)",
+      "Bash(git checkout *)",
+      "Bash(git pull)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(pipenv run pip show *)",
+      "Bash(pipenv run pip list)"
+    ],
+    "deny": [
+      "Bash(make terraform-destroy*)",
+      "Bash(make terraform-apply*)",
+      "Bash(make deploy-app-*)",
+      "Bash(make prod*)",
+      "Bash(make dev*)",
+      "Bash(make docker-push*)",
+      "Bash(make firebase-deploy-*)",
+      "Bash(make cloud-run-deploy-*)"
+    ]
+  }
+}
