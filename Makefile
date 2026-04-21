@@ -1,6 +1,6 @@
 # Development Commands
 .PHONY: install setup build run migrate shell createsuperuser test clean
-.PHONY: test-cov test-unit test-api test-bdd test-parallel check
+.PHONY: test-cov test-unit test-api test-bdd test-parallel check lint format lint-fix
 .PHONY: docker-build docker-build-no-load docker-build-local docker-push
 .PHONY: k8s-deploy k8s-clean
 
@@ -92,6 +92,18 @@ createsuperuser:
 # Check for issues (depends on build)
 check: build
 	$(MANAGE) check
+
+# Lint code
+lint:
+	pipenv run ruff check .
+
+# Format code
+format:
+	pipenv run ruff format .
+
+# Lint and auto-fix
+lint-fix:
+	pipenv run ruff check --fix .
 
 # Clean up
 clean:
