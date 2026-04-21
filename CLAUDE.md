@@ -83,6 +83,7 @@ Checked at runtime via `get_steward_proxy_enabled()` / `get_profile_picture_enab
 make test                         # All tests
 make test-unit                    # Unit tests only
 make test-api                     # API/view tests
+make test-bdd                     # BDD scenarios (tests/steps/)
 make test-cov                     # With coverage report
 make test-parallel                # Parallel (faster)
 ```
