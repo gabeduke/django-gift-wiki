@@ -5,11 +5,25 @@ Family gift exchange tracker built with Django 5.1 and Firebase Authentication. 
 
 ## Quick Start
 ```bash
-pipenv install
-python manage.py migrate
-python manage.py createsuperusers  # Creates default admin users
-python manage.py runserver
+make setup   # install deps + migrate + collectstatic
+make run     # start dev server
 ```
+
+## Preferred Commands
+**Always use `make` targets instead of raw `pipenv run` or `python manage.py` commands.** This ensures consistent behavior, respects the virtualenv, and works in automated contexts (scheduled agents, CI).
+
+| Task | Command |
+|------|---------|
+| Install deps | `make install` |
+| Run dev server | `make run` |
+| Run all tests | `make test` |
+| Run unit tests | `make test-unit` |
+| Run API tests | `make test-api` |
+| Lint | `make lint` |
+| Format | `make format` |
+| Lint + auto-fix | `make lint-fix` |
+| Run migrations | `make migrate` |
+| Django shell | `make shell` |
 
 ## Architecture
 
@@ -66,11 +80,11 @@ Checked at runtime via `get_steward_proxy_enabled()` / `get_profile_picture_enab
 
 ## Testing
 ```bash
-pytest                            # All tests
-pytest -m unit                    # Unit tests only
-pytest -m api                     # API/view tests
-pytest -m "not slow"              # Skip slow tests
-pytest --cov=gift                 # With coverage
+make test                         # All tests
+make test-unit                    # Unit tests only
+make test-api                     # API/view tests
+make test-cov                     # With coverage report
+make test-parallel                # Parallel (faster)
 ```
 Fixtures are in `tests/conftest.py`. Key fixtures: `user`, `other_user`, `admin_user`, `family`, `wishlist`, `item`, `authenticated_user`, `authenticated_other_user`.
 
@@ -92,9 +106,12 @@ See `env.example` for full list. Critical ones:
 > **Note:** `deploy/dev/config.env` and `deploy/prod/config.env` are gitignored. `FIREBASE_API_KEY` must be set via `.env` or GH Actions secret — it is not committed.
 
 ## Lint / Format
-Configured with Ruff for both linting and formatting. Settings are managed in `pyproject.toml`.
-- Run formatting: `pipenv run ruff format .`
-- Run linting: `pipenv run ruff check .`
+Configured with Ruff. Settings in `pyproject.toml`.
+```bash
+make lint       # check only
+make format     # format in place
+make lint-fix   # check + auto-fix
+```
 
 ## Project Tracking & TODOs
 All future features, bugs, and TODOs should be tracked using the [Django Gift Wiki Tracker](https://github.com/users/gabeduke/projects/1) GitHub Project. This helps ensure prioritization and visibility of upcoming work. 
