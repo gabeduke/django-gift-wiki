@@ -13,9 +13,15 @@ tests/
 │   ├── test_business_rules.py
 │   └── test_views.py
 ├── features/         # Gherkin .feature files (BDD specs)
-│   └── ownership.feature
+│   ├── allowlist.feature
+│   ├── feature_flags.feature
+│   ├── ownership.feature
+│   └── purchase.feature
 └── steps/            # Step definitions (pytest-bdd)
-    └── test_ownership.py
+    ├── test_allowlist.py
+    ├── test_feature_flags.py
+    ├── test_ownership.py
+    └── test_purchase.py
 ```
 
 Shared fixtures live in the project-root `conftest.py` (not `tests/conftest.py`).
@@ -128,6 +134,12 @@ def item_name_is(owned_item, expected_name):
 
 Run `make test-bdd` (or `pipenv run pytest -m bdd`) to exercise just the BDD
 scenarios.
+
+## CI
+
+The `.github/workflows/test.yml` workflow runs `make lint` and `make test` on
+every pull request and on pushes to `main`. No repo secrets are required —
+`conftest.py` defaults `DJANGO_ALLOWED_USERS` so the suite is self-bootstrapping.
 
 ## Debugging
 
