@@ -8,6 +8,7 @@ os.environ.setdefault('DJANGO_ALLOWED_USERS', 'test@example.com,other@example.co
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.test import Client
 
 from gift.models import Family, Item, WishList
 
@@ -64,17 +65,19 @@ def item(db, wishlist):
 
 
 @pytest.fixture
-def authenticated_user(client, user):
-    """Authenticated user client."""
-    client.force_login(user)
-    return client
+def authenticated_user(user):
+    """Authenticated user client — its own Client so parallel fixtures don't clobber its session."""
+    c = Client()
+    c.force_login(user)
+    return c
 
 
 @pytest.fixture
-def authenticated_other_user(client, other_user):
-    """Another authenticated user client."""
-    client.force_login(other_user)
-    return client
+def authenticated_other_user(other_user):
+    """Authenticated other-user client — its own Client so parallel fixtures don't clobber its session."""
+    c = Client()
+    c.force_login(other_user)
+    return c
 
 
 @pytest.fixture(scope='session')
