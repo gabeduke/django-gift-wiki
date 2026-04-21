@@ -1,6 +1,6 @@
 # Development Commands
 .PHONY: install setup build run migrate shell createsuperuser test clean
-.PHONY: test-cov test-unit test-api test-parallel check lint format lint-fix
+.PHONY: test-cov test-unit test-api test-parallel test-bdd check lint format lint-fix
 .PHONY: docker-build docker-build-no-load docker-build-local docker-push
 .PHONY: k8s-deploy k8s-clean
 
@@ -54,6 +54,10 @@ test-api:
 # Run tests in parallel (faster)
 test-parallel:
 	$(PYTEST) -n auto
+
+# Run BDD scenarios only
+test-bdd:
+	$(PYTEST) tests/steps/
 
 # Run development server (depends on build, but not tests for faster iteration)
 run: build
