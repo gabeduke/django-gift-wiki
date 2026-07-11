@@ -54,6 +54,22 @@
                         {% endfor %}
                     </div>
                     
+                    {# Product URL #}
+                    {% if form.url %}
+                    <div class="form-group">
+                        <label for="{{ form.url.id_for_label }}">{{ form.url.label }}</label>
+                        {{ form.url|add_class:"form-control"|attr:"placeholder:https://..." }}
+                        {% if form.url.help_text %}
+                            <small class="form-text text-muted">{{ form.url.help_text }}</small>
+                        {% else %}
+                            <small class="form-text text-muted">Optional - paste the product page link</small>
+                        {% endif %}
+                        {% for error in form.url.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
                     {# Category Selection - Always show, but warn if no family #}
                     <div class="form-group">
                         <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
