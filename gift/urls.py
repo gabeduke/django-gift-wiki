@@ -20,7 +20,11 @@ urlpatterns = [
     path('wishlist/<int:wishlist_id>/', views.wishlist_detail, name='wishlist_detail'),
     path('wishlist/<int:wishlist_id>/edit/', views.wishlist_edit, name='edit_wishlist'),
     path('wishlist/<int:wishlist_id>/delete/', views.wishlist_delete, name='delete_wishlist'),
-    path('wishlist/<int:wishlist_id>/clear-purchased/', views.wishlist_clear_purchased, name='clear_purchased'),
+    path(
+        'wishlist/<int:wishlist_id>/clear-purchased/',
+        views.wishlist_clear_purchased,
+        name='clear_purchased',
+    ),
     path('wishlist/<int:wishlist_id>/add_item/', views.item_add, name='add_item'),
     path('wishlist/<int:wishlist_id>/add_item_ajax/', views.item_add_ajax, name='item_add_ajax'),
     # Items

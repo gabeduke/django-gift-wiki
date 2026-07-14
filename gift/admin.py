@@ -11,6 +11,8 @@ from gift.models import (
     ScrapedWikiPage,
     Suggestion,
     WishList,
+    AllowedEmail,
+    LinkedEmail,
 )
 
 User = get_user_model()
@@ -22,6 +24,17 @@ admin.site.register(Item)
 admin.site.register(Suggestion)
 admin.site.register(ItemGroup)
 admin.site.register(Category)
+
+@admin.register(AllowedEmail)
+class AllowedEmailAdmin(admin.ModelAdmin):
+    list_display = ['email', 'created_at']
+    search_fields = ['email']
+
+@admin.register(LinkedEmail)
+class LinkedEmailAdmin(admin.ModelAdmin):
+    list_display = ['email', 'user', 'created_at']
+    search_fields = ['email', 'user__username', 'user__email']
+    raw_id_fields = ['user']
 
 
 @admin.register(FeatureFlag)

@@ -179,8 +179,12 @@ class ItemForm(forms.ModelForm):
                     )
                     if created:
                         logger.info(
-                            "Category created",
-                            extra={"category_id": category_obj.id, "name": new_category_name, "family_id": wishlist.family_name_id},
+                            'Category created',
+                            extra={
+                                'category_id': category_obj.id,
+                                'name': new_category_name,
+                                'family_id': wishlist.family_name_id,
+                            },
                         )
                     instance.categories.add(category_obj)
             elif new_category_name and wishlist and wishlist.family_name:
@@ -194,8 +198,12 @@ class ItemForm(forms.ModelForm):
                 )
                 if created:
                     logger.info(
-                        "Category created",
-                        extra={"category_id": category_obj.id, "name": new_category_name, "family_id": wishlist.family_name_id},
+                        'Category created',
+                        extra={
+                            'category_id': category_obj.id,
+                            'name': new_category_name,
+                            'family_id': wishlist.family_name_id,
+                        },
                     )
                 instance.categories.add(category_obj)
             elif category and category != '__CREATE_NEW__':
@@ -253,9 +261,6 @@ class ProfilePictureForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ['profile_picture']
-
-
-
 
 
 class WishListForm(forms.ModelForm):
