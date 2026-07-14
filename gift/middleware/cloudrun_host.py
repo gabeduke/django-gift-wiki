@@ -33,7 +33,9 @@ class CloudRunHostValidationMiddleware:
         global _patched
         if os.getenv('K_SERVICE') and not _patched:
             self._patch_host_validation()
-            logger.info("Cloud Run host validation patch applied", extra={"service": os.getenv('K_SERVICE')})
+            logger.info(
+                'Cloud Run host validation patch applied', extra={'service': os.getenv('K_SERVICE')}
+            )
             _patched = True
 
     def _patch_host_validation(self):
@@ -70,7 +72,9 @@ class CloudRunHostValidationMiddleware:
             except DisallowedHost:
                 # If original validation fails but we're on Cloud Run, allow it anyway
                 if os.getenv('K_SERVICE'):
-                    logger.warning("DisallowedHost bypassed for Cloud Run request", extra={"host": host_header})
+                    logger.warning(
+                        'DisallowedHost bypassed for Cloud Run request', extra={'host': host_header}
+                    )
                     return host_header
                 raise
 

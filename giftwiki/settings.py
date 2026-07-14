@@ -101,6 +101,7 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
         }
     except Exception as e:
         import sys
+
         print(f'Failed to setup Cloud Logging: {e}', file=sys.stderr)
 
 # Only add file handler in debug mode
