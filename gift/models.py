@@ -262,23 +262,23 @@ class Item(models.Model):
                 previous = Item.objects.get(pk=self.pk)
                 if not previous.is_deleted and self.is_deleted:
                     logger.info(
-                        "Item soft-deleted",
-                        extra={"item_id": self.pk, "wishlist_id": self.wishlist_id},
+                        'Item soft-deleted',
+                        extra={'item_id': self.pk, 'wishlist_id': self.wishlist_id},
                     )
                 if previous.purchased != self.purchased:
                     if self.purchased:
                         logger.info(
-                            "Item purchased",
+                            'Item purchased',
                             extra={
-                                "item_id": self.pk,
-                                "wishlist_id": self.wishlist_id,
-                                "purchased_by": getattr(self.purchased_by, "email", None),
+                                'item_id': self.pk,
+                                'wishlist_id': self.wishlist_id,
+                                'purchased_by': getattr(self.purchased_by, 'email', None),
                             },
                         )
                     else:
                         logger.info(
-                            "Item unpurchased",
-                            extra={"item_id": self.pk, "wishlist_id": self.wishlist_id},
+                            'Item unpurchased',
+                            extra={'item_id': self.pk, 'wishlist_id': self.wishlist_id},
                         )
             except Item.DoesNotExist:
                 pass
@@ -417,3 +417,40 @@ class ScrapedWikiItem(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.scraped_page.title})'
+
+
+class AllowedEmail(models.Model):
+    """
+    Emails allowed to log into the application.
+    Replaces the environment variable allowlist.
+    """
+
+    email = models.EmailField(unique=True, help_text='Email address allowed to log in')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['email']
+        verbose_name = 'Allowed Email'
+        verbose_name_plural = 'Allowed Emails'
+
+    def __str__(self):
+        return self.email
+
+
+class LinkedEmail(models.Model):
+    """
+    Additional emails linked to a specific user account.
+    If a user logs in with this email, they will be authenticated as the linked user.
+    """
+
+    user = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='linked_emails')
+    email = models.EmailField(unique=True, help_text='Secondary email address')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['email']
+        verbose_name = 'Linked Email'
+        verbose_name_plural = 'Linked Emails'
+
+    def __str__(self):
+        return f"{self.email} -> {self.user.username}"
