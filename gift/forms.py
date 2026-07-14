@@ -133,6 +133,23 @@ class ItemForm(forms.ModelForm):
         # Otherwise return the normal category value
         return category
 
+    def clean_description(self):
+        description = self.cleaned_data.get('description', '')
+        if description:
+            try:
+                import bleach
+                allowed_tags = ['p', 'strong', 'em', 'u', 's', 'ol', 'ul', 'li', 'a', 'br']
+                allowed_attrs = {
+                    'a': ['href', 'target', 'rel'],
+                    '*': ['class']
+                }
+                cleaned = bleach.clean(description, tags=allowed_tags, attributes=allowed_attrs, strip=True)
+                return cleaned
+            except ImportError:
+                # Fallback if bleach is not installed
+                return description
+        return description
+
     def save(self, commit=True, *args, **kwargs):
         current_user = kwargs.pop('current_user', None)
         wishlist = kwargs.pop('wishlist', None)
