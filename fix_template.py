@@ -1,4 +1,3 @@
-
 file_path = '/Users/gabeduke/repos/django-gift-wiki/gift/templates/gift/wishlist_detail.html'
 
 with open(file_path) as f:

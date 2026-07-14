@@ -76,9 +76,7 @@ class TestPurchaseBehavior:
         assert item.purchased_by == other_user
         assert item.purchased is True
 
-    def test_owner_cannot_purchase_own_list_item(
-        self, authenticated_user, item, other_user
-    ):
+    def test_owner_cannot_purchase_own_list_item(self, authenticated_user, item, other_user):
         """The wishlist owner cannot mark their own list's item as purchased."""
         # Mark as purchased by other_user
         item.purchased_by = other_user
@@ -100,7 +98,7 @@ class TestPurchaseVisibility:
 
     @pytest.mark.xfail(
         reason="Template copy drifted ('Undo' vs 'Mark as Not Purchased'); "
-        "visibility is covered properly by purchase.feature (#39).",
+        'visibility is covered properly by purchase.feature (#39).',
         strict=False,
     )
     def test_everyone_can_see_purchase_status(
