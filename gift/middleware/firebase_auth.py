@@ -134,16 +134,28 @@ class FirebaseAuthBackend(ModelBackend):
             # Get or create user
             user = None
             try:
-                # First try to find by email (most reliable identifier)
+                # Check for linked email first
                 try:
-                    user = User.objects.get(email=email)
-                    # Update username if it changed
-                    if user.username != username:
-                        user.username = username
-                        user.save(update_fields=['username'])
-                        logger.info(f'Updated username for {email} to: {username}')
-                except User.DoesNotExist:
-                    pass
+                    from gift.models import LinkedEmail
+                    linked = LinkedEmail.objects.filter(email__iexact=email).first()
+                    if linked:
+                        user = linked.user
+                        logger.info(f'Found linked email for {email}, authenticating as {user.username}')
+                except Exception as e:
+                    logger.error(f'Error checking linked emails: {e}')
+
+                # If not linked, proceed with regular lookup
+                if not user:
+                    # First try to find by email (most reliable identifier)
+                    try:
+                        user = User.objects.get(email=email)
+                        # Update username if it changed
+                        if user.username != username:
+                            user.username = username
+                            user.save(update_fields=['username'])
+                            logger.info(f'Updated username for {email} to: {username}')
+                    except User.DoesNotExist:
+                        pass
 
                 # If not found by email, try by username
                 if not user and username:
@@ -200,15 +212,14 @@ class FirebaseAuthMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
         allowed_users_env = os.getenv('DJANGO_ALLOWED_USERS', '').strip()
-        if not allowed_users_env:
-            raise ImproperlyConfigured(
-                'DJANGO_ALLOWED_USERS environment variable is not set. '
-                'Set it to a comma-separated list of allowed email addresses.'
-            )
-        self.allowed_users = {
-            email.strip().lower() for email in allowed_users_env.split(',') if email.strip()
-        }
-        logger.info(f'Allowlist loaded with {len(self.allowed_users)} allowed users')
+        if allowed_users_env:
+            self.allowed_users = {
+                email.strip().lower() for email in allowed_users_env.split(',') if email.strip()
+            }
+            logger.info(f'Allowlist loaded with {len(self.allowed_users)} allowed users from env')
+        else:
+            self.allowed_users = set()
+            logger.info('No DJANGO_ALLOWED_USERS environment variable set. Relying solely on database.')
 
     def _is_user_allowed(self, email):
         """
@@ -217,9 +228,19 @@ class FirebaseAuthMiddleware:
         """
         if not email:
             return False
+            
+        email = email.lower()
 
-        # Check if email (case-insensitive) is in allowlist
-        return email.lower() in self.allowed_users
+        # Check database allowlist
+        try:
+            from gift.models import AllowedEmail
+            if AllowedEmail.objects.filter(email__iexact=email).exists():
+                return True
+        except Exception as e:
+            logger.error(f'Error checking database allowlist: {e}')
+
+        # Fallback to env allowlist
+        return email in self.allowed_users
 
     def __call__(self, request):
         # Skip authentication for health check, metrics, and auth pages
