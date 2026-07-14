@@ -71,13 +71,6 @@
             background: #357ae8;
         }
 
-        button.facebook {
-            background: #1877f2;
-        }
-
-        button.facebook:hover {
-            background: #166fe5;
-        }
 
         h2 {
             margin-bottom: 1rem;
@@ -168,7 +161,7 @@
             <p>Please sign in to access Gift Wiki</p>
             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                 <button onclick="signInWithGoogle()">Sign in with Google</button>
-                <button onclick="signInWithFacebook()" class="facebook">Sign in with Facebook</button>
+
             </div>
             <div class="divider">or sign in with email</div>
             <div id="email-form">
@@ -302,120 +295,6 @@
                 });
         }
 
-        // Sign in with Facebook
-        function signInWithFacebook() {
-            document.getElementById('error').textContent = '';
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('signin').style.display = 'none';
-
-            console.log('Starting Facebook sign-in...');
-            const provider = new firebase.auth.FacebookAuthProvider();
-            provider.addScope('email');
-            provider.setCustomParameters({
-              'auth_type': 'rerequest' // Force Facebook to re-ask for declined permissions like email
-            });
-            firebase.auth().signInWithPopup(provider)
-                .then(async (result) => {
-                    console.log('Sign-in popup completed, user:', result.user.email);
-                    
-                    if (!result.user.email) {
-                        console.error('Facebook did not return an email address.');
-                        const errorElement = document.getElementById('error');
-                        errorElement.textContent = 'Facebook did not provide an email address. This app requires an email for the allowlist. Please sign in with Google or update your Facebook settings.';
-                        errorElement.style.display = 'block';
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('signin').style.display = 'block';
-                        try {
-                            await firebase.auth().signOut();
-                        } catch (e) {
-                            console.error('Sign out error:', e);
-                        }
-                        return;
-                    }
-
-                    // Force refresh token immediately after sign-in to get fresh auth_time
-                    try {
-                        const idToken = await result.user.getIdToken(true); // Force refresh
-                        console.log('Token refreshed after sign-in, length:', idToken.length);
-
-                        // Immediately create session cookie (don't wait for onAuthStateChanged)
-                        console.log('Creating session cookie immediately after sign-in...');
-                        const cookieCreated = await createSessionCookie(idToken);
-
-                        if (cookieCreated) {
-                            // Get redirect URL
-                            const urlParams = new URLSearchParams(window.location.search);
-                            const next = urlParams.get('next');
-                            const redirectUrl = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
-                            console.log('Session cookie created, redirecting to:', redirectUrl);
-                            setTimeout(() => {
-                                window.location.replace(redirectUrl);
-                            }, 300);
-                        } else {
-                            console.error('Failed to create session cookie after sign-in');
-                            document.getElementById('error').textContent = 'Failed to create session. Please try again.';
-                            document.getElementById('loading').style.display = 'none';
-                            document.getElementById('signin').style.display = 'block';
-                        }
-                    } catch (error) {
-                        console.error('Error after sign-in:', error);
-                        document.getElementById('error').textContent = 'Error completing sign-in: ' + error.message;
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('signin').style.display = 'block';
-                    }
-                })
-                .catch(async (error) => {
-                    console.error('Sign-in popup error:', error);
-                    
-                    if (error.code === 'auth/account-exists-with-different-credential') {
-                        const errorElement = document.getElementById('error');
-                        errorElement.textContent = 'Account exists with Google. Prompting Google sign-in to link accounts...';
-                        errorElement.style.display = 'block';
-                        
-                        const pendingCred = error.credential;
-                        const email = error.email;
-                        
-                        try {
-                            const methods = await firebase.auth().fetchSignInMethodsForEmail(email);
-                            if (methods.includes('google.com')) {
-                                document.getElementById('signin').style.display = 'none';
-                                document.getElementById('loading').style.display = 'block';
-                                document.querySelector('#loading p').textContent = 'Please complete the Google popup to link your Facebook account.';
-                                
-                                const googleProvider = new firebase.auth.GoogleAuthProvider();
-                                googleProvider.setCustomParameters({login_hint: email});
-                                
-                                const result = await firebase.auth().signInWithPopup(googleProvider);
-                                await result.user.linkWithCredential(pendingCred);
-                                console.log('Successfully linked Facebook account to Google account');
-                                
-                                const idToken = await result.user.getIdToken(true);
-                                const cookieCreated = await createSessionCookie(idToken);
-                                
-                                if (cookieCreated) {
-                                    const urlParams = new URLSearchParams(window.location.search);
-                                    const next = urlParams.get('next');
-                                    const redirectUrl = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
-                                    setTimeout(() => window.location.replace(redirectUrl), 300);
-                                } else {
-                                    throw new Error('Failed to create session after linking accounts');
-                                }
-                                return;
-                            }
-                        } catch (linkError) {
-                            console.error('Error linking accounts:', linkError);
-                            errorElement.textContent = 'Failed to link accounts: ' + linkError.message;
-                        }
-                    } else {
-                        const errorElement = document.getElementById('error');
-                        errorElement.textContent = 'Sign in failed: ' + error.message;
-                        errorElement.style.display = 'block';
-                    }
-                    
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('signin').style.display = 'block';
-                });
-        }
 
         // Sign in with Email/Password
         async function signInWithEmailPassword() {
