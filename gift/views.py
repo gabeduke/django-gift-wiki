@@ -9,8 +9,23 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views import generic
+
+def custom_admin_login(request, **kwargs):
+    """
+    Redirect unauthenticated admin users to the Firebase auth page.
+    If they are authenticated but lack staff permissions, show the default Django 'not authorized' page.
+    """
+    if request.user.is_authenticated:
+        from django.contrib.admin.sites import site
+        return site.login(request, **kwargs)
+    
+    url = '/auth.html'
+    if 'next' in request.GET:
+        url += f"?next={request.GET['next']}"
+    return redirect(url)
+
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_POST
@@ -119,7 +134,10 @@ def session_login_view(request):
             f'iat={current_time - token_issued_at}s ago'
         )
         return JsonResponse(
-            {'error': 'Recent sign-in required', 'details': 'Token is too old. Please sign in again.'},
+            {
+                'error': 'Recent sign-in required',
+                'details': 'Token is too old. Please sign in again.',
+            },
             status=401,
         )
 
@@ -127,18 +145,21 @@ def session_login_view(request):
     expires_in_seconds = 60 * 60 * 24 * 5  # 5 days
     try:
         session_cookie = firebase_auth.create_session_cookie(
-            id_token, expires_in=expires_in_seconds  # Python SDK expects seconds (not ms like JS SDK)
+            id_token,
+            expires_in=expires_in_seconds,  # Python SDK expects seconds (not ms like JS SDK)
         )
     except Exception as e:
         logger.error(f'Failed to create session cookie: {e}')
         return JsonResponse({'error': 'Failed to create session cookie'}, status=500)
 
     # Build response with cookie
-    response = JsonResponse({
-        'status': 'success',
-        'expiresIn': expires_in_seconds,
-        'message': 'Session cookie created successfully',
-    })
+    response = JsonResponse(
+        {
+            'status': 'success',
+            'expiresIn': expires_in_seconds,
+            'message': 'Session cookie created successfully',
+        }
+    )
 
     is_secure = request.is_secure() or request.META.get('HTTP_X_FORWARDED_PROTO') == 'https'
     response.set_cookie(
@@ -164,7 +185,9 @@ class SignUpView(generic.CreateView):
 @csrf_protect
 def logout_view(request):
     """Custom logout view that clears Django session and redirects to Firebase logout."""
-    logger.info("User logged out", extra={"user": getattr(request.user, "email", str(request.user))})
+    logger.info(
+        'User logged out', extra={'user': getattr(request.user, 'email', str(request.user))}
+    )
     auth_logout(request)
     messages.success(request, 'You have been logged out successfully.')
 
@@ -192,8 +215,8 @@ def item_add_ajax(request, wishlist_id):
 
         if not (is_owner or is_manager or is_steward):
             logger.warning(
-                "Unauthorized item add attempt",
-                extra={"wishlist_id": wishlist_id, "user": request.user.email},
+                'Unauthorized item add attempt',
+                extra={'wishlist_id': wishlist_id, 'user': request.user.email},
             )
             return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
 
@@ -202,7 +225,8 @@ def item_add_ajax(request, wishlist_id):
         # Set other fields as necessary
         item.save(current_user=request.user)
         logger.info(
-            "Item added", extra={"item_id": item.id, "wishlist_id": wishlist_id, "user": request.user.email}
+            'Item added',
+            extra={'item_id': item.id, 'wishlist_id': wishlist_id, 'user': request.user.email},
         )
 
         # Return the new item details
@@ -222,8 +246,8 @@ def item_add(request, wishlist_id):
     is_manager = request.user in wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
-            "Unauthorized item add attempt",
-            extra={"wishlist_id": wishlist_id, "user": request.user.email},
+            'Unauthorized item add attempt',
+            extra={'wishlist_id': wishlist_id, 'user': request.user.email},
         )
         messages.error(request, 'You can only add items to wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
@@ -234,8 +258,12 @@ def item_add(request, wishlist_id):
             try:
                 item = form.save(commit=True, wishlist=wishlist, current_user=request.user)
                 logger.info(
-                    "Item added",
-                    extra={"item_id": item.id if item else None, "wishlist_id": wishlist_id, "user": request.user.email},
+                    'Item added',
+                    extra={
+                        'item_id': item.id if item else None,
+                        'wishlist_id': wishlist_id,
+                        'user': request.user.email,
+                    },
                 )
                 messages.success(request, 'Item added successfully.')
                 return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
@@ -261,8 +289,8 @@ def item_edit(request, item_id):
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
-            "Unauthorized item edit attempt",
-            extra={"item_id": item_id, "user": request.user.email},
+            'Unauthorized item edit attempt',
+            extra={'item_id': item_id, 'user': request.user.email},
         )
         messages.error(
             request, 'You can only edit items in your own wishlists or wishlists you manage.'
@@ -301,8 +329,8 @@ def item_delete(request, item_id):
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
-            "Unauthorized item delete attempt",
-            extra={"item_id": item_id, "user": request.user.email},
+            'Unauthorized item delete attempt',
+            extra={'item_id': item_id, 'user': request.user.email},
         )
         messages.error(request, 'You can only delete items in wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=item.wishlist.id)
@@ -310,7 +338,10 @@ def item_delete(request, item_id):
     wishlist_id = item.wishlist.id
     item.is_deleted = True  # Soft delete
     item.save(current_user=request.user)
-    logger.info("Item deleted", extra={"item_id": item_id, "wishlist_id": wishlist_id, "user": request.user.email})
+    logger.info(
+        'Item deleted',
+        extra={'item_id': item_id, 'wishlist_id': wishlist_id, 'user': request.user.email},
+    )
     messages.success(request, 'Item deleted successfully.')
     return redirect('gift:wishlist_detail', wishlist_id=wishlist_id)
 
@@ -332,8 +363,8 @@ def item_purchase(request, item_id):
     # List owners/managers cannot mark items on their own list as purchased
     if is_list_manager:
         logger.warning(
-            "Owner/manager attempted to purchase own list item",
-            extra={"item_id": item_id, "wishlist_id": wishlist.id, "user": request.user.email},
+            'Owner/manager attempted to purchase own list item',
+            extra={'item_id': item_id, 'wishlist_id': wishlist.id, 'user': request.user.email},
         )
         messages.warning(request, 'You cannot mark items as purchased on your own list.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
@@ -405,11 +436,11 @@ def wishlist_create(request):
 
                 wishlist.save()
                 logger.info(
-                    "Wishlist created",
+                    'Wishlist created',
                     extra={
-                        "wishlist_id": wishlist.id,
-                        "family_id": wishlist.family_name_id,
-                        "user": request.user.email,
+                        'wishlist_id': wishlist.id,
+                        'family_id': wishlist.family_name_id,
+                        'user': request.user.email,
                     },
                 )
 
@@ -627,11 +658,14 @@ def profile(request):
             profile_form = ProfilePictureForm(request.POST, request.FILES, instance=request.user)
             if profile_form.is_valid():
                 profile_form.save()
-                logger.info("Profile picture updated", extra={"user": request.user.email})
+                logger.info('Profile picture updated', extra={'user': request.user.email})
                 messages.success(request, 'Profile picture updated successfully!')
                 return redirect('gift:account')
             else:
-                logger.warning("Profile picture update failed", extra={"user": request.user.email, "errors": str(profile_form.errors)})
+                logger.warning(
+                    'Profile picture update failed',
+                    extra={'user': request.user.email, 'errors': str(profile_form.errors)},
+                )
                 messages.error(request, 'Error updating profile picture. Please try again.')
         else:
             profile_form = ProfilePictureForm(instance=request.user)
@@ -720,7 +754,7 @@ def wishlist_detail(request, wishlist_id):
 
     # List owners/managers should NOT see purchase information or be able to mark items as purchased
     # Only other users can see and mark items as purchased
-    
+
     total_count = len(items)
     purchased_count = sum(1 for item in items if item.purchased)
 
@@ -913,8 +947,8 @@ def wishlist_clear_purchased(request, wishlist_id):
 
     if not (is_owner or is_steward or is_manager):
         logger.warning(
-            "Unauthorized wishlist clear purchased attempt",
-            extra={"wishlist_id": wishlist_id, "user": request.user.email},
+            'Unauthorized wishlist clear purchased attempt',
+            extra={'wishlist_id': wishlist_id, 'user': request.user.email},
         )
         messages.error(request, 'You can only clear items from wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
@@ -927,8 +961,8 @@ def wishlist_clear_purchased(request, wishlist_id):
             item.is_deleted = True
             item.save(current_user=request.user)
         logger.info(
-            "Wishlist purchased items cleared",
-            extra={"wishlist_id": wishlist_id, "count": count, "user": request.user.email},
+            'Wishlist purchased items cleared',
+            extra={'wishlist_id': wishlist_id, 'count': count, 'user': request.user.email},
         )
         messages.success(request, f'Successfully cleared {count} purchased item(s).')
     else:
@@ -945,13 +979,13 @@ def wishlist_delete(request, wishlist_id):
     # Check if user is the owner
     if request.user != wishlist.owner:
         logger.warning(
-            "Unauthorized wishlist delete attempt",
-            extra={"wishlist_id": wishlist_id, "user": request.user.email},
+            'Unauthorized wishlist delete attempt',
+            extra={'wishlist_id': wishlist_id, 'user': request.user.email},
         )
         messages.error(request, 'You can only delete your own wishlists.')
         return redirect('gift:home')
 
-    logger.info("Wishlist deleted", extra={"wishlist_id": wishlist_id, "user": request.user.email})
+    logger.info('Wishlist deleted', extra={'wishlist_id': wishlist_id, 'user': request.user.email})
     # Delete the wishlist
     wishlist.delete()
     messages.success(request, 'Wishlist deleted successfully.')
