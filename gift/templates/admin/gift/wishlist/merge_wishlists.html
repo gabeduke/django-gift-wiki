@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<form action="" method="post">
+    {% csrf_token %}
+    
+    <p>You have selected the following wishlists to merge:</p>
+    <ul>
+        {% for wishlist in wishlists %}
+        <li>{{ wishlist }} (Owner: {{ wishlist.owner.username }})</li>
+        {% endfor %}
+    </ul>
+    
+    <p>Please select the <strong>Primary Wishlist</strong>. All items and groups from the other selected wishlists will be moved into this one, and the other wishlists will be deleted.</p>
+    
+    <div>
+        <label for="primary_wishlist">Primary Wishlist:</label>
+        <select name="primary_wishlist" id="primary_wishlist" required>
+            <option value="">-- Select Primary --</option>
+            {% for wishlist in wishlists %}
+            <option value="{{ wishlist.id }}">{{ wishlist }} (Owner: {{ wishlist.owner.username }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <br>
+    
+    {% for obj in queryset %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="merge_wishlists">
+    <input type="hidden" name="apply" value="1">
+    
+    <div>
+        <input type="submit" value="Merge Wishlists">
+        <a href="#" onclick="window.history.back(); return false;" class="button cancel-link">Cancel</a>
+    </div>
+</form>
+{% endblock %}
