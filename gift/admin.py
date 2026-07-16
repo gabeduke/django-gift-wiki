@@ -13,12 +13,21 @@ from gift.models import (
     WishList,
     AllowedEmail,
     LinkedEmail,
+    Season,
 )
+from django.contrib.auth.admin import UserAdmin
 
 User = get_user_model()
 
-admin.site.register(User)
+class CustomUserAdmin(UserAdmin):
+    model = User
+    fieldsets = UserAdmin.fieldsets + (
+        ('Extra Info', {'fields': ('family_name', 'birthday', 'secret_santa_target', 'profile_picture')}),
+    )
+
+admin.site.register(User, CustomUserAdmin)
 admin.site.register(Family)
+admin.site.register(Season)
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.contrib import messages

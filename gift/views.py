@@ -687,20 +687,35 @@ def profile(request):
     return render(request, 'gift/auth_profile.html', context)
 
 
-def get_season(date):
+def get_season(date, seasons):
     if not date:
         return 'Unknown'
     m = date.month
-    if m in (3, 4, 5): return 'Spring'
-    if m in (6, 7, 8): return 'Summer'
-    if m in (9, 10, 11): return 'Fall'
-    return 'Winter'
+    for s in seasons:
+        if s.start_month <= s.end_month:
+            if s.start_month <= m <= s.end_month:
+                return s.name
+        else:
+            if m >= s.start_month or m <= s.end_month:
+                return s.name
+    return 'Unknown'
 
-GROUPING_STRATEGIES = {
-    'house': lambda wl: wl.family_name.name if wl.family_name else 'Unassigned',
-    'alpha': lambda wl: wl.title[0].upper() if wl.title else '?',
-    'birthday_season': lambda wl: get_season(wl.owner.birthday) if wl.owner else 'Unknown'
-}
+# We pass seasons and request_user into the strategy to avoid N+1 queries.
+def get_grouping_strategies(seasons, request_user):
+    def christmas_exchange_group(wl):
+        person = wl.dependent or wl.owner
+        if request_user.secret_santa_target == person:
+            return '🎯 Your Secret Santa Target'
+        if person.is_kid:
+            return '🧒 Kids'
+        return '👤 Other Adults'
+
+    return {
+        'house': lambda wl: wl.family_name.name if wl.family_name else 'Unassigned',
+        'alpha': lambda wl: wl.title[0].upper() if wl.title else '?',
+        'birthday_season': lambda wl: get_season(wl.owner.birthday, seasons) if wl.owner else 'Unknown',
+        'christmas_exchange': christmas_exchange_group,
+    }
 
 def home(request):
     # Only show wishlists if user is authenticated
@@ -708,19 +723,27 @@ def home(request):
     current_grouping = 'house'
 
     if request.user.is_authenticated:
+        # Fetch seasons once
+        seasons = list(Season.objects.all())
+        strategies = get_grouping_strategies(seasons, request.user)
+
         group_by = request.GET.get('group_by')
-        if group_by in GROUPING_STRATEGIES:
+        if group_by in strategies:
             request.session['wishlist_grouping'] = group_by
             current_grouping = group_by
         else:
-            current_grouping = request.session.get('wishlist_grouping', 'house')
-            if current_grouping not in GROUPING_STRATEGIES:
-                current_grouping = 'house'
+            current_grouping = request.session.get('wishlist_grouping')
+            if not current_grouping or current_grouping not in strategies:
+                from datetime import date
+                if date.today().month in (11, 12):
+                    current_grouping = 'christmas_exchange'
+                else:
+                    current_grouping = 'house'
 
         # Optimize query with select_related
         wishlists = WishList.objects.select_related('family_name', 'owner').all()
         wishlists_grouped = defaultdict(list)
-        strategy = GROUPING_STRATEGIES[current_grouping]
+        strategy = strategies[current_grouping]
 
         for wishlist in wishlists:
             wishlists_grouped[strategy(wishlist)].append(wishlist)
