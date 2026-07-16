@@ -37,7 +37,7 @@ from .forms import (
     ScrapedPageSelectionForm,
     WishListForm,
 )
-from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, WishList
+from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, WishList, Season
 
 logger = logging.getLogger(__name__)
 
