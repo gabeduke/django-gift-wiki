@@ -24,6 +24,11 @@ class WikiUser(AbstractUser):
         null=True,
         help_text='Thumbnail version (150x150)',
     )
+    birthday = models.DateField(
+        null=True, 
+        blank=True, 
+        help_text="Used for birthday-season grouping on home page"
+    )
     profile_picture_web = models.ImageField(
         upload_to='profile_pictures/web/', blank=True, null=True, help_text='Web version (400x400)'
     )
