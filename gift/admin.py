@@ -19,7 +19,48 @@ User = get_user_model()
 
 admin.site.register(User)
 admin.site.register(Family)
-admin.site.register(WishList)
+from django.shortcuts import render
+from django.http import HttpResponseRedirect
+from django.contrib import messages
+import django.contrib.admin.helpers as admin_helpers
+
+@admin.register(WishList)
+class WishListAdmin(admin.ModelAdmin):
+    list_display = ['title', 'owner']
+    search_fields = ['title', 'owner__username']
+    actions = ['merge_wishlists']
+
+    def merge_wishlists(self, request, queryset):
+        if 'apply' in request.POST:
+            primary_id = request.POST.get('primary_wishlist')
+            if not primary_id:
+                self.message_user(request, "No primary wishlist selected.", level=messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+            
+            primary_wl = queryset.get(id=primary_id)
+            secondary_wls = queryset.exclude(id=primary_id)
+            
+            for secondary in secondary_wls:
+                secondary.items.all().update(wishlist=primary_wl)
+                secondary.groups.all().update(wishlist=primary_wl)
+                
+                for manager in secondary.managers.all():
+                    primary_wl.managers.add(manager)
+                    
+                secondary.delete()
+                
+            self.message_user(request, f"Successfully merged wishlists into '{primary_wl}'.")
+            return HttpResponseRedirect(request.get_full_path())
+            
+        context = {
+            'title': 'Merge Wishlists',
+            'wishlists': queryset,
+            'queryset': queryset,
+            'opts': self.model._meta,
+            'action_checkbox_name': admin_helpers.ACTION_CHECKBOX_NAME,
+        }
+        return render(request, 'admin/gift/wishlist/merge_wishlists.html', context)
+    merge_wishlists.short_description = "Merge selected wishlists"
 admin.site.register(Item)
 admin.site.register(Suggestion)
 admin.site.register(ItemGroup)
