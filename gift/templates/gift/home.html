@@ -32,15 +32,26 @@
       </div>
       <div class="wl-page-header">
         <h1 class="wl-page-title">Wishlists</h1>
-        <p class="wl-page-subtitle">Browse by family</p>
+        <p class="wl-page-subtitle">Browse by household</p>
+        
+        <div class="grouping-controls" style="margin-top: 16px;">
+          <form action="" method="get" style="display: flex; align-items: center; gap: 8px;">
+            <label for="group_by" style="color: var(--text-muted); font-size: 14px;">Group By:</label>
+            <select name="group_by" id="group_by" class="btn btn-outline-secondary" onchange="this.form.submit()" style="padding: 6px 30px 6px 12px; height: 36px; border-radius: 6px; font-size: 13px; font-weight: 500; appearance: none; background: url('data:image/svg+xml;utf8,<svg fill=%22%232a2622%22 viewBox=%220 0 24 24%22 width=%2216%22 height=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>') no-repeat right 8px center; cursor: pointer;">
+              {% for option in grouping_options %}
+                <option value="{{ option.value }}" {% if current_grouping == option.value %}selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        </div>
       </div>
     </div>
 
-    {% for family, wishlists in wishlists_by_family.items %}
+    {% for group_name, wishlists in wishlists_grouped.items %}
     <div class="wl-family-section">
 
       <div class="wl-family-header">
-        <span class="wl-family-label">{{ family }}</span>
+        <span class="wl-family-label">{{ group_name }}</span>
         <span class="wl-count-badge">{{ wishlists|length }}</span>
       </div>
 
