@@ -424,7 +424,6 @@ def wishlist_create(request):
                         username=managed_username,
                         birthday=managed_birthday,
                         email=managed_email,
-                        is_kid=True  # Still treating them as a dependent/managed user under the hood
                     )
                     wishlist.dependent = new_managed_user
                     messages.success(request, f'Created managed account for {managed_username}.')
