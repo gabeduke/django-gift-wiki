@@ -710,22 +710,45 @@ def get_grouping_strategies(seasons, request_user):
             return '🧒 Kids'
         return '👤 Other Adults'
 
-    return {
+    strategies = {
         'house': lambda wl: wl.family_name.name if wl.family_name else 'Unassigned',
         'alpha': lambda wl: wl.title[0].upper() if wl.title else '?',
-        'birthday_season': lambda wl: get_season(wl.owner.birthday, seasons) if wl.owner else 'Unknown',
         'christmas_exchange': christmas_exchange_group,
     }
+
+    def make_season_strategy(season_name):
+        def season_strategy(wl):
+            if wl.owner and get_season(wl.owner.birthday, seasons) == season_name:
+                return f"{season_name} Birthdays"
+            return None
+        return season_strategy
+
+    for season in seasons:
+        strategies[f'season_{season.id}'] = make_season_strategy(season.name)
+
+    return strategies
 
 def home(request):
     # Only show wishlists if user is authenticated
     wishlists_grouped = {}
     current_grouping = 'house'
+    grouping_options = []
 
     if request.user.is_authenticated:
         # Fetch seasons once
         seasons = list(Season.objects.all())
         strategies = get_grouping_strategies(seasons, request.user)
+
+        grouping_options = [
+            {'value': 'house', 'label': 'Household'},
+            {'value': 'alpha', 'label': 'Alphabetical'},
+            {'value': 'christmas_exchange', 'label': 'Christmas Exchange'},
+        ]
+        for season in seasons:
+            grouping_options.append({
+                'value': f'season_{season.id}',
+                'label': f'Birthday: {season.name}'
+            })
 
         group_by = request.GET.get('group_by')
         if group_by in strategies:
@@ -746,7 +769,9 @@ def home(request):
         strategy = strategies[current_grouping]
 
         for wishlist in wishlists:
-            wishlists_grouped[strategy(wishlist)].append(wishlist)
+            group_key = strategy(wishlist)
+            if group_key is not None:
+                wishlists_grouped[group_key].append(wishlist)
             
         # Sort the dictionary keys to have a predictable display order
         wishlists_grouped = dict(sorted(wishlists_grouped.items(), key=lambda item: str(item[0])))
@@ -763,6 +788,7 @@ def home(request):
     context = {
         'wishlists_grouped': wishlists_grouped,
         'current_grouping': current_grouping,
+        'grouping_options': grouping_options,
         'show_scraped_page_prompt': show_scraped_page_prompt,
     }
     return render(request, 'gift/home.html', context)
