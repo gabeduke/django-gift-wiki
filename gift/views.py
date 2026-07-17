@@ -718,7 +718,8 @@ def get_grouping_strategies(seasons, request_user):
 
     def make_season_strategy(season_name):
         def season_strategy(wl):
-            if wl.owner and get_season(wl.owner.birthday, seasons) == season_name:
+            person = wl.dependent or wl.owner
+            if person and get_season(person.birthday, seasons) == season_name:
                 return f"{season_name} Birthdays"
             return None
         return season_strategy
