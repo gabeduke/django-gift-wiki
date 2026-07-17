@@ -283,6 +283,30 @@ class WishListForm(forms.ModelForm):
         label='Import from Gift List',
         help_text='Optionally import items from an existing gift list',
     )
+    
+    # Virtual fields for creating a managed WikiUser
+    is_managed = forms.BooleanField(
+        required=False,
+        label='This wishlist is for a managed user (e.g., child, grandparent)',
+        help_text='Check this to create a profile for someone without a separate login.',
+    )
+    managed_username = forms.CharField(
+        max_length=150,
+        required=False,
+        label="User's Username",
+        help_text='A unique username for the user (e.g. "timmy_2015").',
+    )
+    managed_birthday = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=False,
+        label="User's Birthday",
+        help_text="So we can sort their wishlist into the correct birthday season.",
+    )
+    managed_email = forms.EmailField(
+        required=False,
+        label="User's Email (Optional)",
+        help_text="If provided, they can eventually use this email to log in and take over their account.",
+    )
 
     managers = forms.ModelMultipleChoiceField(
         queryset=None,
@@ -395,6 +419,10 @@ class WishListForm(forms.ModelForm):
                 'new_family_name',
                 'new_family_poem',
                 'scraped_page',
+                'is_managed',
+                'managed_username',
+                'managed_birthday',
+                'managed_email',
             ]:
                 if self.fields[name].label:
                     self.fields[name].label += ' (Optional)'
@@ -416,6 +444,19 @@ class WishListForm(forms.ModelForm):
         cleaned_data = super().clean()
         family_name = cleaned_data.get('family_name')
         new_family_name = cleaned_data.get('new_family_name')
+        
+        is_managed = cleaned_data.get('is_managed')
+        managed_username = cleaned_data.get('managed_username')
+        managed_birthday = cleaned_data.get('managed_birthday')
+
+        if is_managed:
+            if not managed_username:
+                self.add_error('managed_username', 'Username is required for managed accounts.')
+            elif User.objects.filter(username=managed_username).exists():
+                self.add_error('managed_username', 'This username is already taken.')
+                
+            if not managed_birthday:
+                self.add_error('managed_birthday', 'Birthday is required for managed accounts.')
 
         # Handle "Create new..." option
         if family_name == '__CREATE_NEW__':

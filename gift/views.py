@@ -207,7 +207,7 @@ def item_add_ajax(request, wishlist_id):
         wishlist = get_object_or_404(WishList, id=wishlist_id)
 
         # Business Rule: Only owner or managers can add items
-        is_owner = request.user == wishlist.owner
+        is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
         is_manager = request.user in wishlist.managers.all()
         from giftwiki.feature_flags import get_steward_proxy_enabled
 
@@ -242,7 +242,7 @@ def item_add(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Business Rule: Only owner or managers can add items
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     is_manager = request.user in wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
@@ -285,7 +285,7 @@ def item_edit(request, item_id):
     item = get_object_or_404(Item, id=item_id)
 
     # Business Rule: Only owner or managers can edit items
-    is_owner = request.user == item.wishlist.owner
+    is_owner = (request.user == item.wishlist.owner or request.user == item.wishlist.dependent)
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
@@ -325,7 +325,7 @@ def item_delete(request, item_id):
     item = get_object_or_404(Item, id=item_id)
 
     # Business Rule: Only owner or managers can delete items
-    is_owner = request.user == item.wishlist.owner
+    is_owner = (request.user == item.wishlist.owner or request.user == item.wishlist.dependent)
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
@@ -352,7 +352,7 @@ def item_purchase(request, item_id):
     wishlist = item.wishlist
 
     # Check if user is owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -410,6 +410,24 @@ def wishlist_create(request):
                     dependent = form.cleaned_data.get('dependent')
                     if dependent:
                         wishlist.dependent = dependent
+
+                # Auto-create managed account if requested
+                if form.cleaned_data.get('is_managed'):
+                    managed_username = form.cleaned_data.get('managed_username')
+                    managed_birthday = form.cleaned_data.get('managed_birthday')
+                    managed_email = form.cleaned_data.get('managed_email')
+                    
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    
+                    new_managed_user = User.objects.create(
+                        username=managed_username,
+                        birthday=managed_birthday,
+                        email=managed_email,
+                        is_kid=True  # Still treating them as a dependent/managed user under the hood
+                    )
+                    wishlist.dependent = new_managed_user
+                    messages.success(request, f'Created managed account for {managed_username}.')
 
                 # Handle new family creation
                 new_family_name = form.cleaned_data.get('new_family_name')
@@ -588,7 +606,7 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
         if target_wishlist:
             wishlist = target_wishlist
             # Verify user owns this wishlist
-            if wishlist.owner != user:
+            if wishlist.owner != user and wishlist.dependent != user:
                 logger.error(f'User {user.username} does not own wishlist {wishlist.id}')
                 return None
         else:
@@ -824,7 +842,7 @@ def wishlist_detail(request, wishlist_id):
     sorted_category_items = sorted(items_by_category.items(), key=lambda x: x[0].name.lower())
 
     # Check if user is owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -866,7 +884,7 @@ def wishlist_edit(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Check if user is the owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -1018,7 +1036,7 @@ def wishlist_clear_purchased(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Check if user is the owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -1057,7 +1075,7 @@ def wishlist_delete(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Check if user is the owner
-    if request.user != wishlist.owner:
+    if request.user != wishlist.owner and request.user != wishlist.dependent:
         logger.warning(
             'Unauthorized wishlist delete attempt',
             extra={'wishlist_id': wishlist_id, 'user': request.user.email},
