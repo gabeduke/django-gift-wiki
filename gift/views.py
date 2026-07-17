@@ -37,7 +37,7 @@ from .forms import (
     ScrapedPageSelectionForm,
     WishListForm,
 )
-from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, WishList
+from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, WishList, Season
 
 logger = logging.getLogger(__name__)
 
@@ -687,17 +687,94 @@ def profile(request):
     return render(request, 'gift/auth_profile.html', context)
 
 
+def get_season(date, seasons):
+    if not date:
+        return 'Unknown'
+    m = date.month
+    for s in seasons:
+        if s.start_month <= s.end_month:
+            if s.start_month <= m <= s.end_month:
+                return s.name
+        else:
+            if m >= s.start_month or m <= s.end_month:
+                return s.name
+    return 'Unknown'
+
+# We pass seasons and request_user into the strategy to avoid N+1 queries.
+def get_grouping_strategies(seasons, request_user):
+    def christmas_exchange_group(wl):
+        person = wl.dependent or wl.owner
+        if request_user.secret_santa_target == person:
+            return '🎯 Your Secret Santa Target'
+        if person.is_kid:
+            return '🧒 Kids'
+        return '👤 Other Adults'
+
+    strategies = {
+        'house': lambda wl: wl.family_name.name if wl.family_name else 'Unassigned',
+        'alpha': lambda wl: wl.title[0].upper() if wl.title else '?',
+        'christmas_exchange': christmas_exchange_group,
+    }
+
+    def make_season_strategy(season_name):
+        def season_strategy(wl):
+            if wl.owner and get_season(wl.owner.birthday, seasons) == season_name:
+                return f"{season_name} Birthdays"
+            return None
+        return season_strategy
+
+    for season in seasons:
+        strategies[f'season_{season.id}'] = make_season_strategy(season.name)
+
+    return strategies
+
 def home(request):
     # Only show wishlists if user is authenticated
-    wishlists_by_family = {}
+    wishlists_grouped = {}
+    current_grouping = 'house'
+    grouping_options = []
 
     if request.user.is_authenticated:
-        # Optimize query with select_related to avoid N+1 queries for family_name
+        # Fetch seasons once
+        seasons = list(Season.objects.all())
+        strategies = get_grouping_strategies(seasons, request.user)
+
+        grouping_options = [
+            {'value': 'house', 'label': 'Household'},
+            {'value': 'alpha', 'label': 'Alphabetical'},
+            {'value': 'christmas_exchange', 'label': 'Christmas Exchange'},
+        ]
+        for season in seasons:
+            grouping_options.append({
+                'value': f'season_{season.id}',
+                'label': f'Birthday: {season.name}'
+            })
+
+        group_by = request.GET.get('group_by')
+        if group_by in strategies:
+            request.session['wishlist_grouping'] = group_by
+            current_grouping = group_by
+        else:
+            current_grouping = request.session.get('wishlist_grouping')
+            if not current_grouping or current_grouping not in strategies:
+                from datetime import date
+                if date.today().month in (11, 12):
+                    current_grouping = 'christmas_exchange'
+                else:
+                    current_grouping = 'house'
+
+        # Optimize query with select_related
         wishlists = WishList.objects.select_related('family_name', 'owner').all()
-        wishlists_by_family = defaultdict(list)
+        wishlists_grouped = defaultdict(list)
+        strategy = strategies[current_grouping]
 
         for wishlist in wishlists:
-            wishlists_by_family[wishlist.family_name].append(wishlist)
+            group_key = strategy(wishlist)
+            if group_key is not None:
+                wishlists_grouped[group_key].append(wishlist)
+            
+        # Sort the dictionary keys to have a predictable display order
+        wishlists_grouped = dict(sorted(wishlists_grouped.items(), key=lambda item: str(item[0])))
 
         # Check if logged in user needs to select a scraped page
         show_scraped_page_prompt = False
@@ -709,7 +786,9 @@ def home(request):
         show_scraped_page_prompt = False
 
     context = {
-        'wishlists_by_family': dict(wishlists_by_family),
+        'wishlists_grouped': wishlists_grouped,
+        'current_grouping': current_grouping,
+        'grouping_options': grouping_options,
         'show_scraped_page_prompt': show_scraped_page_prompt,
     }
     return render(request, 'gift/home.html', context)
