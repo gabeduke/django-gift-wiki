@@ -19,8 +19,18 @@ from django.contrib.auth.admin import UserAdmin
 
 User = get_user_model()
 
-class CustomUserAdmin(UserAdmin):
+from import_export.admin import ImportExportModelAdmin
+from import_export import resources
+
+class WikiUserResource(resources.ModelResource):
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'is_staff', 'family_name', 'birthday', 'secret_santa_target')
+        export_order = fields
+
+class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
     model = User
+    resource_classes = [WikiUserResource]
     fieldsets = UserAdmin.fieldsets + (
         ('Extra Info', {'fields': ('family_name', 'birthday', 'secret_santa_target', 'profile_picture')}),
     )
