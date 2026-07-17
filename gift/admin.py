@@ -35,6 +35,12 @@ class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
         ('Extra Info', {'fields': ('family_name', 'birthday', 'secret_santa_target', 'profile_picture')}),
     )
 
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:
+            return self.add_fieldsets
+        return self.fieldsets
+
+
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Family)
 admin.site.register(Season)
