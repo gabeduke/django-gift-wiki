@@ -91,20 +91,36 @@ class TestPurchaseBehavior:
         # Purchase state should be unchanged
         assert item.purchased_by == other_user
 
+    def test_cannot_overwrite_other_purchaser(
+        self, authenticated_user, authenticated_other_user, wishlist, user, other_user
+    ):
+        """A user cannot take over an item already purchased by someone else."""
+        item = Item.objects.create(
+            wishlist=wishlist,
+            name='Test Item',
+            description='Test',
+            purchased_by=other_user,
+            purchased=True,
+            updated_by=wishlist.owner,
+        )
+
+        # Current user (not the purchaser) tries to purchase
+        response = authenticated_user.post(f'/item/purchase/{item.id}/')
+        assert response.status_code == 302
+        item.refresh_from_db()
+        # Original purchaser should remain
+        assert item.purchased_by == other_user
+        assert item.purchased is True
+
 
 @pytest.mark.unit
 class TestPurchaseVisibility:
     """Test that purchase information is visible to everyone."""
 
-    @pytest.mark.xfail(
-        reason="Template copy drifted ('Undo' vs 'Mark as Not Purchased'); "
-        'visibility is covered properly by purchase.feature (#39).',
-        strict=False,
-    )
     def test_everyone_can_see_purchase_status(
         self, authenticated_other_user, wishlist, other_user, user
     ):
-        """Non-owners can see purchase status and purchase buttons."""
+        """Non-owners can see purchase status; no purchase button when already bought."""
         item = Item.objects.create(
             wishlist=wishlist,
             name='Test Item',
@@ -117,10 +133,11 @@ class TestPurchaseVisibility:
         response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
         assert response.status_code == 200
         content = response.content.decode()
-        # Non-owners should see purchase status buttons
-        assert 'Mark as Purchased' in content or 'Mark as Not Purchased' in content
         # Should show purchaser information
-        assert other_user.username in content or 'Purchased' in content
+        assert 'Purchased' in content
+        assert other_user.username in content
+        # Should NOT show a purchase button for an item bought by someone else
+        assert 'Mark as Purchased' not in content
 
 
 @pytest.mark.unit
