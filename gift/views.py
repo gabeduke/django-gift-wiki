@@ -22,9 +22,13 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
     CategoryForm,
+    CreateManagedUserForm,
     CustomUserCreationForm,
     ItemForm,
+    ManagedUserForm,
+    ProfilePictureForm,
     ScrapedPageSelectionForm,
+    UserProfileForm,
     WishListForm,
 )
 from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, Season, WishList

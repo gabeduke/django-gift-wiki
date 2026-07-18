@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.http import HttpResponseServerError
 
 User = get_user_model()
 
@@ -44,3 +45,51 @@ class TestFirebaseAuthAllowlist:
 
         assert response.status_code == 403
         assert b'not authorized' in response.content
+
+
+@pytest.mark.unit
+class TestErrorLoggingMiddleware:
+    """Tests for the error logging middleware."""
+
+    def test_logs_unhandled_exception(self, client, settings):
+        """The middleware logs unhandled exceptions with request context."""
+        from gift.middleware.error_logging import ErrorLoggingMiddleware
+
+        def exploding_view(request):
+            raise RuntimeError('boom')
+
+        middleware = ErrorLoggingMiddleware(lambda request: exploding_view(request))
+
+        with patch(
+            'gift.middleware.error_logging.logger'
+        ) as mock_logger:
+            with pytest.raises(RuntimeError):
+                middleware(client.get('/').wsgi_request)
+
+        mock_logger.error.assert_called_once()
+        call_args = mock_logger.error.call_args
+        # args = (format_string, method, path, exc_type, exc_message)
+        assert call_args.args[3] == 'RuntimeError'
+        assert call_args.args[4] == 'boom'
+        assert call_args.kwargs['exc_info'] is True
+        assert call_args.kwargs['extra']['request_path'] == '/'
+
+    def test_logs_explicit_500_response(self, client, settings):
+        """The middleware logs 500 responses returned without an exception."""
+        from gift.middleware.error_logging import ErrorLoggingMiddleware
+
+        def failing_view(request):
+            return HttpResponseServerError('server error')
+
+        middleware = ErrorLoggingMiddleware(lambda request: failing_view(request))
+
+        with patch(
+            'gift.middleware.error_logging.logger'
+        ) as mock_logger:
+            response = middleware(client.get('/').wsgi_request)
+
+        assert response.status_code == 500
+        mock_logger.error.assert_called_once()
+        call_args = mock_logger.error.call_args
+        assert call_args.kwargs['extra']['status_code'] == 500
+        assert call_args.kwargs['extra']['request_path'] == '/'

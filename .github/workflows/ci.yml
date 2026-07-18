@@ -27,6 +27,10 @@ jobs:
       - name: Run linter
         run: make lint
 
+      - name: Check migrations are committed and up to date
+        run: |
+          pipenv run python manage.py makemigrations --check --dry-run
+
       - name: Run tests
         run: make test
 

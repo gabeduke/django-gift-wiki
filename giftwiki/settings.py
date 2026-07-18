@@ -155,6 +155,7 @@ if DEBUG:
     INSTALLED_APPS.append('debug_toolbar')
 
 MIDDLEWARE = [
+    'gift.middleware.error_logging.ErrorLoggingMiddleware',  # Log unhandled exceptions with request/trace context
     'gift.middleware.healthcheck.HealthCheckMiddleware',
     'gift.middleware.metrics.MetricsMiddleware',  # Handle /metrics endpoint early, before security checks
     'gift.middleware.prometheus.PrometheusMiddleware',  # Prometheus metrics - early in chain to track all requests

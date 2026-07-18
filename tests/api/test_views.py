@@ -2,6 +2,8 @@
 API view tests using standard Django test patterns.
 """
 
+from unittest import mock
+
 import pytest
 from django.contrib.auth import get_user_model
 
@@ -197,3 +199,133 @@ class TestScrapedPageImport:
         response = authenticated_user.get('/select-scraped-page/')
         # May redirect if no pages available, or show form
         assert response.status_code in [200, 302]
+
+
+@pytest.mark.unit
+class TestProfileView:
+    """Test the authenticated profile/account page."""
+
+    def test_profile_loads(self, authenticated_user):
+        """Profile page renders for an authenticated user."""
+        response = authenticated_user.get('/profile/')
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert 'Account Settings' in content
+        assert 'Managed Users' in content
+
+    def test_profile_update(self, authenticated_user, user):
+        """Profile details can be updated from the account page."""
+        data = {
+            'first_name': 'Updated',
+            'last_name': 'Name',
+            'birthday': '1990-01-01',
+            'update_profile': '1',
+        }
+        response = authenticated_user.post('/profile/', data)
+        assert response.status_code == 302
+        user.refresh_from_db()
+        assert user.first_name == 'Updated'
+        assert user.last_name == 'Name'
+        assert str(user.birthday) == '1990-01-01'
+
+
+@pytest.mark.unit
+class TestManagedUsers:
+    """Test managed user creation and editing."""
+
+    def test_create_managed_user_creates_wishlist(self, authenticated_user, user):
+        """Creating a managed user without a wishlist creates one automatically."""
+        data = {
+            'username': 'managedkid',
+            'first_name': 'Managed',
+            'last_name': 'Kid',
+            'birthday': '2015-06-15',
+            'update_profile': '1',
+        }
+        response = authenticated_user.post('/managed-user/create/', data)
+        assert response.status_code == 302
+
+        managed = User.objects.get(username='managedkid')
+        assert managed.birthday.strftime('%Y-%m-%d') == '2015-06-15'
+        assert WishList.objects.filter(dependent=managed, owner=user).exists()
+
+    def test_create_managed_user_links_existing_wishlist(
+        self, authenticated_user, user, wishlist
+    ):
+        """Creating a managed user can link an existing wishlist."""
+        data = {
+            'username': 'managedkid2',
+            'first_name': 'Managed',
+            'last_name': 'Kid',
+            'link_to_wishlist': wishlist.id,
+            'update_profile': '1',
+        }
+        response = authenticated_user.post('/managed-user/create/', data)
+        assert response.status_code == 302
+
+        wishlist.refresh_from_db()
+        assert wishlist.dependent.username == 'managedkid2'
+
+    def test_edit_managed_user(self, authenticated_user, user):
+        """A manager can update a managed user's details."""
+        managed = User.objects.create_user(username='managedkid', birthday='2015-06-15')
+        WishList.objects.create(owner=user, dependent=managed, title="Kid's List")
+
+        data = {
+            'first_name': 'New',
+            'last_name': 'Name',
+            'birthday': '2016-07-20',
+            'update_profile': '1',
+        }
+        response = authenticated_user.post(f'/managed-user/{managed.id}/edit/', data)
+        assert response.status_code == 302
+
+        managed.refresh_from_db()
+        assert managed.first_name == 'New'
+        assert managed.birthday.strftime('%Y-%m-%d') == '2016-07-20'
+
+    def test_non_manager_cannot_edit_managed_user(
+        self, authenticated_other_user, user, other_user
+    ):
+        """A user who does not manage the dependent cannot edit them."""
+        managed = User.objects.create_user(username='managedkid')
+        WishList.objects.create(owner=user, dependent=managed, title="Kid's List")
+
+        data = {
+            'first_name': 'Hacker',
+            'last_name': 'Name',
+            'birthday': '2015-06-15',
+            'update_profile': '1',
+        }
+        response = authenticated_other_user.post(f'/managed-user/{managed.id}/edit/', data)
+        assert response.status_code == 302
+
+        managed.refresh_from_db()
+        assert managed.first_name != 'Hacker'
+
+
+@pytest.mark.unit
+class TestPasswordResetRequest:
+    """Test the Firebase password reset request view."""
+
+    def test_password_reset_request_sends_email(self, authenticated_user, user):
+        """A password reset link is generated and emailed to the user."""
+        mock_auth = mock.MagicMock()
+        mock_auth.generate_password_reset_link.return_value = 'https://example.com/reset'
+
+        with mock.patch(
+            'gift.middleware.firebase_auth._get_firebase_auth', return_value=mock_auth
+        ):
+            response = authenticated_user.post('/password-reset-request/')
+
+        assert response.status_code == 302
+        mock_auth.generate_password_reset_link.assert_called_once_with(user.email)
+
+    def test_password_reset_request_without_firebase(self, authenticated_user):
+        """Without Firebase configured the user sees an error message."""
+        with mock.patch(
+            'gift.middleware.firebase_auth._get_firebase_auth', return_value=None
+        ):
+            response = authenticated_user.post('/password-reset-request/')
+
+        assert response.status_code == 302
