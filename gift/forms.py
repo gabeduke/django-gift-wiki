@@ -260,10 +260,13 @@ class UserProfileForm(forms.ModelForm):
 
 
 class ManagedUserForm(forms.ModelForm):
-    """Form for updating managed user details like username, email, and birthday."""
+    """Form for updating managed user details like name and birthday.
     
-    username = forms.CharField(required=True, label="Username")
-    email = forms.EmailField(required=False, label="Email Address", help_text="Optional. If provided, they could use this to log in later.")
+    Note: username and email are intentionally excluded as they are
+    authentication-related fields that should not be editable by
+    wishlist managers.
+    """
+    
     first_name = forms.CharField(required=False, label="First Name")
     last_name = forms.CharField(required=False, label="Last Name")
     birthday = forms.DateField(
@@ -275,7 +278,7 @@ class ManagedUserForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'birthday']
+        fields = ['first_name', 'last_name', 'birthday']
 
 
 class ProfilePictureForm(forms.ModelForm):
