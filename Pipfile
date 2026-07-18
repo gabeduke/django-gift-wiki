@@ -25,6 +25,7 @@ firebase-admin = "*"
 requests = "*"
 google-cloud-logging = "*"
 django-import-export = "*"
+prometheus-client = "*"
 
 [dev-packages]
 pytest = "*"
@@ -37,4 +38,4 @@ pytest-cov = "*"
 ruff = "*"
 
 [requires]
-python_version = "3.10"
+python_version = "3.12"

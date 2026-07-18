@@ -1,26 +1,27 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin
 
 from gift.models import (
+    AllowedEmail,
     Category,
     Family,
     FeatureFlag,
     Item,
     ItemGroup,
+    LinkedEmail,
     ScrapedWikiItem,
     ScrapedWikiPage,
+    Season,
     Suggestion,
     WishList,
-    AllowedEmail,
-    LinkedEmail,
-    Season,
 )
-from django.contrib.auth.admin import UserAdmin
 
 User = get_user_model()
 
-from import_export.admin import ImportExportModelAdmin
 from import_export import resources
+from import_export.admin import ImportExportModelAdmin
+
 
 class WikiUserResource(resources.ModelResource):
     class Meta:
@@ -44,10 +45,11 @@ class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Family)
 admin.site.register(Season)
-from django.shortcuts import render
-from django.http import HttpResponseRedirect
-from django.contrib import messages
 import django.contrib.admin.helpers as admin_helpers
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+
 
 @admin.register(WishList)
 class WishListAdmin(admin.ModelAdmin):
