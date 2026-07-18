@@ -20,13 +20,7 @@ class ItemForm(forms.ModelForm):
         queryset=None,
         required=False,
         label='Category',
-        help_text='Select an existing category or create a new one below',
-    )
-    new_category_name = forms.CharField(
-        max_length=255,
-        required=False,
-        label='Or Create New Category',
-        help_text='Enter a name to create a new category (optional)',
+        help_text='Select an existing category',
     )
 
     class Meta:
@@ -76,10 +70,6 @@ class ItemForm(forms.ModelForm):
                         )
             self.fields['category'].queryset = base_queryset
             self.fields['category'].empty_label = 'Select Existing Category (Optional)'
-            # Add "Create new..." option to the widget choices
-            original_choices = list(self.fields['category'].widget.choices)
-            original_choices.append(('__CREATE_NEW__', '+ Create New Category'))
-            self.fields['category'].widget.choices = original_choices
         else:
             # If no family, only show categories that also have no family
             # or include current item's category if editing
@@ -96,10 +86,6 @@ class ItemForm(forms.ModelForm):
             else:
                 self.fields['category'].queryset = Category.objects.filter(family__isnull=True)
             self.fields['category'].empty_label = 'No family selected - select a family first'
-            # Add "Create new..." option to the widget choices
-            original_choices = list(self.fields['category'].widget.choices)
-            original_choices.append(('__CREATE_NEW__', '+ Create New Category'))
-            self.fields['category'].widget.choices = original_choices
 
         # Set initial category if editing an existing item
         if self.instance and self.instance.pk:
@@ -109,29 +95,6 @@ class ItemForm(forms.ModelForm):
                 # Set initial value if the category is in the queryset
                 if category.id in self.fields['category'].queryset.values_list('id', flat=True):
                     self.fields['category'].initial = category.id
-
-    def full_clean(self):
-        """Override to handle '__CREATE_NEW__' before ModelChoiceField validation fails."""
-        super().full_clean()
-
-        # Check if category field has a validation error and if the raw value is '__CREATE_NEW__'
-        if 'category' in self.errors:
-            field_name = self.add_prefix('category')
-            raw_value = self.data.get(field_name) if hasattr(self, 'data') and self.data else None
-
-            if raw_value == '__CREATE_NEW__':
-                # Remove the validation error and set the cleaned value
-                del self.errors['category']
-                self.cleaned_data['category'] = '__CREATE_NEW__'
-
-    def clean_category(self):
-        """Allow '__CREATE_NEW__' as a valid choice."""
-        category = self.cleaned_data.get('category')
-        # If it's already '__CREATE_NEW__' (set in full_clean), return it
-        if category == '__CREATE_NEW__':
-            return '__CREATE_NEW__'
-        # Otherwise return the normal category value
-        return category
 
     def clean_description(self):
         description = self.cleaned_data.get('description', '')
@@ -162,51 +125,11 @@ class ItemForm(forms.ModelForm):
             instance.save()
             # Handle category assignment (ManyToMany needs saved instance)
             category = self.cleaned_data.get('category')
-            new_category_name = self.cleaned_data.get('new_category_name')
 
             # Clear existing categories
             instance.categories.clear()
 
-            # Handle "Create new..." option
-            if category == '__CREATE_NEW__':
-                if new_category_name and wishlist and wishlist.family_name:
-                    from .models import Category
-
-                    category_obj, created = Category.objects.get_or_create(
-                        name=new_category_name,
-                        family=wishlist.family_name,
-                        defaults={'description': f'Category for {new_category_name}'},
-                    )
-                    if created:
-                        logger.info(
-                            'Category created',
-                            extra={
-                                'category_id': category_obj.id,
-                                'name': new_category_name,
-                                'family_id': wishlist.family_name_id,
-                            },
-                        )
-                    instance.categories.add(category_obj)
-            elif new_category_name and wishlist and wishlist.family_name:
-                # If new category name provided, create it (takes precedence)
-                from .models import Category
-
-                category_obj, created = Category.objects.get_or_create(
-                    name=new_category_name,
-                    family=wishlist.family_name,
-                    defaults={'description': f'Category for {new_category_name}'},
-                )
-                if created:
-                    logger.info(
-                        'Category created',
-                        extra={
-                            'category_id': category_obj.id,
-                            'name': new_category_name,
-                            'family_id': wishlist.family_name_id,
-                        },
-                    )
-                instance.categories.add(category_obj)
-            elif category and category != '__CREATE_NEW__':
+            if category:
                 instance.categories.add(category)
         return instance
 
@@ -224,8 +147,7 @@ def get_item_modelformset(wishlist):
         pass
 
     # Include all editable fields from Item model
-    # Note: category and new_category_name are not model fields, they're form fields
-    # so we need to handle them in the form itself
+    # Note: category is not a model field, it's a form field handled in ItemForm
     ItemModelFormSet = modelformset_factory(
         Item,
         form=ItemEditForm,

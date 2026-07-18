@@ -175,7 +175,7 @@
 <script>
     const { createApp, ref, computed, onMounted } = Vue;
 
-    createApp({
+    const app = createApp({
         setup() {
             // Initial Data Injection from Django
             // prettier-ignore
@@ -190,7 +190,6 @@
             url: `{{ form.url.value|default_if_none:''|escapejs }}`,
             purchased: {{ form.purchased.value|yesno:"true,false" }},
         category: `{{ form.category.value|default_if_none:''|escapejs }}`,
-        new_category_name: `{{ form.new_category_name.value|default_if_none:''|escapejs }}`,
         DELETE: {{ form.DELETE.value|yesno:"true,false" }},
         prefix: `{{ form.prefix }}`,
         errors: {
@@ -218,6 +217,7 @@
 
     const items = ref(initialForms);
     const isMobile = ref(window.innerWidth <= 768);
+    const pendingCategoryIndex = ref(null);
 
     // Responsive check
     window.addEventListener('resize', () => {
@@ -244,7 +244,6 @@
             url: '',
             purchased: false,
             category: '',
-            new_category_name: '',
             DELETE: false,
             prefix: `${formPrefix}-${newIndex}`,
             errors: {}
@@ -264,6 +263,27 @@
             // Let's just mark DELETE=true for simplicity and consistency.
             items.value[index].DELETE = true;
         }
+    };
+
+    const openNewCategoryModal = (index) => {
+        pendingCategoryIndex.value = index;
+        document.getElementById('newCategoryName').value = '';
+        document.getElementById('newCategoryError').style.display = 'none';
+        document.getElementById('newCategoryError').textContent = '';
+        $('#newCategoryModal').modal('show');
+        setTimeout(() => document.getElementById('newCategoryName').focus(), 200);
+    };
+
+    const addCategoryAndSelect = (categoryId, categoryName) => {
+        const strId = String(categoryId);
+        const exists = categoryOptions.value.some(opt => opt.value === strId);
+        if (!exists) {
+            categoryOptions.value.push({ value: strId, label: categoryName });
+        }
+        if (pendingCategoryIndex.value !== null && items.value[pendingCategoryIndex.value]) {
+            items.value[pendingCategoryIndex.value].category = strId;
+        }
+        pendingCategoryIndex.value = null;
     };
 
     onMounted(() => {
@@ -293,6 +313,8 @@
         items,
         addItem,
         removeItem,
+        openNewCategoryModal,
+        addCategoryAndSelect,
         isMobile,
         priceOptions,
         categoryOptions
@@ -356,13 +378,11 @@
                                 </td>
                                 {% if wishlist.family_name %}
                                 <td>
-                                    <select class="form-select form-select-sm mb-1" v-model="item.category" :name="item.prefix + '-category'">
-                                        <option v-for="opt in categoryOptions" :value="opt.value">{{ opt.label }}</option>
-                                    </select>
-                                    <div v-if="item.category === '__CREATE_NEW__'">
-                                        <input type="text" class="form-control form-control-sm" 
-                                               v-model="item.new_category_name" :name="item.prefix + '-new_category_name'"
-                                               placeholder="New Category Name">
+                                    <div style="display:flex;gap:6px;">
+                                        <select class="form-select form-select-sm mb-1" v-model="item.category" :name="item.prefix + '-category'" style="flex:1;">
+                                            <option v-for="opt in categoryOptions" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="openNewCategoryModal(index)" title="New category" style="white-space:nowrap;">+ New</button>
                                     </div>
                                 </td>
                                 {% endif %}
@@ -426,13 +446,11 @@
                             {% if wishlist.family_name %}
                             <div class="mt-2 pt-2 border-top">
                                 <label class="form-label small text-muted mb-1">Category</label>
-                                <select class="form-select form-select-sm mb-1" v-model="item.category" :name="item.prefix + '-category'">
-                                    <option v-for="opt in categoryOptions" :value="opt.value">{{ opt.label }}</option>
-                                </select>
-                                <div v-if="item.category === '__CREATE_NEW__'">
-                                    <input type="text" class="form-control form-control-sm mt-1" 
-                                           v-model="item.new_category_name" :name="item.prefix + '-new_category_name'"
-                                           placeholder="Enter New Category Name">
+                                <div style="display:flex;gap:6px;">
+                                    <select class="form-select form-select-sm mb-1" v-model="item.category" :name="item.prefix + '-category'" style="flex:1;">
+                                        <option v-for="opt in categoryOptions" :value="opt.value">{{ opt.label }}</option>
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" @click="openNewCategoryModal(index)" title="New category" style="white-space:nowrap;">+ New</button>
                                 </div>
                             </div>
                             {% endif %}
@@ -448,20 +466,102 @@
                 </div>
             </div>
         `
-    }).mount('#wishlist-edit-app');
+    const vm = app.mount('#wishlist-edit-app');
+    window.wlEditApp = vm;
 </script>
 
 <!-- Hidden source for categories -->
 <select id="category-source" style="display:none;">
+    <option value="">---------</option>
     {% if formset.empty_form.fields.category.queryset %}
     {% for category in formset.empty_form.fields.category.queryset %}
     <option value="{{ category.id }}">{{ category.name }}</option>
     {% endfor %}
     {% endif %}
-    <!-- Add special create new option manually as it might be added in init -->
-    <option value="__CREATE_NEW__">+ Create New Category</option>
-    <!-- Fallback if we want to show 'No Category' or similar -->
 </select>
+
+<!-- New Category Modal -->
+<div class="modal fade" id="newCategoryModal" tabindex="-1" role="dialog" aria-labelledby="newCategoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="newCategoryModalLabel">Create New Category</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="newCategoryName">Category Name</label>
+          <input type="text" class="form-control" id="newCategoryName" placeholder="e.g. Tech, Books, Clothing…">
+          <div class="text-danger" id="newCategoryError" style="display:none;margin-top:4px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveNewCategoryBtn">Create Category</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+    var saveBtn = document.getElementById('saveNewCategoryBtn');
+    var nameInput = document.getElementById('newCategoryName');
+    var errorDiv = document.getElementById('newCategoryError');
+
+    function getCsrfToken() {
+        var input = document.querySelector('#wishlist-form [name=csrfmiddlewaretoken]');
+        return input ? input.value : '';
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function () {
+            var name = nameInput.value.trim();
+            if (!name) {
+                errorDiv.textContent = 'Please enter a category name.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Creating…';
+            errorDiv.style.display = 'none';
+
+            fetch('{% url "gift:create_category_ajax" wishlist.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({name: name})
+            })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Create Category';
+
+                if (data.status === 'success') {
+                    if (window.wlEditApp && window.wlEditApp.addCategoryAndSelect) {
+                        window.wlEditApp.addCategoryAndSelect(data.category_id, data.category_name);
+                    }
+                    $('#newCategoryModal').modal('hide');
+                } else {
+                    errorDiv.textContent = data.message || 'Error creating category.';
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(function () {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Create Category';
+                errorDiv.textContent = 'An unexpected error occurred. Please try again.';
+                errorDiv.style.display = 'block';
+            });
+        });
+    }
+})();
+</script>
 
 <style>
     /* Styling Tweaks for Vue Components */
