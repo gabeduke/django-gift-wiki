@@ -698,12 +698,14 @@ def profile(request):
 
     # Get Managed Users
     from django.db import models
+    from django.contrib.auth import get_user_model
     from .forms import ManagedUserForm
+    User = get_user_model()
     managed_wishlists = WishList.objects.filter(
         models.Q(owner=request.user) | models.Q(managers=request.user)
     )
     # The dependents of these wishlists, excluding the current user
-    managed_users = WikiUser.objects.filter(
+    managed_users = User.objects.filter(
         stewarded_wishlists__in=managed_wishlists
     ).distinct().exclude(id=request.user.id)
     
@@ -728,7 +730,9 @@ def profile(request):
 @login_required
 def edit_managed_user(request, user_id):
     from django.db import models
+    from django.contrib.auth import get_user_model
     from .forms import ManagedUserForm
+    User = get_user_model()
     
     # Security check: User must manage at least one wishlist where this user_id is the dependent
     managed_wishlists = WishList.objects.filter(
@@ -736,11 +740,11 @@ def edit_managed_user(request, user_id):
     )
     
     try:
-        managed_user = WikiUser.objects.filter(
+        managed_user = User.objects.filter(
             id=user_id, 
             stewarded_wishlists__in=managed_wishlists
         ).distinct().exclude(id=request.user.id).get()
-    except WikiUser.DoesNotExist:
+    except User.DoesNotExist:
         messages.error(request, "You do not have permission to edit this user.")
         return redirect('gift:account')
 
