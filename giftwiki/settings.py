@@ -147,6 +147,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'widget_tweaks',
     'gift.apps.GiftConfig',
+    'import_export',
 ]
 
 # Only enable debug toolbar in development

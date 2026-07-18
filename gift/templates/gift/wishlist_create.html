@@ -139,6 +139,64 @@
                         </div>
                         {% endif %}
                         
+                        <!-- Managed Account Creation -->
+                        <div class="form-section mb-4">
+                            <h5 class="mb-3"><i class="fas fa-users-cog"></i> Managed Account (Optional)</h5>
+                            <div class="form-check mb-3">
+                                {{ form.is_managed|add_class:"form-check-input" }}
+                                <label class="form-check-label font-weight-bold" for="{{ form.is_managed.id_for_label }}">
+                                    {{ form.is_managed.label }}
+                                </label>
+                                {% if form.is_managed.help_text %}
+                                    <div class="text-muted small">{{ form.is_managed.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.is_managed.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div id="managed_fields_wrapper" style="display: none; background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #0d6efd;">
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        <label for="{{ form.managed_username.id_for_label }}" class="form-label">
+                                            {{ form.managed_username.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.managed_username|add_class:"form-control form-control-sm" }}
+                                        {% if form.managed_username.help_text %}
+                                            <small class="form-text text-muted">{{ form.managed_username.help_text }}</small>
+                                        {% endif %}
+                                        {% for error in form.managed_username.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label for="{{ form.managed_birthday.id_for_label }}" class="form-label">
+                                            {{ form.managed_birthday.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.managed_birthday|add_class:"form-control form-control-sm" }}
+                                        {% if form.managed_birthday.help_text %}
+                                            <small class="form-text text-muted">{{ form.managed_birthday.help_text }}</small>
+                                        {% endif %}
+                                        {% for error in form.managed_birthday.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label for="{{ form.managed_email.id_for_label }}" class="form-label">
+                                            {{ form.managed_email.label }}
+                                        </label>
+                                        {{ form.managed_email|add_class:"form-control form-control-sm"|attr:"placeholder:user@example.com" }}
+                                        {% if form.managed_email.help_text %}
+                                            <small class="form-text text-muted">{{ form.managed_email.help_text }}</small>
+                                        {% endif %}
+                                        {% for error in form.managed_email.errors %}
+                                            <div class="text-danger small mt-1">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         {# Hidden fields #}
                         {% for field in form.hidden_fields %}
                             {{ field }}
@@ -177,6 +235,24 @@
             familySelect.addEventListener('change', toggleNewFamily);
             // Check initial state
             toggleNewFamily();
+        }
+        
+        // Handle managed account fields toggle
+        const isManagedCheckbox = document.querySelector('#id_is_managed');
+        const managedFieldsWrapper = document.getElementById('managed_fields_wrapper');
+        
+        if (isManagedCheckbox && managedFieldsWrapper) {
+            function toggleManagedFields() {
+                if (isManagedCheckbox.checked) {
+                    managedFieldsWrapper.style.display = 'block';
+                } else {
+                    managedFieldsWrapper.style.display = 'none';
+                }
+            }
+            
+            isManagedCheckbox.addEventListener('change', toggleManagedFields);
+            // Check initial state
+            toggleManagedFields();
         }
         
         // Update managers dropdown button text based on selected checkboxes

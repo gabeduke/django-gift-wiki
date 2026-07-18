@@ -38,7 +38,7 @@ from .forms import (
     ScrapedPageSelectionForm,
     WishListForm,
 )
-from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, WishList
+from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, Season, WishList
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,7 @@ def item_add_ajax(request, wishlist_id):
         wishlist = get_object_or_404(WishList, id=wishlist_id)
 
         # Business Rule: Only owner or managers can add items
-        is_owner = request.user == wishlist.owner
+        is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
         is_manager = request.user in wishlist.managers.all()
         from giftwiki.feature_flags import get_steward_proxy_enabled
 
@@ -243,7 +243,7 @@ def item_add(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Business Rule: Only owner or managers can add items
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     is_manager = request.user in wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
@@ -286,7 +286,7 @@ def item_edit(request, item_id):
     item = get_object_or_404(Item, id=item_id)
 
     # Business Rule: Only owner or managers can edit items
-    is_owner = request.user == item.wishlist.owner
+    is_owner = (request.user == item.wishlist.owner or request.user == item.wishlist.dependent)
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
@@ -326,7 +326,7 @@ def item_delete(request, item_id):
     item = get_object_or_404(Item, id=item_id)
 
     # Business Rule: Only owner or managers can delete items
-    is_owner = request.user == item.wishlist.owner
+    is_owner = (request.user == item.wishlist.owner or request.user == item.wishlist.dependent)
     is_manager = request.user in item.wishlist.managers.all()
     if not (is_owner or is_manager):
         logger.warning(
@@ -353,7 +353,7 @@ def item_purchase(request, item_id):
     wishlist = item.wishlist
 
     # Check if user is owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -411,6 +411,23 @@ def wishlist_create(request):
                     dependent = form.cleaned_data.get('dependent')
                     if dependent:
                         wishlist.dependent = dependent
+
+                # Auto-create managed account if requested
+                if form.cleaned_data.get('is_managed'):
+                    managed_username = form.cleaned_data.get('managed_username')
+                    managed_birthday = form.cleaned_data.get('managed_birthday')
+                    managed_email = form.cleaned_data.get('managed_email')
+                    
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    
+                    new_managed_user = User.objects.create(
+                        username=managed_username,
+                        birthday=managed_birthday,
+                        email=managed_email,
+                    )
+                    wishlist.dependent = new_managed_user
+                    messages.success(request, f'Created managed account for {managed_username}.')
 
                 # Handle new family creation
                 new_family_name = form.cleaned_data.get('new_family_name')
@@ -589,7 +606,7 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
         if target_wishlist:
             wishlist = target_wishlist
             # Verify user owns this wishlist
-            if wishlist.owner != user:
+            if wishlist.owner != user and wishlist.dependent != user:
                 logger.error(f'User {user.username} does not own wishlist {wishlist.id}')
                 return None
         else:
@@ -806,17 +823,95 @@ def password_reset_request(request):
     return redirect('gift:account')
 
 
+def get_season(date, seasons):
+    if not date:
+        return 'Unknown'
+    m = date.month
+    for s in seasons:
+        if s.start_month <= s.end_month:
+            if s.start_month <= m <= s.end_month:
+                return s.name
+        else:
+            if m >= s.start_month or m <= s.end_month:
+                return s.name
+    return 'Unknown'
+
+# We pass seasons and request_user into the strategy to avoid N+1 queries.
+def get_grouping_strategies(seasons, request_user):
+    def christmas_exchange_group(wl):
+        person = wl.dependent or wl.owner
+        if request_user.secret_santa_target == person:
+            return '🎯 Your Secret Santa Target'
+        if person.is_kid:
+            return '🧒 Kids'
+        return '👤 Other Adults'
+
+    strategies = {
+        'house': lambda wl: wl.family_name.name if wl.family_name else 'Unassigned',
+        'alpha': lambda wl: wl.title[0].upper() if wl.title else '?',
+        'christmas_exchange': christmas_exchange_group,
+    }
+
+    def make_season_strategy(season_name):
+        def season_strategy(wl):
+            person = wl.dependent or wl.owner
+            if person and get_season(person.birthday, seasons) == season_name:
+                return f"{season_name} Birthdays"
+            return None
+        return season_strategy
+
+    for season in seasons:
+        strategies[f'season_{season.id}'] = make_season_strategy(season.name)
+
+    return strategies
+
 def home(request):
     # Only show wishlists if user is authenticated
-    wishlists_by_family = {}
+    wishlists_grouped = {}
+    current_grouping = 'house'
+    grouping_options = []
 
     if request.user.is_authenticated:
-        # Optimize query with select_related to avoid N+1 queries for family_name
+        # Fetch seasons once
+        seasons = list(Season.objects.all())
+        strategies = get_grouping_strategies(seasons, request.user)
+
+        grouping_options = [
+            {'value': 'house', 'label': 'Household'},
+            {'value': 'alpha', 'label': 'Alphabetical'},
+            {'value': 'christmas_exchange', 'label': 'Christmas Exchange'},
+        ]
+        for season in seasons:
+            grouping_options.append({
+                'value': f'season_{season.id}',
+                'label': f'Birthday: {season.name}'
+            })
+
+        group_by = request.GET.get('group_by')
+        if group_by in strategies:
+            request.session['wishlist_grouping'] = group_by
+            current_grouping = group_by
+        else:
+            current_grouping = request.session.get('wishlist_grouping')
+            if not current_grouping or current_grouping not in strategies:
+                from datetime import date
+                if date.today().month in (11, 12):
+                    current_grouping = 'christmas_exchange'
+                else:
+                    current_grouping = 'house'
+
+        # Optimize query with select_related
         wishlists = WishList.objects.select_related('family_name', 'owner').all()
-        wishlists_by_family = defaultdict(list)
+        wishlists_grouped = defaultdict(list)
+        strategy = strategies[current_grouping]
 
         for wishlist in wishlists:
-            wishlists_by_family[wishlist.family_name].append(wishlist)
+            group_key = strategy(wishlist)
+            if group_key is not None:
+                wishlists_grouped[group_key].append(wishlist)
+            
+        # Sort the dictionary keys to have a predictable display order
+        wishlists_grouped = dict(sorted(wishlists_grouped.items(), key=lambda item: str(item[0])))
 
         # Check if logged in user needs to select a scraped page
         show_scraped_page_prompt = False
@@ -828,7 +923,9 @@ def home(request):
         show_scraped_page_prompt = False
 
     context = {
-        'wishlists_by_family': dict(wishlists_by_family),
+        'wishlists_grouped': wishlists_grouped,
+        'current_grouping': current_grouping,
+        'grouping_options': grouping_options,
         'show_scraped_page_prompt': show_scraped_page_prompt,
     }
     return render(request, 'gift/home.html', context)
@@ -863,7 +960,7 @@ def wishlist_detail(request, wishlist_id):
     sorted_category_items = sorted(items_by_category.items(), key=lambda x: x[0].name.lower())
 
     # Check if user is owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -905,7 +1002,7 @@ def wishlist_edit(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Check if user is the owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -1057,7 +1154,7 @@ def wishlist_clear_purchased(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Check if user is the owner, steward, or manager
-    is_owner = request.user == wishlist.owner
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
@@ -1096,7 +1193,7 @@ def wishlist_delete(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
     # Check if user is the owner
-    if request.user != wishlist.owner:
+    if request.user != wishlist.owner and request.user != wishlist.dependent:
         logger.warning(
             'Unauthorized wishlist delete attempt',
             extra={'wishlist_id': wishlist_id, 'user': request.user.email},
