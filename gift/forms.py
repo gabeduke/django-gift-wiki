@@ -276,7 +276,6 @@ class ManagedUserForm(forms.ModelForm):
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
     
-    from .models import WishList
     link_to_wishlist = forms.ModelChoiceField(
         queryset=WishList.objects.none(),
         required=False,
@@ -294,7 +293,6 @@ class ManagedUserForm(forms.ModelForm):
         if user:
             from django.db.models import Q
 
-            from .models import WishList
             self.fields['link_to_wishlist'].queryset = WishList.objects.filter(
                 Q(owner=user) | Q(managers=user)
             ).distinct()
