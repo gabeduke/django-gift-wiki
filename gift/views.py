@@ -24,6 +24,7 @@ from .forms import (
     UserProfileForm,
 )
 
+
 def custom_admin_login(request, **kwargs):
     """
     Redirect unauthenticated admin users to the Firebase auth page.
@@ -49,7 +50,7 @@ from .forms import (
     ScrapedPageSelectionForm,
     WishListForm,
 )
-from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, WishList, Season
+from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, Season, WishList
 
 logger = logging.getLogger(__name__)
 
