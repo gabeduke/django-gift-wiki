@@ -129,10 +129,14 @@
             </form>
           {% endif %}
           {% if not is_list_manager %}
-            <a href="{% url 'gift:purchase_item' item.id %}"
-               class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
-              {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
-            </a>
+            {% if item.purchased and item.purchased_by != request.user %}
+              {# Already purchased by someone else; badge is shown in the name row #}
+            {% else %}
+              <a href="{% url 'gift:purchase_item' item.id %}"
+                 class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+                {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
+              </a>
+            {% endif %}
           {% endif %}
         </div>
       </div>
@@ -203,10 +207,14 @@
             </form>
           {% endif %}
           {% if not is_list_manager %}
-            <a href="{% url 'gift:purchase_item' item.id %}"
-               class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
-              {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
-            </a>
+            {% if item.purchased and item.purchased_by != request.user %}
+              {# Already purchased by someone else; badge is shown in the name row #}
+            {% else %}
+              <a href="{% url 'gift:purchase_item' item.id %}"
+                 class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+                {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
+              </a>
+            {% endif %}
           {% endif %}
         </div>
       </div>
