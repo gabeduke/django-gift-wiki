@@ -167,8 +167,62 @@
                     </div>
                 </div>
 
+                <!-- Server-side fallback formset (visible when Vue/JS fails) -->
+                <div id="wishlist-edit-fallback">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">Del</th>
+                                    <th style="min-width: 200px;">Name & URL</th>
+                                    <th>Description</th>
+                                    <th style="width: 140px;">Price</th>
+                                    <th style="width: 50px;">✓</th>
+                                    {% if wishlist.family_name %}
+                                    <th style="min-width: 150px;">Category</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for form in formset %}
+                                <tr>
+                                    <td class="text-center">
+                                        {{ form.id.as_hidden }}
+                                        <div class="form-check">
+                                            {{ form.DELETE }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {{ form.name|add_class:"form-control form-control-sm mb-1"|attr:"placeholder:Item name..." }}
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text"><i class="fas fa-link"></i></span>
+                                            {{ form.url|add_class:"form-control"|attr:"placeholder:https://..." }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {{ form.description|add_class:"form-control form-control-sm"|attr:"rows:2"|attr:"placeholder:Description..." }}
+                                    </td>
+                                    <td>
+                                        {{ form.price_range|add_class:"form-select form-select-sm" }}
+                                    </td>
+                                    <td class="text-center">
+                                        {{ form.purchased }}
+                                    </td>
+                                    {% if wishlist.family_name %}
+                                    <td>
+                                        {{ form.category|add_class:"form-select form-select-sm" }}
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted small">Enable JavaScript or use a modern browser for the enhanced editing experience.</p>
+                </div>
+
                 <!-- Vue App Mount Point -->
-                <div id="wishlist-edit-app">
+                <div id="wishlist-edit-app" style="display: none;">
                     <div class="d-flex justify-content-center p-5">
                         <div class="spinner-border text-primary" role="status">
                             <span class="sr-only">Loading...</span>
@@ -311,6 +365,12 @@
     };
 
     onMounted(() => {
+        // Swap the server-side fallback for the Vue app now that we know JS works.
+        const fallback = document.getElementById('wishlist-edit-fallback');
+        const appEl = document.getElementById('wishlist-edit-app');
+        if (fallback) fallback.style.display = 'none';
+        if (appEl) appEl.style.display = 'block';
+
         // Scrape category options from the first form rendered by Django (if any) or a hidden template
         // Since we are replacing the rendered formset, we need a source of truth for categories.
         // We'll use a trick: the server rendered the formset initially, we can scrape options from one of them if it existed

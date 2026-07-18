@@ -90,6 +90,22 @@ class TestWishlistEditFormset:
             print('Messages:', [m for m in ['Please correct', 'errorlist', 'text-danger'] if m in content])
         assert response.status_code == 302
 
+    def test_edit_wishlist_renders_server_side_fallback(self, authenticated_user, user):
+        """The edit page renders server-side item forms as a fallback for browsers that can't run Vue."""
+        family = Family.objects.create(name='Fallback Family')
+        wishlist = WishList.objects.create(owner=user, title='Fallback List', family_name=family)
+        category = Category.objects.create(family=family, name='Fallback Cat')
+        item = Item.objects.create(wishlist=wishlist, name='Fallback Item', updated_by=user)
+        item.categories.add(category)
+
+        response = authenticated_user.get(f'/wishlist/{wishlist.id}/edit/')
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert 'wishlist-edit-fallback' in content
+        assert f'name="form-0-id" value="{item.id}"' in content
+        assert 'name="form-0-name"' in content
+        assert 'id="wishlist-edit-app" style="display: none;"' in content
+
     def test_edit_wishlist_delete_item(self, authenticated_user, user):
         """Deleting an item via the edit formset should redirect."""
         family = Family.objects.create(name='Del Family')
