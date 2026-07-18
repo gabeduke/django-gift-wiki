@@ -33,10 +33,33 @@
                             </td>
                         </tr>
                         {% endif %}
-                        <!-- Add more user details if needed -->
                         </tbody>
                     </table>
                 </div>
+
+                {% if user_profile_form %}
+                <h4 class="mt-3">Edit Profile</h4>
+                <form method="post" class="form mb-4">
+                    {% csrf_token %}
+                    {% for field in user_profile_form %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label">
+                                {{ field.label }}
+                            </label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% for error in field.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                    <button type="submit" name="update_profile" class="btn btn-primary">
+                        Update Profile
+                    </button>
+                </form>
+                {% endif %}
                 
                 <!-- Profile Picture Upload (only if feature enabled) -->
                 {% if PROFILE_PICTURE_ENABLED %}
@@ -50,7 +73,7 @@
                     </div>
                 {% endif %}
                 {% if profile_form %}
-                <form method="post" enctype="multipart/form-data" class="form">
+                <form method="post" enctype="multipart/form-data" class="form mb-4">
                     {% csrf_token %}
                     <div class="mb-3">
                         <label for="{{ profile_form.profile_picture.id_for_label }}" class="form-label">
@@ -77,14 +100,92 @@
             <!-- Password Reset -->
             <div class="col-md-6">
                 <h3>Change Password</h3>
-                <p class="text-muted">Password reset functionality is not yet implemented. Please contact an administrator if you need to reset your password.</p>
+                <p class="text-muted">Click the button below to receive an email with a link to reset your password.</p>
+                <form action="{% url 'gift:password_reset_request' %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-warning">Send Password Reset Email</button>
+                </form>
             </div>
         </div>
 
-        <div class="row">
+        <!-- Managed Users Section -->
+        {% if managed_users_data %}
+        <div class="row mt-4">
+            <div class="col">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">Managed Users</h3>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Birthday</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for data in managed_users_data %}
+                            <tr>
+                                <td>{{ data.user.username }}</td>
+                                <td>{{ data.user.first_name }} {{ data.user.last_name }}</td>
+                                <td>{{ data.user.email|default:"-" }}</td>
+                                <td>{{ data.user.birthday|default:"-" }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#editManagedUserModal{{ data.user.id }}">
+                                        Edit Details
+                                    </button>
+                                </td>
+                            </tr>
+                            
+                            <!-- Edit Modal for {{ data.user.username }} -->
+                            <div class="modal fade" id="editManagedUserModal{{ data.user.id }}" tabindex="-1" role="dialog" aria-labelledby="editManagedUserModalLabel{{ data.user.id }}" aria-hidden="true">
+                              <div class="modal-dialog" role="document">
+                                <div class="modal-content">
+                                  <div class="modal-header">
+                                    <h5 class="modal-title" id="editManagedUserModalLabel{{ data.user.id }}">Edit Details for {{ data.user.username }}</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                      <span aria-hidden="true">&times;</span>
+                                    </button>
+                                  </div>
+                                  <form action="{% url 'gift:edit_managed_user' data.user.id %}" method="post">
+                                      <div class="modal-body">
+                                          {% csrf_token %}
+                                          {% for field in data.form %}
+                                              <div class="mb-3">
+                                                  <label for="{{ field.id_for_label }}" class="form-label">
+                                                      {{ field.label }}
+                                                  </label>
+                                                  {{ field }}
+                                                  {% if field.help_text %}
+                                                      <div class="form-text">{{ field.help_text }}</div>
+                                                  {% endif %}
+                                              </div>
+                                          {% endfor %}
+                                      </div>
+                                      <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                        <button type="submit" class="btn btn-primary">Save changes</button>
+                                      </div>
+                                  </form>
+                                </div>
+                              </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row mt-4">
             <div class="col">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h3 class="mb-0">My Wishlists</h3>
+
                     <a href="{% url 'gift:create_wishlist' %}" class="btn btn-primary">Create New Wishlist</a>
                 </div>
                 <!-- Navigation Link to Wishlist Page -->

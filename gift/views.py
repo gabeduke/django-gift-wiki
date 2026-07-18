@@ -650,24 +650,43 @@ def profile(request):
 
     PROFILE_PICTURE_ENABLED = get_profile_picture_enabled()
     profile_form = None
+    user_profile_form = None
+    
+    from .forms import UserProfileForm
 
-    if PROFILE_PICTURE_ENABLED:
-        from .forms import ProfilePictureForm
-
-        if request.method == 'POST' and 'update_profile_picture' in request.POST:
-            profile_form = ProfilePictureForm(request.POST, request.FILES, instance=request.user)
-            if profile_form.is_valid():
-                profile_form.save()
-                logger.info('Profile picture updated', extra={'user': request.user.email})
-                messages.success(request, 'Profile picture updated successfully!')
+    if request.method == 'POST':
+        if 'update_profile' in request.POST:
+            user_profile_form = UserProfileForm(request.POST, instance=request.user)
+            if user_profile_form.is_valid():
+                user_profile_form.save()
+                messages.success(request, 'Profile updated successfully!')
                 return redirect('gift:account')
             else:
-                logger.warning(
-                    'Profile picture update failed',
-                    extra={'user': request.user.email, 'errors': str(profile_form.errors)},
-                )
-                messages.error(request, 'Error updating profile picture. Please try again.')
+                messages.error(request, 'Error updating profile. Please check the form.')
         else:
+            user_profile_form = UserProfileForm(instance=request.user)
+            
+        if PROFILE_PICTURE_ENABLED:
+            from .forms import ProfilePictureForm
+            if 'update_profile_picture' in request.POST:
+                profile_form = ProfilePictureForm(request.POST, request.FILES, instance=request.user)
+                if profile_form.is_valid():
+                    profile_form.save()
+                    logger.info('Profile picture updated', extra={'user': request.user.email})
+                    messages.success(request, 'Profile picture updated successfully!')
+                    return redirect('gift:account')
+                else:
+                    logger.warning(
+                        'Profile picture update failed',
+                        extra={'user': request.user.email, 'errors': str(profile_form.errors)},
+                    )
+                    messages.error(request, 'Error updating profile picture. Please try again.')
+            else:
+                profile_form = ProfilePictureForm(instance=request.user)
+    else:
+        user_profile_form = UserProfileForm(instance=request.user)
+        if PROFILE_PICTURE_ENABLED:
+            from .forms import ProfilePictureForm
             profile_form = ProfilePictureForm(instance=request.user)
 
     # Check if user needs to select a scraped page
@@ -677,14 +696,107 @@ def profile(request):
         if available_pages > 0:
             show_scraped_page_prompt = True
 
+    # Get Managed Users
+    from django.db import models
+    from .forms import ManagedUserForm
+    managed_wishlists = WishList.objects.filter(
+        models.Q(owner=request.user) | models.Q(managers=request.user)
+    )
+    # The dependents of these wishlists, excluding the current user
+    managed_users = WikiUser.objects.filter(
+        stewarded_wishlists__in=managed_wishlists
+    ).distinct().exclude(id=request.user.id)
+    
+    # Pre-initialize forms for each managed user to use in modals
+    managed_users_data = [
+        {'user': user, 'form': ManagedUserForm(instance=user)} 
+        for user in managed_users
+    ]
+
     context = {
         'wishlists': wishlists,
         'profile_form': profile_form,
+        'user_profile_form': user_profile_form,
         'show_scraped_page_prompt': show_scraped_page_prompt,
         'PROFILE_PICTURE_ENABLED': PROFILE_PICTURE_ENABLED,
+        'managed_users_data': managed_users_data,
     }
 
     return render(request, 'gift/auth_profile.html', context)
+
+@require_POST
+@login_required
+def edit_managed_user(request, user_id):
+    from django.db import models
+    from .forms import ManagedUserForm
+    
+    # Security check: User must manage at least one wishlist where this user_id is the dependent
+    managed_wishlists = WishList.objects.filter(
+        models.Q(owner=request.user) | models.Q(managers=request.user)
+    )
+    
+    try:
+        managed_user = WikiUser.objects.filter(
+            id=user_id, 
+            stewarded_wishlists__in=managed_wishlists
+        ).distinct().exclude(id=request.user.id).get()
+    except WikiUser.DoesNotExist:
+        messages.error(request, "You do not have permission to edit this user.")
+        return redirect('gift:account')
+
+    form = ManagedUserForm(request.POST, instance=managed_user)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Successfully updated details for {managed_user.username}.")
+    else:
+        messages.error(request, f"Error updating details for {managed_user.username}. Please check the form.")
+        
+    return redirect('gift:account')
+
+@require_POST
+@login_required
+def password_reset_request(request):
+    try:
+        from gift.middleware.firebase_auth import _get_firebase_auth
+        firebase_auth = _get_firebase_auth()
+        
+        if not firebase_auth:
+            messages.error(request, "Firebase Auth is not configured. Cannot send password reset.")
+            return redirect('gift:account')
+
+        # Generate password reset link
+        link = firebase_auth.generate_password_reset_link(request.user.email)
+        
+        # In a real app we might want to email this manually using Django's send_mail 
+        # so the user actually gets it, but Firebase Admin generate_password_reset_link 
+        # doesn't send the email itself, it just generates the link. Wait, wait.
+        # Let's check Firebase Admin SDK docs. If we just want Firebase to send the email,
+        # we can use the REST API, or since we generated the link, we can just redirect the user to it
+        # or send it. Actually, `generate_password_reset_link` just returns a string link.
+        # If we want Firebase to send the email natively, there is no direct Admin SDK method.
+        # So we should send it using Django's email system, OR use the client-side approach.
+        # But wait, we can just send the email with Django:
+        # from django.core.mail import send_mail
+        # send_mail("Password Reset", f"Click here to reset your password: {link}", "noreply@giftwiki.com", [request.user.email])
+        # BUT maybe it's better to just pass it to context or just send it? 
+        # Actually, let's just send the email using Django core mail.
+        from django.core.mail import send_mail
+        from django.conf import settings
+        
+        send_mail(
+            "Password Reset for Gift Wiki",
+            f"Hello,\n\nPlease click the following link to reset your password for Gift Wiki:\n\n{link}\n\nIf you did not request a password reset, please ignore this email.",
+            getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@giftwiki.com"),
+            [request.user.email],
+            fail_silently=False,
+        )
+        
+        messages.success(request, f"Password reset email sent to {request.user.email}.")
+    except Exception as e:
+        logger.error(f"Error sending password reset: {e}")
+        messages.error(request, "There was an error sending the password reset email. Please try again later.")
+        
+    return redirect('gift:account')
 
 
 def home(request):

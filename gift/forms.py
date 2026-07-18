@@ -242,6 +242,42 @@ class SuggestionForm(forms.ModelForm):
         fields = ['name', 'hyperlink', 'description', 'image', 'suggested_price']
 
 
+class UserProfileForm(forms.ModelForm):
+    """Form for updating user profile details like name and birthday."""
+    
+    first_name = forms.CharField(required=False, label="First Name")
+    last_name = forms.CharField(required=False, label="Last Name")
+    birthday = forms.DateField(
+        required=False,
+        label="Birthday",
+        help_text="Used to organize wishlists by season.",
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'birthday']
+
+
+class ManagedUserForm(forms.ModelForm):
+    """Form for updating managed user details like username, email, and birthday."""
+    
+    username = forms.CharField(required=True, label="Username")
+    email = forms.EmailField(required=False, label="Email Address", help_text="Optional. If provided, they could use this to log in later.")
+    first_name = forms.CharField(required=False, label="First Name")
+    last_name = forms.CharField(required=False, label="Last Name")
+    birthday = forms.DateField(
+        required=False,
+        label="Birthday",
+        help_text="Used to organize wishlists by season.",
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name', 'last_name', 'birthday']
+
+
 class ProfilePictureForm(forms.ModelForm):
     """Form for uploading profile pictures with camera support."""
 

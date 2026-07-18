@@ -76,6 +76,17 @@
   </div>
   {% endif %}
 
+  {% if request.user.is_authenticated and not request.user.birthday %}
+  <div style="max-width:1100px;margin:12px auto 0;padding:0 20px;">
+    <div class="alert alert-info alert-dismissible fade show mb-2" role="alert">
+      It looks like you haven't added your birthday yet! <a href="{% url 'gift:account' %}" class="alert-link">Update your profile</a> so we can organize your wishlists by season.
+      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
   <main>
     {% block content %}{% endblock %}
   </main>
