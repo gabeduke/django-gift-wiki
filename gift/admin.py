@@ -2,27 +2,28 @@ from django.contrib import admin
 from django.contrib.auth import get_user_model
 
 from gift.models import (
+    AllowedEmail,
     Category,
     Family,
     FeatureFlag,
     Item,
     ItemGroup,
+    LinkedEmail,
     ScrapedWikiItem,
     ScrapedWikiPage,
     Suggestion,
     WishList,
-    AllowedEmail,
-    LinkedEmail,
 )
 
 User = get_user_model()
 
 admin.site.register(User)
 admin.site.register(Family)
-from django.shortcuts import render
-from django.http import HttpResponseRedirect
-from django.contrib import messages
 import django.contrib.admin.helpers as admin_helpers
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+
 
 @admin.register(WishList)
 class WishListAdmin(admin.ModelAdmin):

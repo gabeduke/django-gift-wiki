@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import generic
 
+
 def custom_admin_login(request, **kwargs):
     """
     Redirect unauthenticated admin users to the Firebase auth page.
@@ -697,8 +698,9 @@ def profile(request):
             show_scraped_page_prompt = True
 
     # Get Managed Users
-    from django.db import models
     from django.contrib.auth import get_user_model
+    from django.db import models
+
     from .forms import ManagedUserForm
     User = get_user_model()
     managed_wishlists = WishList.objects.filter(
@@ -729,8 +731,9 @@ def profile(request):
 @require_POST
 @login_required
 def edit_managed_user(request, user_id):
-    from django.db import models
     from django.contrib.auth import get_user_model
+    from django.db import models
+
     from .forms import ManagedUserForm
     User = get_user_model()
     
@@ -784,8 +787,8 @@ def password_reset_request(request):
         # send_mail("Password Reset", f"Click here to reset your password: {link}", "noreply@giftwiki.com", [request.user.email])
         # BUT maybe it's better to just pass it to context or just send it? 
         # Actually, let's just send the email using Django core mail.
-        from django.core.mail import send_mail
         from django.conf import settings
+        from django.core.mail import send_mail
         
         send_mail(
             "Password Reset for Gift Wiki",
