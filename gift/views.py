@@ -714,6 +714,8 @@ def profile(request):
         {'user': user, 'form': ManagedUserForm(instance=user)} 
         for user in managed_users
     ]
+    
+    new_managed_user_form = ManagedUserForm()
 
     context = {
         'wishlists': wishlists,
@@ -722,9 +724,45 @@ def profile(request):
         'show_scraped_page_prompt': show_scraped_page_prompt,
         'PROFILE_PICTURE_ENABLED': PROFILE_PICTURE_ENABLED,
         'managed_users_data': managed_users_data,
+        'new_managed_user_form': new_managed_user_form,
     }
 
     return render(request, 'gift/auth_profile.html', context)
+
+@require_POST
+@login_required
+def create_managed_user(request):
+    from django.contrib.auth import get_user_model
+    from .forms import ManagedUserForm
+    from .models import WishList
+    import secrets
+    import string
+    User = get_user_model()
+    
+    form = ManagedUserForm(request.POST)
+    if form.is_valid():
+        user = form.save(commit=False)
+        # Generate a random unusable password
+        alphabet = string.ascii_letters + string.digits
+        password = ''.join(secrets.choice(alphabet) for i in range(20))
+        user.set_password(password)
+        user.save()
+        
+        # Create a default wishlist for the new user so they are immediately managed
+        first_name = user.first_name if user.first_name else user.username
+        title = f"{first_name}'s Wishlist"
+        wishlist = WishList.objects.create(
+            title=title,
+            owner=request.user,
+            dependent=user,
+            description=f"Auto-generated wishlist for {first_name}."
+        )
+        
+        messages.success(request, f"Successfully created managed user {user.username} and their wishlist.")
+    else:
+        messages.error(request, "Error creating managed user. Please check the form.")
+        
+    return redirect('gift:account')
 
 @require_POST
 @login_required

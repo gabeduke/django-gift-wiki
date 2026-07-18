@@ -16,6 +16,7 @@ urlpatterns = [
     path('accounts/logout/', views.logout_view),  # Override Django's default POST-only logout
     path('accounts/', include('django.contrib.auth.urls')),  # Keep for login if needed
     path('password-reset-request/', views.password_reset_request, name='password_reset_request'),
+    path('managed-user/create/', views.create_managed_user, name='create_managed_user'),
     path('managed-user/<int:user_id>/edit/', views.edit_managed_user, name='edit_managed_user'),
     # Wishlists
     path('wishlist/create/', views.wishlist_create, name='create_wishlist'),

@@ -109,12 +109,17 @@
         </div>
 
         <!-- Managed Users Section -->
-        {% if managed_users_data %}
+        <!-- Managed Users Section -->
         <div class="row mt-4">
             <div class="col">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h3 class="mb-0">Managed Users</h3>
+                    <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#createManagedUserModal">
+                        Create Managed User
+                    </button>
                 </div>
+                
+                {% if managed_users_data %}
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
@@ -177,9 +182,47 @@
                         </tbody>
                     </table>
                 </div>
+                {% else %}
+                <p class="text-muted">You are not currently managing any dependent users.</p>
+                {% endif %}
+                
+                <!-- Create Modal -->
+                <div class="modal fade" id="createManagedUserModal" tabindex="-1" role="dialog" aria-labelledby="createManagedUserModalLabel" aria-hidden="true">
+                  <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="createManagedUserModalLabel">Create Managed User</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>
+                      </div>
+                      <form action="{% url 'gift:create_managed_user' %}" method="post">
+                          <div class="modal-body">
+                              <p class="text-muted">This will create a new dependent user account and automatically generate an empty wishlist for them.</p>
+                              {% csrf_token %}
+                              {% for field in new_managed_user_form %}
+                                  <div class="mb-3">
+                                      <label for="{{ field.id_for_label }}" class="form-label">
+                                          {{ field.label }}
+                                      </label>
+                                      {{ field }}
+                                      {% if field.help_text %}
+                                          <div class="form-text">{{ field.help_text }}</div>
+                                      {% endif %}
+                                  </div>
+                              {% endfor %}
+                          </div>
+                          <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary">Create User</button>
+                          </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+                
             </div>
         </div>
-        {% endif %}
 
         <div class="row mt-4">
             <div class="col">
