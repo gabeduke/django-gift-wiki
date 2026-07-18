@@ -25,6 +25,7 @@ firebase-admin = "*"
 requests = "*"
 google-cloud-logging = "*"
 django-import-export = "*"
+prometheus-client = "*"
 
 [dev-packages]
 pytest = "*"
