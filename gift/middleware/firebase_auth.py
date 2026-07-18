@@ -147,27 +147,29 @@ class FirebaseAuthBackend(ModelBackend):
                 # If not linked, proceed with regular lookup
                 if not user:
                     # First try to find by email (most reliable identifier)
-                    try:
-                        user = User.objects.get(email=email)
+                    users_by_email = User.objects.filter(email=email)
+                    if users_by_email.exists():
+                        if users_by_email.count() > 1:
+                            logger.warning(f"Multiple users found with email {email}. Using the first one.")
+                        user = users_by_email.first()
                         # Update username if it changed
                         if user.username != username:
                             user.username = username
                             user.save(update_fields=['username'])
                             logger.info(f'Updated username for {email} to: {username}')
-                    except User.DoesNotExist:
-                        pass
 
                 # If not found by email, try by username
                 if not user and username:
-                    try:
-                        user = User.objects.get(username=username)
+                    users_by_username = User.objects.filter(username=username)
+                    if users_by_username.exists():
+                        if users_by_username.count() > 1:
+                            logger.warning(f"Multiple users found with username {username}. Using the first one.")
+                        user = users_by_username.first()
                         # Update email if provided and different
                         if user.email != email:
                             user.email = email
                             user.save(update_fields=['email'])
                             logger.info(f'Updated email for {username} to: {email}')
-                    except User.DoesNotExist:
-                        pass
 
                 # If still not found, create new user
                 if not user:
