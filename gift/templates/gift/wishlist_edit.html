@@ -34,6 +34,30 @@
             <div class="card-body">
                 {% csrf_token %}
 
+                <!-- Formset-level validation errors (shown so users can report them) -->
+                {% if formset.non_form_errors %}
+                <div class="alert alert-danger mb-3">
+                    <strong>Form errors:</strong>
+                    <ul class="mb-0 mt-1">
+                        {% for error in formset.non_form_errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% for form in formset %}
+                {% if form.errors %}
+                <div class="alert alert-danger mb-2 small">
+                    <strong>Item #{{ forloop.counter }} errors:</strong>
+                    <ul class="mb-0 mt-1">
+                        {% for field, errors in form.errors.items %}
+                        <li>{{ field }}: {{ errors|striptags }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% endfor %}
+
                 <!-- Wishlist Details Section - Compact -->
                 <div class="mb-3">
                     <div class="row">
@@ -147,7 +171,7 @@
                 <div id="wishlist-edit-app">
                     <div class="d-flex justify-content-center p-5">
                         <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                            <span class="sr-only">Loading...</span>
                         </div>
                     </div>
                 </div>

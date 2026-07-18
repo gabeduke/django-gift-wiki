@@ -1161,24 +1161,18 @@ def wishlist_edit(request, wishlist_id):
             if not wishlist_form_valid:
                 messages.error(request, 'Please correct the wishlist form errors.')
                 logger.warning(
-                    'Wishlist form invalid',
-                    extra={
-                        'wishlist_id': wishlist_id,
-                        'errors': dict(wishlist_form.errors),
-                        'user': request.user.email,
-                    },
+                    f'Wishlist form invalid for wishlist_id={wishlist_id}, '
+                    f'user={request.user.email}, errors={dict(wishlist_form.errors)}'
                 )
             if not formset_valid:
                 messages.error(request, 'Please correct the item form errors.')
+                formset_errors = [dict(form.errors) for form in formset.forms]
+                non_form_errors = list(formset.non_form_errors())
+                post_keys = sorted(request.POST.keys())
                 logger.warning(
-                    'Item formset invalid',
-                    extra={
-                        'wishlist_id': wishlist_id,
-                        'errors': [dict(form.errors) for form in formset.forms],
-                        'non_form_errors': list(formset.non_form_errors()),
-                        'post_keys': sorted(request.POST.keys()),
-                        'user': request.user.email,
-                    },
+                    f'Item formset invalid for wishlist_id={wishlist_id}, '
+                    f'user={request.user.email}, post_keys={post_keys}, '
+                    f'errors={formset_errors}, non_form_errors={non_form_errors}'
                 )
     else:
         formset = ItemModelFormSet(queryset=items, form_kwargs={'wishlist': wishlist})
