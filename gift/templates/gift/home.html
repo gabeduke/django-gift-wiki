@@ -1,5 +1,6 @@
 {% extends 'gift/base/base_generic.html' %}
 {% load static %}
+{% load gift_extras %}
 
 {% block extra_head %}
 <style>
@@ -77,6 +78,11 @@
                   {{ wishlist.owner.get_full_name|default:wishlist.owner.username }}
                 {% endif %}
               </div>
+              {% with person=wishlist.dependent|default:wishlist.owner %}
+                {% if person.birthday %}
+                  <div class="wl-list-birthday">{{ person|birthday_label }}</div>
+                {% endif %}
+              {% endwith %}
             </div>
           </div>
 

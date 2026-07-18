@@ -955,7 +955,7 @@ def home(request):
                     current_grouping = 'house'
 
         # Optimize query with select_related
-        wishlists = WishList.objects.select_related('family_name', 'owner').all()
+        wishlists = WishList.objects.select_related('family_name', 'owner', 'dependent').all()
         wishlists_grouped = defaultdict(list)
         strategy = strategies[current_grouping]
 
@@ -1145,32 +1145,8 @@ def wishlist_edit(request, wishlist_id):
 
                     # Handle category assignment
                     category = form.cleaned_data.get('category')
-                    new_category_name = form.cleaned_data.get('new_category_name')
                     instance.categories.clear()
-
-                    # Handle "Create new..." option
-                    if category == '__CREATE_NEW__':
-                        if new_category_name and wishlist.family_name:
-                            from .models import Category
-
-                            category_obj, created = Category.objects.get_or_create(
-                                name=new_category_name,
-                                family=wishlist.family_name,
-                                defaults={'description': f'Category for {new_category_name}'},
-                            )
-                            instance.categories.add(category_obj)
-                    elif new_category_name and wishlist.family_name:
-                        # If new category name provided, create it (takes precedence over selected category)
-                        from .models import Category
-
-                        category_obj, created = Category.objects.get_or_create(
-                            name=new_category_name,
-                            family=wishlist.family_name,
-                            defaults={'description': f'Category for {new_category_name}'},
-                        )
-                        instance.categories.add(category_obj)
-                    elif category and category != '__CREATE_NEW__':
-                        # Use the selected existing category
+                    if category:
                         instance.categories.add(category)
 
             messages.success(request, 'Wishlist and items updated successfully.')
@@ -1307,4 +1283,74 @@ def category_edit(request, category_id):
         request,
         'gift/category_edit.html',
         {'form': form, 'category': category, 'wishlist': wishlist},
+    )
+
+
+@require_POST
+@login_required
+def category_create_ajax(request, wishlist_id):
+    """Create a new category for a wishlist's family via AJAX.
+
+    Returns JSON with the created category's id and name so the caller
+    can update its dropdown without reloading the page.
+    """
+    wishlist = get_object_or_404(WishList, id=wishlist_id)
+
+    # Permission check: owner, dependent (steward), or manager
+    is_owner = request.user == wishlist.owner or request.user == wishlist.dependent
+    is_manager = request.user in wishlist.managers.all()
+    from giftwiki.feature_flags import get_steward_proxy_enabled
+
+    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
+    is_steward = STEWARD_PROXY_ENABLED and request.user == wishlist.dependent
+
+    if not (is_owner or is_manager or is_steward):
+        logger.warning(
+            'Unauthorized category creation attempt',
+            extra={'wishlist_id': wishlist_id, 'user': request.user.email},
+        )
+        return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+    if not wishlist.family_name:
+        return JsonResponse(
+            {'status': 'error', 'message': 'This wishlist does not have a family assigned.'},
+            status=400,
+        )
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON body'}, status=400)
+
+    name = data.get('name', '').strip()
+    if not name:
+        return JsonResponse(
+            {'status': 'error', 'message': 'Category name is required.'}, status=400
+        )
+
+    category, created = Category.objects.get_or_create(
+        family=wishlist.family_name,
+        name=name,
+        defaults={'description': f'Category for {name}'},
+    )
+
+    if created:
+        logger.info(
+            'Category created via AJAX',
+            extra={
+                'category_id': category.id,
+                'category_name': category.name,
+                'family_id': wishlist.family_name_id,
+                'wishlist_id': wishlist.id,
+                'user': request.user.email,
+            },
+        )
+
+    return JsonResponse(
+        {
+            'status': 'success',
+            'category_id': category.id,
+            'category_name': category.name,
+            'created': created,
+        }
     )

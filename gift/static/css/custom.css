@@ -320,6 +320,7 @@ label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bo
 .wl-list-row-right { display: flex; align-items: center; gap: 10px; }
 .wl-list-title { font-weight: 500; font-size: 14px; }
 .wl-list-owner { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+.wl-list-birthday { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 .wl-list-meta  { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-muted); }
 
 /* Category header */

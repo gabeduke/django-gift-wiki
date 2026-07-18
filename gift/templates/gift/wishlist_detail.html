@@ -1,4 +1,5 @@
 {% extends 'gift/base/base_generic.html' %}
+{% load gift_extras %}
 
 {% block content %}
 <div class="wl-page">
@@ -20,6 +21,11 @@
         {% if wishlist.description %}
         <p class="wl-page-subtitle">{{ wishlist.description }}</p>
         {% endif %}
+        {% with person=wishlist.dependent|default:wishlist.owner %}
+          {% if person.birthday %}
+          <p class="wl-page-subtitle">{{ person|birthday_label }}</p>
+          {% endif %}
+        {% endwith %}
         {% comment %}
            Progress — requires purchased_count and total_count in view context.
            Add to view: context['total_count'] and context['purchased_count']
