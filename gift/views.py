@@ -16,29 +16,6 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import generic
-
-from .forms import (
-    CreateManagedUserForm,
-    ManagedUserForm,
-    ProfilePictureForm,
-    UserProfileForm,
-)
-
-
-def custom_admin_login(request, **kwargs):
-    """
-    Redirect unauthenticated admin users to the Firebase auth page.
-    If they are authenticated but lack staff permissions, show the default Django 'not authorized' page.
-    """
-    if request.user.is_authenticated:
-        from django.contrib.admin.sites import site
-        return site.login(request, **kwargs)
-    
-    url = '/auth.html'
-    if 'next' in request.GET:
-        url += f"?next={request.GET['next']}"
-    return redirect(url)
-
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_POST
@@ -55,6 +32,21 @@ from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, Season, Wi
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+
+def custom_admin_login(request, **kwargs):
+    """
+    Redirect unauthenticated admin users to the Firebase auth page.
+    If they are authenticated but lack staff permissions, show the default Django 'not authorized' page.
+    """
+    if request.user.is_authenticated:
+        from django.contrib.admin.sites import site
+        return site.login(request, **kwargs)
+    
+    url = '/auth.html'
+    if 'next' in request.GET:
+        url += f"?next={request.GET['next']}"
+    return redirect(url)
 
 
 @csrf_exempt

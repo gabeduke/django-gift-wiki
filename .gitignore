@@ -99,12 +99,18 @@ celerybeat-schedule.*
 
 # Environments
 **/*.env
+.env.*
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Project-specific secrets and scratchpads
+.neon
+STATE.md
+scripts/restore_*.py
 
 # mkdocs documentation
 /site
