@@ -1,6 +1,11 @@
-from django.contrib import admin
+import django.contrib.admin.helpers as admin_helpers
+from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+from import_export import resources
+from import_export.admin import ImportExportModelAdmin
 
 from gift.models import (
     AllowedEmail,
@@ -18,9 +23,6 @@ from gift.models import (
 )
 
 User = get_user_model()
-
-from import_export import resources
-from import_export.admin import ImportExportModelAdmin
 
 
 class WikiUserResource(resources.ModelResource):
@@ -45,10 +47,6 @@ class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Family)
 admin.site.register(Season)
-import django.contrib.admin.helpers as admin_helpers
-from django.contrib import messages
-from django.http import HttpResponseRedirect
-from django.shortcuts import render
 
 
 @admin.register(WishList)
