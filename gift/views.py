@@ -715,7 +715,8 @@ def profile(request):
         for user in managed_users
     ]
     
-    new_managed_user_form = ManagedUserForm()
+    from .forms import CreateManagedUserForm
+    new_managed_user_form = CreateManagedUserForm(user=request.user)
 
     context = {
         'wishlists': wishlists,
@@ -733,13 +734,13 @@ def profile(request):
 @login_required
 def create_managed_user(request):
     from django.contrib.auth import get_user_model
-    from .forms import ManagedUserForm
-    from .models import WishList
+    from .forms import CreateManagedUserForm
+    from .models import WishList, AllowedEmail
     import secrets
     import string
     User = get_user_model()
     
-    form = ManagedUserForm(request.POST)
+    form = CreateManagedUserForm(request.POST, user=request.user)
     if form.is_valid():
         user = form.save(commit=False)
         # Generate a random unusable password
@@ -748,17 +749,31 @@ def create_managed_user(request):
         user.set_password(password)
         user.save()
         
-        # Create a default wishlist for the new user so they are immediately managed
-        first_name = user.first_name if user.first_name else user.username
-        title = f"{first_name}'s Wishlist"
-        wishlist = WishList.objects.create(
-            title=title,
-            owner=request.user,
-            dependent=user,
-            description=f"Auto-generated wishlist for {first_name}."
-        )
+        # If email was provided, automatically allowlist it
+        if user.email:
+            AllowedEmail.objects.get_or_create(email=user.email)
         
-        messages.success(request, f"Successfully created managed user {user.username} and their wishlist.")
+        # Check if linking to an existing wishlist
+        link_to_wishlist = form.cleaned_data.get('link_to_wishlist')
+        if link_to_wishlist:
+            # Check permission: user must be owner or manager
+            if request.user == link_to_wishlist.owner or request.user in link_to_wishlist.managers.all():
+                link_to_wishlist.dependent = user
+                link_to_wishlist.save()
+                messages.success(request, f"Successfully created managed user {user.username} and linked them to {link_to_wishlist.title}.")
+            else:
+                messages.error(request, "You do not have permission to modify the selected wishlist.")
+        else:
+            # Create a default wishlist for the new user so they are immediately managed
+            first_name = user.first_name if user.first_name else user.username
+            title = f"{first_name}'s Wishlist"
+            wishlist = WishList.objects.create(
+                title=title,
+                owner=request.user,
+                dependent=user,
+                description=f"Auto-generated wishlist for {first_name}."
+            )
+            messages.success(request, f"Successfully created managed user {user.username} and their wishlist.")
     else:
         messages.error(request, "Error creating managed user. Please check the form.")
         

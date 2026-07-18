@@ -278,6 +278,26 @@ class ManagedUserForm(forms.ModelForm):
         fields = ['username', 'email', 'first_name', 'last_name', 'birthday']
 
 
+class CreateManagedUserForm(ManagedUserForm):
+    from .models import WishList
+    
+    link_to_wishlist = forms.ModelChoiceField(
+        queryset=WishList.objects.none(),
+        required=False,
+        label="Link to Existing Wishlist",
+        help_text="Optional. Select a wishlist to link this user to. If left blank, a new one will be created."
+    )
+    
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if user:
+            from django.db.models import Q
+            self.fields['link_to_wishlist'].queryset = self.link_to_wishlist.field.queryset.model.objects.filter(
+                Q(owner=user) | Q(managers=user)
+            ).distinct()
+
+
 class ProfilePictureForm(forms.ModelForm):
     """Form for uploading profile pictures with camera support."""
 
