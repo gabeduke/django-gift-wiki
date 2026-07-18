@@ -12,6 +12,9 @@ class WikiUser(AbstractUser):
     family_name = models.ForeignKey(
         'Family', on_delete=models.SET_NULL, null=True, blank=True, related_name='WikiUsers'
     )
+    birthday = models.DateField(
+        null=True, blank=True, help_text="User's birthday for organizing wishlists by season."
+    )
     profile_picture = models.ImageField(
         upload_to='profile_pictures/',
         blank=True,
