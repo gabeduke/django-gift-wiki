@@ -738,7 +738,7 @@ def profile(request):
     
     # Pre-initialize forms for each managed user to use in modals
     managed_users_data = [
-        {'user': user, 'form': ManagedUserForm(instance=user)} 
+        {'user': user, 'form': ManagedUserForm(instance=user, user=request.user)} 
         for user in managed_users
     ]
     
@@ -820,9 +820,24 @@ def edit_managed_user(request, user_id):
         messages.error(request, "You do not have permission to edit this user.")
         return redirect('gift:account')
 
-    form = ManagedUserForm(request.POST, instance=managed_user)
+    form = ManagedUserForm(request.POST, instance=managed_user, user=request.user)
     if form.is_valid():
         form.save()
+        
+        # Handle wishlist linking/unlinking
+        if 'link_to_wishlist' in form.cleaned_data:
+            wishlist = form.cleaned_data['link_to_wishlist']
+            if wishlist:
+                # Link to new wishlist
+                wishlist.dependent = managed_user
+                wishlist.save()
+            else:
+                # Unlink from current wishlist if any
+                current_wishlists = WishList.objects.filter(dependent=managed_user)
+                for cw in current_wishlists:
+                    cw.dependent = None
+                    cw.save()
+                    
         messages.success(request, f"Successfully updated details for {managed_user.username}.")
     else:
         messages.error(request, f"Error updating details for {managed_user.username}. Please check the form.")

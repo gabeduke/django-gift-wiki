@@ -1,11 +1,14 @@
 import os
+
 import django
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'giftwiki.settings')
 django.setup()
 
-from django.test import Client
-from django.contrib.auth import get_user_model
 import traceback
+
+from django.contrib.auth import get_user_model
+from django.test import Client
 
 c = Client(SERVER_NAME='localhost')
 User = get_user_model()

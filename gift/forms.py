@@ -275,34 +275,19 @@ class ManagedUserForm(forms.ModelForm):
         help_text="Used to organize wishlists by season.",
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
+    
+    from .models import WishList
+    link_to_wishlist = forms.ModelChoiceField(
+        queryset=WishList.objects.none(),
+        required=False,
+        label="Link to Existing Wishlist",
+        help_text="Optional. Select a wishlist to link this user to."
+    )
 
     class Meta:
         model = User
         fields = ['first_name', 'last_name', 'birthday']
 
-
-class CreateManagedUserForm(ManagedUserForm):
-    """Form for creating a new managed user. Includes username and email
-    which are needed at creation time but not editable later via ManagedUserForm."""
-    
-    from .models import WishList
-    
-    username = forms.CharField(required=True, label="Username")
-    email = forms.EmailField(
-        required=False,
-        label="Email Address",
-        help_text="Optional. If provided, they could use this to log in later."
-    )
-    link_to_wishlist = forms.ModelChoiceField(
-        queryset=WishList.objects.none(),
-        required=False,
-        label="Link to Existing Wishlist",
-        help_text="Optional. Select a wishlist to link this user to. If left blank, a new one will be created."
-    )
-
-    class Meta(ManagedUserForm.Meta):
-        fields = ['username', 'email', 'first_name', 'last_name', 'birthday']
-    
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
@@ -313,6 +298,41 @@ class CreateManagedUserForm(ManagedUserForm):
             self.fields['link_to_wishlist'].queryset = WishList.objects.filter(
                 Q(owner=user) | Q(managers=user)
             ).distinct()
+            
+            # Pre-populate if this managed user is already a dependent
+            if self.instance and self.instance.pk:
+                current_wishlist = WishList.objects.filter(dependent=self.instance).first()
+                if current_wishlist:
+                    self.initial['link_to_wishlist'] = current_wishlist.pk
+
+
+class CreateManagedUserForm(ManagedUserForm):
+    """Form for creating a new managed user. Includes username and email
+    which are needed at creation time but not editable later via ManagedUserForm."""
+    
+    username = forms.CharField(required=True, label="Username")
+    email = forms.EmailField(
+        required=False,
+        label="Email Address",
+        help_text="Optional. If provided, they could use this to log in later."
+    )
+
+    class Meta(ManagedUserForm.Meta):
+        fields = ['username', 'email', 'first_name', 'last_name', 'birthday']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['link_to_wishlist'].help_text = "Optional. Select a wishlist to link this user to. If left blank, a new one will be created."
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email:
+            qs = User.objects.filter(email__iexact=email)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError("This email address is already in use by another account.")
+        return email
 
 
 class ProfilePictureForm(forms.ModelForm):
