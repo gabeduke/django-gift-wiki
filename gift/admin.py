@@ -13,12 +13,37 @@ from gift.models import (
     WishList,
     AllowedEmail,
     LinkedEmail,
+    Season,
 )
+from django.contrib.auth.admin import UserAdmin
 
 User = get_user_model()
 
-admin.site.register(User)
+from import_export.admin import ImportExportModelAdmin
+from import_export import resources
+
+class WikiUserResource(resources.ModelResource):
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'is_staff', 'family_name', 'birthday', 'secret_santa_target')
+        export_order = fields
+
+class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
+    model = User
+    resource_classes = [WikiUserResource]
+    fieldsets = UserAdmin.fieldsets + (
+        ('Extra Info', {'fields': ('family_name', 'birthday', 'secret_santa_target', 'profile_picture')}),
+    )
+
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:
+            return self.add_fieldsets
+        return self.fieldsets
+
+
+admin.site.register(User, CustomUserAdmin)
 admin.site.register(Family)
+admin.site.register(Season)
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.contrib import messages

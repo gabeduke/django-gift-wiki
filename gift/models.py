@@ -27,9 +27,32 @@ class WikiUser(AbstractUser):
         null=True,
         help_text='Thumbnail version (150x150)',
     )
+    birthday = models.DateField(
+        null=True, 
+        blank=True, 
+        help_text="Used for birthday-season grouping on home page"
+    )
+    secret_santa_target = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='secret_santa_of',
+        help_text="The person this user drew for the Christmas exchange."
+    )
     profile_picture_web = models.ImageField(
         upload_to='profile_pictures/web/', blank=True, null=True, help_text='Web version (400x400)'
     )
+
+    @property
+    def is_kid(self):
+        from datetime import date
+        if not self.birthday:
+            return False
+        today = date.today()
+        age = today.year - self.birthday.year - ((today.month, today.day) < (self.birthday.month, self.birthday.day))
+        return age < 18
+
     scraped_page_selected = models.BooleanField(
         default=False, help_text='Whether user has selected a scraped wiki page to import'
     )
@@ -457,3 +480,11 @@ class LinkedEmail(models.Model):
 
     def __str__(self):
         return f"{self.email} -> {self.user.username}"
+
+class Season(models.Model):
+    name = models.CharField(max_length=50, unique=True, help_text="e.g., 'Summer'")
+    start_month = models.IntegerField(help_text="Numeric month (1-12)")
+    end_month = models.IntegerField(help_text="Numeric month (1-12)")
+
+    def __str__(self):
+        return self.name
