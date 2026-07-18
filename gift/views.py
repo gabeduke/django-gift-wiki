@@ -1,16 +1,28 @@
 import json
 import logging
+import secrets
+import string
 from collections import defaultdict
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
+from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import generic
+
+from .forms import (
+    CreateManagedUserForm,
+    ManagedUserForm,
+    ProfilePictureForm,
+    UserProfileForm,
+)
 
 def custom_admin_login(request, **kwargs):
     """
@@ -669,7 +681,7 @@ def profile(request):
     profile_form = None
     user_profile_form = None
     
-    from .forms import UserProfileForm
+
 
     if request.method == 'POST':
         if 'update_profile' in request.POST:
@@ -684,7 +696,7 @@ def profile(request):
             user_profile_form = UserProfileForm(instance=request.user)
             
         if PROFILE_PICTURE_ENABLED:
-            from .forms import ProfilePictureForm
+
             if 'update_profile_picture' in request.POST:
                 profile_form = ProfilePictureForm(request.POST, request.FILES, instance=request.user)
                 if profile_form.is_valid():
@@ -703,7 +715,7 @@ def profile(request):
     else:
         user_profile_form = UserProfileForm(instance=request.user)
         if PROFILE_PICTURE_ENABLED:
-            from .forms import ProfilePictureForm
+
             profile_form = ProfilePictureForm(instance=request.user)
 
     # Check if user needs to select a scraped page
@@ -714,9 +726,6 @@ def profile(request):
             show_scraped_page_prompt = True
 
     # Get Managed Users
-    from django.db import models
-    from django.contrib.auth import get_user_model
-    from .forms import ManagedUserForm
     User = get_user_model()
     managed_wishlists = WishList.objects.filter(
         models.Q(owner=request.user) | models.Q(managers=request.user)
@@ -732,7 +741,6 @@ def profile(request):
         for user in managed_users
     ]
     
-    from .forms import CreateManagedUserForm
     new_managed_user_form = CreateManagedUserForm(user=request.user)
 
     context = {
@@ -750,11 +758,7 @@ def profile(request):
 @require_POST
 @login_required
 def create_managed_user(request):
-    from django.contrib.auth import get_user_model
-    from .forms import CreateManagedUserForm
-    from .models import WishList, AllowedEmail
-    import secrets
-    import string
+    from .models import AllowedEmail
     User = get_user_model()
     
     form = CreateManagedUserForm(request.POST, user=request.user)
@@ -799,9 +803,6 @@ def create_managed_user(request):
 @require_POST
 @login_required
 def edit_managed_user(request, user_id):
-    from django.db import models
-    from django.contrib.auth import get_user_model
-    from .forms import ManagedUserForm
     User = get_user_model()
     
     # Security check: User must manage at least one wishlist where this user_id is the dependent
@@ -841,21 +842,8 @@ def password_reset_request(request):
         # Generate password reset link
         link = firebase_auth.generate_password_reset_link(request.user.email)
         
-        # In a real app we might want to email this manually using Django's send_mail 
-        # so the user actually gets it, but Firebase Admin generate_password_reset_link 
-        # doesn't send the email itself, it just generates the link. Wait, wait.
-        # Let's check Firebase Admin SDK docs. If we just want Firebase to send the email,
-        # we can use the REST API, or since we generated the link, we can just redirect the user to it
-        # or send it. Actually, `generate_password_reset_link` just returns a string link.
-        # If we want Firebase to send the email natively, there is no direct Admin SDK method.
-        # So we should send it using Django's email system, OR use the client-side approach.
-        # But wait, we can just send the email with Django:
-        # from django.core.mail import send_mail
-        # send_mail("Password Reset", f"Click here to reset your password: {link}", "noreply@giftwiki.com", [request.user.email])
-        # BUT maybe it's better to just pass it to context or just send it? 
-        # Actually, let's just send the email using Django core mail.
-        from django.core.mail import send_mail
-        from django.conf import settings
+        # Send the reset link via Django's email system since Firebase Admin SDK
+        # only generates the link but does not send an email itself.
         
         send_mail(
             "Password Reset for Gift Wiki",
