@@ -27,11 +27,6 @@ class WikiUser(AbstractUser):
         null=True,
         help_text='Thumbnail version (150x150)',
     )
-    birthday = models.DateField(
-        null=True, 
-        blank=True, 
-        help_text="Used for birthday-season grouping on home page"
-    )
     secret_santa_target = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
