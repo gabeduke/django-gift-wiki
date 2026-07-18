@@ -92,10 +92,10 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
             'client': client,
         }
 
-        # Update loggers to use cloud handler
-        LOGGING['loggers']['django']['handlers'] = ['cloud']
+        # Update loggers to use cloud handler and console
+        LOGGING['loggers']['django']['handlers'] = ['cloud', 'console']
         LOGGING['loggers']['gift'] = {  # App specific logger
-            'handlers': ['cloud'],
+            'handlers': ['cloud', 'console'],
             'level': 'INFO',
             'propagate': False,
         }

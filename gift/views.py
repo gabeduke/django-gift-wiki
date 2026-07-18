@@ -11,6 +11,23 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import generic
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.views.decorators.http import require_POST
+
+from .forms import (
+    CategoryForm,
+    CustomUserCreationForm,
+    ItemForm,
+    ScrapedPageSelectionForm,
+    WishListForm,
+)
+from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, Season, WishList
+
+logger = logging.getLogger(__name__)
+
+User = get_user_model()
+
 
 def custom_admin_login(request, **kwargs):
     """
@@ -25,23 +42,6 @@ def custom_admin_login(request, **kwargs):
     if 'next' in request.GET:
         url += f"?next={request.GET['next']}"
     return redirect(url)
-
-from django.views.decorators.cache import never_cache
-from django.views.decorators.csrf import csrf_exempt, csrf_protect
-from django.views.decorators.http import require_POST
-
-from .forms import (
-    CategoryForm,
-    CustomUserCreationForm,
-    ItemForm,
-    ScrapedPageSelectionForm,
-    WishListForm,
-)
-from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, WishList, Season
-
-logger = logging.getLogger(__name__)
-
-User = get_user_model()
 
 
 @csrf_exempt
