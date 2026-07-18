@@ -277,6 +277,16 @@ class ManagedUserForm(forms.ModelForm):
         model = User
         fields = ['username', 'email', 'first_name', 'last_name', 'birthday']
 
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email:
+            qs = User.objects.filter(email__iexact=email)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError("This email address is already in use by another account.")
+        return email
+
 
 class CreateManagedUserForm(ManagedUserForm):
     from .models import WishList

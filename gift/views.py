@@ -861,6 +861,10 @@ def home(request):
     wishlists_by_family = {}
 
     if request.user.is_authenticated:
+        # Prompt user to add birthday if missing
+        if not request.user.birthday:
+            messages.info(request, "Please add your birthday to your profile so others can organize gifts for you! 🎁")
+
         # Optimize query with select_related to avoid N+1 queries for family_name
         wishlists = WishList.objects.select_related('family_name', 'owner').all()
         wishlists_by_family = defaultdict(list)
