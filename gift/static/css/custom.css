@@ -412,6 +412,42 @@ label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bo
 .text-muted { color: var(--text-muted) !important; }
 .text-secondary { color: var(--text-secondary) !important; }
 
+/* ── PURCHASER ANONYMITY TOGGLE ─────────────────────────── */
+.purchased-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.purchaser-name {
+  display: none;
+}
+.purchaser-name.is-visible {
+  display: inline;
+}
+.reveal-purchaser {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 0 2px;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+.reveal-purchaser:hover {
+  color: var(--text-secondary);
+}
+.reveal-purchaser .eye-closed {
+  display: none;
+}
+.reveal-purchaser.is-revealed .eye-open {
+  display: none;
+}
+.reveal-purchaser.is-revealed .eye-closed {
+  display: inline;
+}
+
 /* ── RESPONSIVE ─────────────────────────────────────────── */
 @media (max-width: 767px) {
   .wl-nav-links { display: none; }
