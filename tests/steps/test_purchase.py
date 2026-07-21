@@ -6,6 +6,7 @@ Scenarios live in ../features/purchase.feature. Fixtures (``user``,
 ``third_user`` fixture covers the "already-purchased" spoiler scenarios.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -87,13 +88,34 @@ def assert_unpurchased(purchase_item):
     assert purchase_item.purchased_by is None
 
 
-@then('the page shows "Purchased by"')
-def page_shows_purchased_by(wishlist_response):
+@then('the page shows "Purchased" anonymously')
+def page_shows_purchased_anonymous(wishlist_response):
     assert wishlist_response.status_code == 200
-    assert 'Purchased by' in wishlist_response.content.decode()
+    content = wishlist_response.content.decode()
+    assert 'purchased-badge' in content
+    assert 'purchaser-name' in content
 
 
-@then('the page does not show "Purchased by"')
-def page_hides_purchased_by(wishlist_response):
+@then('the page hides the purchaser name by default')
+def page_hides_purchaser_name(wishlist_response):
+    content = wishlist_response.content.decode()
+    match = re.search(
+        r'<span[^>]*class="[^"]*purchaser-name[^"]*"[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>',
+        content,
+    )
+    assert match, 'purchaser-name span is not hidden by default'
+
+
+@then('the page has a reveal purchaser control')
+def page_has_reveal_control(wishlist_response):
+    content = wishlist_response.content.decode()
+    assert 'reveal-purchaser' in content
+
+
+@then('the page does not show purchase information')
+def page_hides_purchase_info(wishlist_response):
     assert wishlist_response.status_code == 200
-    assert 'Purchased by' not in wishlist_response.content.decode()
+    content = wishlist_response.content.decode()
+    # The purchased badge markup is not rendered for owners; use a class that
+    # only appears in the actual badge HTML, not in the reveal script.
+    assert 'purchased-badge' not in content
