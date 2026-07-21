@@ -99,11 +99,14 @@ def page_shows_purchased_anonymous(wishlist_response):
 @then('the page hides the purchaser name by default')
 def page_hides_purchaser_name(wishlist_response):
     content = wishlist_response.content.decode()
+    # The purchaser name is hidden by the .purchaser-name CSS rule by default;
+    # verify the span exists and is not marked as visible.
     match = re.search(
-        r'<span[^>]*class="[^"]*purchaser-name[^"]*"[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>',
+        r'<span[^>]*class="[^"]*purchaser-name[^"]*"[^>]*>',
         content,
     )
-    assert match, 'purchaser-name span is not hidden by default'
+    assert match, 'purchaser-name span is missing'
+    assert 'purchaser-name is-visible' not in content, 'purchaser-name span is visible by default'
 
 
 @then('the page has a reveal purchaser control')

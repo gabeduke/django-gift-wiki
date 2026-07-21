@@ -97,7 +97,7 @@
               {% if item.purchased_by %}
                 <span class="badge badge-success purchased-badge">
                   Purchased
-                  <span class="purchaser-name" style="display: none;">
+                  <span class="purchaser-name">
                     by {{ item.purchased_by.get_full_name|default:item.purchased_by.username }}
                   </span>
                 </span>
@@ -190,7 +190,7 @@
               {% if item.purchased_by %}
                 <span class="badge badge-success purchased-badge">
                   Purchased
-                  <span class="purchaser-name" style="display: none;">
+                  <span class="purchaser-name">
                     by {{ item.purchased_by.get_full_name|default:item.purchased_by.username }}
                   </span>
                 </span>
