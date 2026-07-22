@@ -48,6 +48,59 @@
       </div>
     </div>
 
+    {% if upcoming_birthdays %}
+    <div class="wl-family-section">
+
+      <div class="wl-family-header">
+        <span class="wl-family-label">🎂 Upcoming Birthdays</span>
+        <span class="wl-count-badge">{{ upcoming_birthdays|length }}</span>
+      </div>
+
+      <div>
+        {% for entry in upcoming_birthdays %}
+          {% if entry.wishlist_id %}
+          <a class="wl-list-row" href="{% url 'gift:wishlist_detail' entry.wishlist_id %}">
+          {% else %}
+          <div class="wl-list-row">
+          {% endif %}
+
+            <div class="wl-list-row-info">
+              <div class="wl-list-avatar">
+                {% if entry.user.first_name %}
+                  {{ entry.user.first_name|slice:":1"|upper }}{{ entry.user.last_name|slice:":1"|upper }}
+                {% else %}
+                  {{ entry.user.username|slice:":2"|upper }}
+                {% endif %}
+              </div>
+              <div>
+                <div class="wl-list-title">{{ entry.user.get_full_name|default:entry.user.username }}</div>
+                <div class="wl-list-birthday">{{ entry.user.birthday|date:"M j" }} · turns {{ entry.turning_age }}</div>
+              </div>
+            </div>
+
+            <div class="wl-list-row-right">
+              <span class="wl-list-meta">{% if entry.days_until == 0 %}today! 🎉{% else %}in {{ entry.days_until }} day{{ entry.days_until|pluralize }}{% endif %}</span>
+              {% if entry.wishlist_id %}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"
+                   style="color:var(--text-muted);flex-shrink:0;">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+              {% endif %}
+            </div>
+
+          {% if entry.wishlist_id %}
+          </a>
+          {% else %}
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+    </div>
+    {% endif %}
+
     {% for group_name, wishlists in wishlists_grouped.items %}
     <div class="wl-family-section">
 
