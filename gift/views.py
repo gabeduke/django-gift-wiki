@@ -1052,6 +1052,35 @@ def wishlist_detail(request, wishlist_id):
 
 
 @login_required
+def my_purchases(request):
+    """Show every item the current user has marked as purchased, grouped by wishlist."""
+    from decimal import Decimal
+
+    items = (
+        Item.objects.filter(purchased_by=request.user, is_deleted=False)
+        .select_related('wishlist', 'wishlist__owner', 'wishlist__dependent')
+        .order_by('-updated_at')
+    )
+
+    # Group by wishlist. Items are ordered most-recently-updated first, so groups
+    # are headed by the wishlist with the most recent purchase and items within
+    # each group are most recent first as well.
+    purchases_by_wishlist = defaultdict(list)
+    total_spend = Decimal('0.00')
+    for item in items:
+        purchases_by_wishlist[item.wishlist].append(item)
+        if item.price is not None:
+            total_spend += item.price
+
+    context = {
+        'purchases_by_wishlist': purchases_by_wishlist.items(),
+        'total_spend': total_spend,
+        'total_count': len(items),
+    }
+    return render(request, 'gift/my_purchases.html', context)
+
+
+@login_required
 def wishlist_edit(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
