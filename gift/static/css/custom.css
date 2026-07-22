@@ -223,6 +223,7 @@ header { display: none !important; }
 .badge-light     { background: var(--bg-subtle) !important; color: var(--text-muted) !important; border: 1px solid var(--border); }
 .badge-success   { background: var(--success-bg) !important; color: var(--success) !important; }
 .badge-info      { background: var(--brand-light) !important; color: var(--brand) !important; }
+.badge-warning   { background: var(--warning-bg) !important; color: var(--warning) !important; }
 
 /* ── ALERTS ─────────────────────────────────────────────── */
 .alert { border-radius: 6px !important; border: 1px solid; padding: 12px 16px; }

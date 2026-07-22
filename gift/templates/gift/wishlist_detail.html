@@ -93,6 +93,9 @@
             {% if item.price_range %}
               <span class="badge-price">{{ item.get_price_range_display }}</span>
             {% endif %}
+            {% if item.is_priority %}
+              <span class="badge badge-warning priority-badge">⭐ Most wanted</span>
+            {% endif %}
             {% if not is_list_manager and item.purchased %}
               {% if item.purchased_by %}
                 <span class="badge badge-success purchased-badge">
@@ -185,6 +188,9 @@
             {% endif %}
             {% if item.price_range %}
               <span class="badge-price">{{ item.get_price_range_display }}</span>
+            {% endif %}
+            {% if item.is_priority %}
+              <span class="badge badge-warning priority-badge">⭐ Most wanted</span>
             {% endif %}
             {% if not is_list_manager and item.purchased %}
               {% if item.purchased_by %}
