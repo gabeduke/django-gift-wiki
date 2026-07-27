@@ -158,13 +158,9 @@
           </div>
 
           <div class="wl-list-row-right">
-            {% comment %}
-               NOTE: add an `active_item_count` property to WishList model
-               to avoid N+1 queries:
-               def active_item_count(self):
-                   return self.items.filter(is_deleted=False).count()
-            {% endcomment %}
-            <span class="wl-list-meta">{{ wishlist.items.count }} items</span>
+            {# card_item_count is computed in the home view: active items only,
+               excluding surprise items when the viewer owns the list. #}
+            <span class="wl-list-meta">{{ wishlist.card_item_count }} items</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round"

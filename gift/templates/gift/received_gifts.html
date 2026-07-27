@@ -1,0 +1,90 @@
+{% extends 'gift/base/base_generic.html' %}
+
+{% block content %}
+<div class="wl-page">
+
+  {# Back link #}
+  <a class="wl-back" href="{% url 'gift:home' %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    All Lists
+  </a>
+
+  {# Page header #}
+  <div class="wl-page-header">
+    <div class="wl-page-header-row">
+      <div>
+        <h1 class="wl-page-title">Received Gifts</h1>
+        <p class="wl-page-subtitle">Gifts you've received, grouped by year — and who to thank.</p>
+        {% if total_count %}
+        <div class="wl-progress">
+          <span class="wl-progress-label">
+            <span class="wl-progress-mono">{{ total_count }}</span>
+            gift{{ total_count|pluralize }} received
+          </span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Gifts grouped by year #}
+  {% if gifts_by_year %}
+
+    {% for year, items in gifts_by_year %}
+    <div class="wl-cat-section">
+      <div class="wl-cat-header">
+        <span class="wl-cat-label">{{ year }}</span>
+        <span class="wl-count-badge">{{ items|length }}</span>
+      </div>
+
+      {% for item in items %}
+      <div class="wl-item-row">
+        <div class="wl-item-main">
+          <div class="wl-item-name">
+            <span>{{ item.name }}</span>
+            {% if item.price %}
+              <span class="badge-price">${{ item.price|floatformat:2 }}</span>
+            {% elif item.price_range %}
+              <span class="badge-price">{{ item.get_price_range_display }}</span>
+            {% endif %}
+          </div>
+          <div class="wl-item-desc">
+            From {{ item.wishlist.title }}
+            {% if item.purchased_by %}
+              &middot; thank
+              {{ item.purchased_by.get_full_name|default:item.purchased_by.username }}
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="wl-item-actions">
+          <form method="post" action="{% url 'gift:toggle_thank_you' item.id %}">
+            {% csrf_token %}
+            <button type="submit"
+                    class="btn btn-sm {% if item.thank_you_sent %}btn-success{% else %}btn-outline-secondary{% endif %}"
+                    style="min-height:36px;white-space:nowrap;">
+              {% if item.thank_you_sent %}✓ Thank-you sent{% else %}Mark thank-you sent{% endif %}
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
+    {% endfor %}
+
+  {% else %}
+
+    <div style="text-align:center;padding:56px 24px;color:var(--text-muted);">
+      <p style="font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">No received gifts yet</p>
+      <p style="font-size:13px;margin-bottom:20px;">When gifts from your lists are purchased, archive them from your wishlist page and they'll show up here.</p>
+      <a href="{% url 'gift:account' %}" class="btn btn-primary">Go to My Lists</a>
+    </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}
