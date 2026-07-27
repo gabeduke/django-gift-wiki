@@ -1057,10 +1057,12 @@ def wishlist_detail(request, wishlist_id):
     wishlist = get_object_or_404(
         WishList.objects.select_related('owner', 'family_name', 'dependent'), id=wishlist_id
     )
+    # Priority items first; id keeps a stable order within each group
     items = (
         wishlist.items.filter(is_deleted=False)
         .select_related('purchased_by', 'updated_by')
         .prefetch_related('categories')
+        .order_by('-is_priority', 'id')
     )
 
     # Group items by category

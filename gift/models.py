@@ -237,6 +237,7 @@ class Item(models.Model):
         name (CharField): The name of the Item
         description (TextField): The description of the Item
         purchased (BooleanField): The status of the Item
+        is_priority (BooleanField): Whether the owner marked this as a most-wanted item
         price (DecimalField): The price of the Item
         price_range (CharField): A price range category for the item
         created_at (DateTimeField): The date and time the Item was created
@@ -255,6 +256,9 @@ class Item(models.Model):
     name = models.CharField(max_length=255)  # Required field - no default
     description = models.TextField(blank=True)
     purchased = models.BooleanField(default=False)
+    is_priority = models.BooleanField(
+        default=False, help_text='Mark as one of your most-wanted items'
+    )
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     price_range = models.CharField(
         max_length=20,
