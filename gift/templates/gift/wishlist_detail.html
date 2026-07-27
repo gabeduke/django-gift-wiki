@@ -54,6 +54,9 @@
         <a href="{% url 'gift:edit_wishlist' wishlist.id %}" class="btn btn-outline-secondary btn-sm">Edit List</a>
         <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm">+ Add Item</a>
         {% endif %}
+        {% if not is_owner %}
+        <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm">🤫 Add a surprise gift</a>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -95,6 +98,9 @@
             {% endif %}
             {% if item.is_priority %}
               <span class="badge badge-warning priority-badge">⭐ Most wanted</span>
+            {% endif %}
+            {% if item.is_sneaky %}
+              <span class="badge badge-warning surprise-badge">🤫 Surprise</span>
             {% endif %}
             {% if not is_list_manager and item.purchased %}
               {% if item.purchased_by %}
@@ -192,6 +198,9 @@
             {% if item.is_priority %}
               <span class="badge badge-warning priority-badge">⭐ Most wanted</span>
             {% endif %}
+            {% if item.is_sneaky %}
+              <span class="badge badge-warning surprise-badge">🤫 Surprise</span>
+            {% endif %}
             {% if not is_list_manager and item.purchased %}
               {% if item.purchased_by %}
                 <span class="badge badge-success purchased-badge">
@@ -273,6 +282,15 @@
   {# Danger zone (owner only) #}
   {% if is_owner %}
   <div style="margin-top:48px;padding-top:24px;border-top:1px solid var(--border);">
+    {% if can_archive %}
+    <form action="{% url 'gift:archive_purchased' wishlist.id %}" method="post" class="d-inline" style="margin-right:8px;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-secondary btn-sm"
+              title="Move purchased gifts to your Received Gifts archive — surprises will be revealed">
+        🎁 Archive Received Gifts
+      </button>
+    </form>
+    {% endif %}
     <form action="{% url 'gift:delete_wishlist' wishlist.id %}" method="post" class="d-inline">
       {% csrf_token %}
       <button type="submit" class="btn btn-outline-danger btn-sm"

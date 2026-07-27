@@ -238,6 +238,9 @@ class Item(models.Model):
         description (TextField): The description of the Item
         purchased (BooleanField): The status of the Item
         is_priority (BooleanField): Whether the owner marked this as a most-wanted item
+        is_sneaky (BooleanField): Whether this is a surprise item hidden from the list owner
+        archived_at (DateTimeField): When the owner moved this received gift to the archive
+        thank_you_sent (BooleanField): Whether the owner sent a thank-you for this gift
         price (DecimalField): The price of the Item
         price_range (CharField): A price range category for the item
         created_at (DateTimeField): The date and time the Item was created
@@ -258,6 +261,18 @@ class Item(models.Model):
     purchased = models.BooleanField(default=False)
     is_priority = models.BooleanField(
         default=False, help_text='Mark as one of your most-wanted items'
+    )
+    is_sneaky = models.BooleanField(
+        default=False,
+        help_text='Surprise item added by someone else — hidden from the list owner',
+    )
+    archived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the owner moved this received gift to their archive',
+    )
+    thank_you_sent = models.BooleanField(
+        default=False, help_text='Whether the owner sent a thank-you for this gift'
     )
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     price_range = models.CharField(

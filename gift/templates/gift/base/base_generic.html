@@ -48,6 +48,8 @@
            href="{% url 'gift:account' %}">My Lists</a>
         <a class="wl-nav-link {% if request.resolver_match.url_name == 'my_purchases' %}active{% endif %}"
            href="{% url 'gift:my_purchases' %}">My Purchases</a>
+        <a class="wl-nav-link {% if request.resolver_match.url_name == 'received_gifts' %}active{% endif %}"
+           href="{% url 'gift:received_gifts' %}">Received</a>
         {% endif %}
       </div>
 

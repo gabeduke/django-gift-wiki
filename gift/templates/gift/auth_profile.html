@@ -264,7 +264,7 @@
                                     <!-- Wishlist items here -->
                                     <div style="max-height: 200px; overflow-y: auto;">
                                         <ul class="list-group list-group-flush">
-                                            {% for item in wishlist.items.all %}
+                                            {% for item in wishlist.visible_items %}
                                                 <li class="list-group-item">{{ item.name }}</li>
                                             {% empty %}
                                                 <li class="list-group-item">No items found.</li>
