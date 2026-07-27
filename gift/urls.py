@@ -13,6 +13,8 @@ urlpatterns = [
     path('profile/', views.profile, name='account'),
     path('my-purchases/', views.my_purchases, name='my_purchases'),
     path('received-gifts/', views.received_gifts, name='received_gifts'),
+    path('changelog/', views.changelog, name='changelog'),
+    path('changelog/dismiss/', views.changelog_dismiss, name='changelog_dismiss'),
     path('select-scraped-page/', views.select_scraped_page, name='select_scraped_page'),
     path('logout/', views.logout_view, name='logout'),
     path('accounts/logout/', views.logout_view),  # Override Django's default POST-only logout

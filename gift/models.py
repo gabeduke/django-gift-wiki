@@ -502,3 +502,30 @@ class Season(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ChangelogEntry(models.Model):
+    """
+    A "What's new" announcement. Unseen active entries are shown on the home
+    page until the user dismisses them (which adds them to seen_by).
+    """
+
+    slug = models.SlugField(unique=True)
+    title = models.CharField(max_length=120)
+    body = models.TextField(help_text='Plain text, one or two friendly sentences')
+    published_at = models.DateField()
+    is_active = models.BooleanField(default=True)
+    seen_by = models.ManyToManyField(
+        WikiUser,
+        blank=True,
+        related_name='seen_changelog_entries',
+        help_text='Users who have dismissed this entry',
+    )
+
+    class Meta:
+        ordering = ['-published_at', '-id']
+        verbose_name = 'Changelog Entry'
+        verbose_name_plural = 'Changelog Entries'
+
+    def __str__(self):
+        return self.title

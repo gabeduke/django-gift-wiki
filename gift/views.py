@@ -33,7 +33,15 @@ from .forms import (
     UserProfileForm,
     WishListForm,
 )
-from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, Season, WishList
+from .models import (
+    Category,
+    ChangelogEntry,
+    Item,
+    ScrapedWikiItem,
+    ScrapedWikiPage,
+    Season,
+    WishList,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1046,11 +1054,17 @@ def home(request):
     current_grouping = 'house'
     grouping_options = []
     upcoming_birthdays = []
+    unseen_changelog_entries = []
 
     if request.user.is_authenticated:
         # Prompt user to add birthday if missing
         if not request.user.birthday:
             messages.info(request, "Please add your birthday to your profile so others can organize gifts for you! 🎁")
+
+        # "What's new" card: active entries this user hasn't dismissed yet
+        unseen_changelog_entries = list(
+            ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user)
+        )
 
         # Fetch seasons once
         seasons = list(Season.objects.all())
@@ -1127,8 +1141,26 @@ def home(request):
         'grouping_options': grouping_options,
         'show_scraped_page_prompt': show_scraped_page_prompt,
         'upcoming_birthdays': upcoming_birthdays,
+        'unseen_changelog_entries': unseen_changelog_entries,
     }
     return render(request, 'gift/home.html', context)
+
+
+@login_required
+def changelog(request):
+    """Full "What's new" history — every active entry, newest first."""
+    entries = ChangelogEntry.objects.filter(is_active=True)
+    return render(request, 'gift/changelog.html', {'entries': entries})
+
+
+@require_POST
+@login_required
+def changelog_dismiss(request):
+    """Mark every currently-unseen active entry as seen by the current user."""
+    unseen = ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user)
+    for entry in unseen:
+        entry.seen_by.add(request.user)
+    return redirect('gift:home')
 
 
 @login_required

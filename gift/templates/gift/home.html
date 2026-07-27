@@ -24,6 +24,29 @@
 
   {% if request.user.is_authenticated %}
 
+    {% if unseen_changelog_entries %}
+    <!-- "What's new" card — shown until dismissed -->
+    <div class="wl-changelog-card">
+      <div class="wl-changelog-head">
+        <span class="wl-changelog-title">✨ What's new</span>
+        <span class="wl-count-badge">{{ unseen_changelog_entries|length }}</span>
+      </div>
+      {% for entry in unseen_changelog_entries %}
+      <div class="wl-changelog-entry">
+        <div class="wl-changelog-entry-head">
+          <span class="wl-changelog-entry-title">{{ entry.title }}</span>
+          <span class="wl-changelog-date">{{ entry.published_at|date:"M j, Y" }}</span>
+        </div>
+        <p class="wl-changelog-body">{{ entry.body }}</p>
+      </div>
+      {% endfor %}
+      <form method="post" action="{% url 'gift:changelog_dismiss' %}" class="wl-changelog-dismiss">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-sm">Got it, thanks!</button>
+      </form>
+    </div>
+    {% endif %}
+
     <div style="overflow: hidden; margin-bottom: 24px;">
       <!-- Family Photo Card -->
       <div class="photo-container">

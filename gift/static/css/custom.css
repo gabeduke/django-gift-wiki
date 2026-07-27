@@ -124,6 +124,13 @@ header { display: none !important; }
   text-decoration: none;
 }
 .wl-avatar:hover { opacity: .85; color: #fff; text-decoration: none; }
+.wl-nav-badge {
+  display: inline-block; min-width: 16px; height: 16px;
+  padding: 0 4px; margin-left: 4px;
+  border-radius: 999px; background: var(--brand);
+  color: #fff; font-size: 10px; font-weight: 700;
+  line-height: 16px; text-align: center; vertical-align: 2px;
+}
 
 /* Hide original Bootstrap navbar */
 .navbar { display: none !important; }
@@ -468,6 +475,32 @@ label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bo
   display: inline;
 }
 
+/* ── WHAT'S NEW (changelog) ─────────────────────────────── */
+.wl-changelog-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand);
+  border-radius: 10px;
+  box-shadow: var(--shadow-1);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+.wl-changelog-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.wl-changelog-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.wl-changelog-entry { padding: 8px 0; }
+.wl-changelog-entry + .wl-changelog-entry { border-top: 1px solid var(--border); }
+.wl-changelog-entry-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+}
+.wl-changelog-entry-title { font-weight: 600; font-size: 14px; color: var(--text-primary); }
+.wl-changelog-date {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+  flex-shrink: 0;
+}
+.wl-changelog-body { margin: 2px 0 0; font-size: 13px; color: var(--text-secondary); }
+.wl-changelog-dismiss { margin: 10px 0 0; text-align: right; }
+
 /* ── RESPONSIVE ─────────────────────────────────────────── */
 @media (max-width: 767px) {
   .wl-nav-links { display: none; }
@@ -475,4 +508,6 @@ label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bo
   .wl-item-row { flex-direction: column; }
   .wl-item-actions { justify-content: flex-start; }
   .wl-page-header-row { flex-direction: column; gap: 12px; }
+  .wl-changelog-dismiss { text-align: stretch; }
+  .wl-changelog-dismiss .btn { width: 100%; }
 }
