@@ -3,6 +3,7 @@ import logging
 import secrets
 import string
 from collections import defaultdict
+from datetime import date
 
 from django.conf import settings
 from django.contrib import messages
@@ -915,11 +916,73 @@ def get_grouping_strategies(seasons, request_user):
 
     return strategies
 
+
+def get_upcoming_birthdays(limit=5):
+    """
+    Return the next `limit` upcoming birthdays across all users with a birthday set
+    (managed/kid accounts are WikiUser rows, so they're included automatically),
+    ordered by days until the next occurrence. Today's birthday counts as upcoming
+    (days_until=0). Each entry is a dict with 'user', 'days_until', 'turning_age'
+    and 'wishlist_id' (None when the person has no wishlist to link to).
+    """
+    today = date.today()
+
+    def next_occurrence(birthday):
+        try:
+            next_birthday = birthday.replace(year=today.year)
+        except ValueError:
+            # Feb 29 birthdays are observed on Feb 28 in non-leap years
+            next_birthday = birthday.replace(year=today.year, day=28)
+        if next_birthday < today:
+            try:
+                next_birthday = birthday.replace(year=today.year + 1)
+            except ValueError:
+                next_birthday = birthday.replace(year=today.year + 1, day=28)
+        return next_birthday
+
+    upcoming = []
+    for user in User.objects.filter(birthday__isnull=False):
+        next_birthday = next_occurrence(user.birthday)
+        upcoming.append(
+            {
+                'user': user,
+                'days_until': (next_birthday - today).days,
+                'turning_age': next_birthday.year - user.birthday.year,
+                'wishlist_id': None,
+            }
+        )
+
+    upcoming.sort(key=lambda entry: (entry['days_until'], entry['user'].username))
+    upcoming = upcoming[:limit]
+
+    # Link each person to their most recently updated wishlist, using the same
+    # "person of the list" convention as the directory (dependent, else owner).
+    person_ids = {entry['user'].id for entry in upcoming}
+    if person_ids:
+        candidate_lists = (
+            WishList.objects.filter(
+                models.Q(owner_id__in=person_ids) | models.Q(dependent_id__in=person_ids)
+            )
+            .select_related('owner', 'dependent')
+            .order_by('-updated_at')
+        )
+        wishlist_by_person = {}
+        for wishlist in candidate_lists:
+            person = wishlist.dependent or wishlist.owner
+            if person.id in person_ids and person.id not in wishlist_by_person:
+                wishlist_by_person[person.id] = wishlist.id
+        for entry in upcoming:
+            entry['wishlist_id'] = wishlist_by_person.get(entry['user'].id)
+
+    return upcoming
+
+
 def home(request):
     # Only show wishlists if user is authenticated
     wishlists_grouped = {}
     current_grouping = 'house'
     grouping_options = []
+    upcoming_birthdays = []
 
     if request.user.is_authenticated:
         # Prompt user to add birthday if missing
@@ -948,7 +1011,6 @@ def home(request):
         else:
             current_grouping = request.session.get('wishlist_grouping')
             if not current_grouping or current_grouping not in strategies:
-                from datetime import date
                 if date.today().month in (11, 12):
                     current_grouping = 'christmas_exchange'
                 else:
@@ -967,6 +1029,9 @@ def home(request):
         # Sort the dictionary keys to have a predictable display order
         wishlists_grouped = dict(sorted(wishlists_grouped.items(), key=lambda item: str(item[0])))
 
+        # "What's coming up": next birthdays across all users (incl. managed accounts)
+        upcoming_birthdays = get_upcoming_birthdays(limit=5)
+
         # Check if logged in user needs to select a scraped page
         show_scraped_page_prompt = False
         if not request.user.scraped_page_selected:
@@ -981,6 +1046,7 @@ def home(request):
         'current_grouping': current_grouping,
         'grouping_options': grouping_options,
         'show_scraped_page_prompt': show_scraped_page_prompt,
+        'upcoming_birthdays': upcoming_birthdays,
     }
     return render(request, 'gift/home.html', context)
 

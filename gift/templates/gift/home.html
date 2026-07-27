@@ -20,7 +20,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="wl-page">
+<div class="wl-page" data-grouping="{{ current_grouping }}">
 
   {% if request.user.is_authenticated %}
 
@@ -35,7 +35,7 @@
         <h1 class="wl-page-title">Wishlists</h1>
         <p class="wl-page-subtitle">Browse by household</p>
         
-        <div class="grouping-controls" style="margin-top: 16px;">
+        <div class="grouping-controls" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px;">
           <form action="" method="get" style="display: flex; align-items: center; gap: 8px;">
             <label for="group_by" style="color: var(--text-muted); font-size: 14px;">Group By:</label>
             <select name="group_by" id="group_by" class="btn btn-outline-secondary" onchange="this.form.submit()" style="padding: 6px 30px 6px 12px; height: 36px; border-radius: 6px; font-size: 13px; font-weight: 500; appearance: none; background: url('data:image/svg+xml;utf8,<svg fill=%22%232a2622%22 viewBox=%220 0 24 24%22 width=%2216%22 height=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>') no-repeat right 8px center; cursor: pointer;">
@@ -44,19 +44,90 @@
               {% endfor %}
             </select>
           </form>
+          <div class="wl-bulk-toggle" style="display: flex; gap: 6px;">
+            <button type="button" id="wl-expand-all" class="btn btn-outline-secondary btn-sm">Expand all</button>
+            <button type="button" id="wl-collapse-all" class="btn btn-outline-secondary btn-sm">Collapse all</button>
+          </div>
         </div>
       </div>
     </div>
 
-    {% for group_name, wishlists in wishlists_grouped.items %}
-    <div class="wl-family-section">
+    {% if upcoming_birthdays %}
+    <div class="wl-family-section" data-group-label="Upcoming Birthdays">
 
-      <div class="wl-family-header">
-        <span class="wl-family-label">{{ group_name }}</span>
-        <span class="wl-count-badge">{{ wishlists|length }}</span>
+      <button type="button" class="wl-family-header wl-collapse-toggle" aria-expanded="true" aria-controls="wl-group-body-birthdays">
+        <span class="wl-family-label">🎂 Upcoming Birthdays</span>
+        <span class="wl-header-meta">
+          <span class="wl-count-badge">{{ upcoming_birthdays|length }}</span>
+          <svg class="wl-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </span>
+      </button>
+
+      <div class="wl-section-body" id="wl-group-body-birthdays">
+        {% for entry in upcoming_birthdays %}
+          {% if entry.wishlist_id %}
+          <a class="wl-list-row" href="{% url 'gift:wishlist_detail' entry.wishlist_id %}">
+          {% else %}
+          <div class="wl-list-row">
+          {% endif %}
+
+            <div class="wl-list-row-info">
+              <div class="wl-list-avatar">
+                {% if entry.user.first_name %}
+                  {{ entry.user.first_name|slice:":1"|upper }}{{ entry.user.last_name|slice:":1"|upper }}
+                {% else %}
+                  {{ entry.user.username|slice:":2"|upper }}
+                {% endif %}
+              </div>
+              <div>
+                <div class="wl-list-title">{{ entry.user.get_full_name|default:entry.user.username }}</div>
+                <div class="wl-list-birthday">{{ entry.user.birthday|date:"M j" }} · turns {{ entry.turning_age }}</div>
+              </div>
+            </div>
+
+            <div class="wl-list-row-right">
+              <span class="wl-list-meta">{% if entry.days_until == 0 %}today! 🎉{% else %}in {{ entry.days_until }} day{{ entry.days_until|pluralize }}{% endif %}</span>
+              {% if entry.wishlist_id %}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"
+                   style="color:var(--text-muted);flex-shrink:0;">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+              {% endif %}
+            </div>
+
+          {% if entry.wishlist_id %}
+          </a>
+          {% else %}
+          </div>
+          {% endif %}
+        {% endfor %}
       </div>
 
-      <div>
+    </div>
+    {% endif %}
+
+    {% for group_name, wishlists in wishlists_grouped.items %}
+    <div class="wl-family-section" data-group-label="{{ group_name }}">
+
+      <button type="button" class="wl-family-header wl-collapse-toggle" aria-expanded="true" aria-controls="wl-group-body-{{ forloop.counter }}">
+        <span class="wl-family-label">{{ group_name }}</span>
+        <span class="wl-header-meta">
+          <span class="wl-count-badge">{{ wishlists|length }}</span>
+          <svg class="wl-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </span>
+      </button>
+
+      <div class="wl-section-body" id="wl-group-body-{{ forloop.counter }}">
         {% for wishlist in wishlists %}
         <a class="wl-list-row" href="{% url 'gift:wishlist_detail' wishlist.id %}">
 
@@ -110,6 +181,85 @@
     {% empty %}
     <p style="color:var(--text-muted);margin-top:32px;">No wishlists available yet.</p>
     {% endfor %}
+
+    <script>
+    (function () {
+      'use strict';
+
+      // Collapsible wishlist groups. State is persisted per grouping mode +
+      // group label so switching "Group By" (a server round-trip) restores
+      // each grouping's own collapsed sections. Default with no stored
+      // state is expanded.
+      var STORAGE_PREFIX = 'giftwiki:collapsed:';
+      var page = document.querySelector('.wl-page[data-grouping]');
+      var toggles = Array.prototype.slice.call(document.querySelectorAll('.wl-collapse-toggle'));
+      if (!page || toggles.length === 0) {
+        return;
+      }
+      var grouping = page.getAttribute('data-grouping') || 'house';
+
+      function storageKey(section) {
+        return STORAGE_PREFIX + grouping + ':' + (section.getAttribute('data-group-label') || '');
+      }
+
+      function readCollapsed(section) {
+        try {
+          return window.localStorage.getItem(storageKey(section)) === '1';
+        } catch (e) {
+          return false;  // localStorage unavailable (e.g. private mode) — default expanded
+        }
+      }
+
+      function writeCollapsed(section, collapsed) {
+        try {
+          window.localStorage.setItem(storageKey(section), collapsed ? '1' : '0');
+        } catch (e) {
+          // Ignore: collapsing still works in-memory for this page view.
+        }
+      }
+
+      function applyState(toggle, collapsed) {
+        var body = document.getElementById(toggle.getAttribute('aria-controls'));
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        if (body) {
+          body.hidden = collapsed;
+        }
+      }
+
+      function setCollapsed(toggle, collapsed) {
+        applyState(toggle, collapsed);
+        var section = toggle.closest('.wl-family-section');
+        if (section) {
+          writeCollapsed(section, collapsed);
+        }
+      }
+
+      toggles.forEach(function (toggle) {
+        var section = toggle.closest('.wl-family-section');
+        if (section && readCollapsed(section)) {
+          applyState(toggle, true);
+        }
+        toggle.addEventListener('click', function () {
+          setCollapsed(toggle, toggle.getAttribute('aria-expanded') !== 'false');
+        });
+      });
+
+      function setAll(collapsed) {
+        toggles.forEach(function (toggle) {
+          setCollapsed(toggle, collapsed);
+        });
+      }
+
+      var expandAll = document.getElementById('wl-expand-all');
+      var collapseAll = document.getElementById('wl-collapse-all');
+      if (expandAll) {
+        expandAll.addEventListener('click', function () { setAll(false); });
+      }
+      if (collapseAll) {
+        collapseAll.addEventListener('click', function () { setAll(true); });
+      }
+    })();
+    </script>
 
   {% else %}
 

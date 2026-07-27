@@ -299,6 +299,25 @@ label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bo
   border-radius: 4px; padding: 1px 6px;
 }
 
+/* Collapsible group sections (home page) — the whole header row is the toggle */
+.wl-family-header.wl-collapse-toggle {
+  width: 100%;
+  background: none; border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 4px 4px 0 0;
+  padding: 10px 4px;
+  font-family: inherit;
+  cursor: pointer; text-align: left;
+}
+.wl-family-header.wl-collapse-toggle:hover { background: var(--bg-subtle); }
+.wl-family-header.wl-collapse-toggle:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 1px;
+}
+.wl-header-meta { display: inline-flex; align-items: center; gap: 8px; }
+.wl-chevron { color: var(--text-muted); flex-shrink: 0; transition: transform 150ms ease; }
+.wl-collapse-toggle[aria-expanded="false"] .wl-chevron { transform: rotate(-90deg); }
+.wl-section-body[hidden] { display: none; }
+
 /* Wishlist list row */
 .wl-list-row {
   background: var(--bg-surface); border: 1px solid var(--border);
