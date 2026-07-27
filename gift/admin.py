@@ -10,6 +10,7 @@ from import_export.admin import ImportExportModelAdmin
 from gift.models import (
     AllowedEmail,
     Category,
+    ChangelogEntry,
     Family,
     FeatureFlag,
     Item,
@@ -158,3 +159,17 @@ class ScrapedWikiItemAdmin(admin.ModelAdmin):
     list_filter = ['purchased', 'scraped_page', 'created_at']
     search_fields = ['name', 'description', 'original_text']
     readonly_fields = ['created_at']
+
+
+@admin.register(ChangelogEntry)
+class ChangelogEntryAdmin(admin.ModelAdmin):
+    list_display = ['title', 'published_at', 'is_active', 'seen_count']
+    list_filter = ['is_active']
+    search_fields = ['title']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('seen_by')
+
+    @admin.display(description='Seen by')
+    def seen_count(self, obj):
+        return obj.seen_by.count()
