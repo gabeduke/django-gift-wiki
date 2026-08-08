@@ -233,6 +233,9 @@ if os.getenv('DJANGO_DB_HOST'):
             'CONN_MAX_AGE': int(
                 os.getenv('DJANGO_DB_CONN_MAX_AGE', '0')
             ),  # 0 for serverless/Cloud Run to avoid closed connection errors
+            # Validate pooled connections before reuse, so Neon dropping idle SSL
+            # connections doesn't surface as request errors when CONN_MAX_AGE > 0.
+            'CONN_HEALTH_CHECKS': os.getenv('DJANGO_DB_CONN_HEALTH_CHECKS', 'True') == 'True',
         }
     }
 else:
