@@ -33,7 +33,9 @@ make run     # start dev server
 - **Static files** — WhiteNoise (not S3)
 - **Media/uploads** — S3 when `USE_S3=TRUE`, local filesystem otherwise
 - **Feature flags** — DB-first via `FeatureFlag` model (admin-togglable), env var fallback
-- **Monitoring** — Prometheus metrics middleware
+- **Monitoring** — Prometheus metrics middleware; database-error alerting via `terraform/monitoring.tf` (log-based, needs the `ALERT_EMAIL` GitHub secret)
+- **Neon quota** — Free plan allows **100 CU-hours/project/month**; exceeding it suspends the compute until the period resets (an outage, not a bill), and Free has no spending notifications. `.github/workflows/neon-quota.yml` polls consumption every 6h and opens an issue; it needs the `NEON_API_KEY` secret. Logic and thresholds live in `scripts/check_neon_quota.py`.
+- **Never poll a DB-backed endpoint on a schedule** — uptime checks or probes against `/health/db/` keep the Neon compute from suspending, which is what forced the paid plan (PR #93). Alerting here is passive/log-based for that reason.
 - **Health endpoints** — `/health/` is process liveness and does **no** DB query; `/health/db/` is the deep DB connectivity check. Probes and uptime monitors must use `/health/`. Polling `/health/db/` more often than Neon's autosuspend timeout keeps the compute awake and burns the compute-hour allowance.
 - **Deployment** — Cloud Run (primary) via Terraform + GitHub Actions; Kubernetes manifests in `deploy/` are k3s reference/backup only
 - **Terraform state** — Remote backend in GCS bucket `wikileet-terraform-state`

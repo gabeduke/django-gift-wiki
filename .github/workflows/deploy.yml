@@ -77,6 +77,10 @@ jobs:
           echo "TF_VAR_secret_values=$TF_VAR_secret_values" >> $GITHUB_ENV
 
       - name: Apply Terraform (prod)
+        env:
+          # Kept out of prod.tfvars because this repository is public.
+          # Empty disables database alerting; see terraform/monitoring.tf.
+          TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
         run: |
           make terraform-init ENV=prod
           cd terraform
