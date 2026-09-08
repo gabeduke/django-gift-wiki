@@ -209,3 +209,45 @@ class TestStorageAndEgress:
 
         assert result.level == OK
         assert result.pct_storage == pytest.approx(6.4, rel=0.05)
+
+
+@pytest.mark.unit
+class TestShortWindowNoise:
+    """The activity ratio is a rate, so it needs a meaningful window.
+
+    A consumption period resets monthly — and on any plan change — after which
+    a single CI deploy or an operator running a few queries dominates the ratio.
+    The projection already guards against this; the activity signal must too, or
+    every period reset produces a spurious alert.
+    """
+
+    def test_high_activity_does_not_alert_early_in_the_period(self):
+        """Real false positive from the first manual run, 2026-09-08: 1.6h after
+        the period reset, three CI deploys and some operator queries put the
+        ratio at 0.312 and raised a WARN. Nothing was actually wrong."""
+        result = evaluate_quota(
+            cpu_used_sec=0.13 * 3600,
+            active_time_seconds=0.312 * 1.6 * 3600,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            now=PERIOD_START + timedelta(hours=1.6),
+            storage_bytes=34_250_752,
+            egress_bytes=104_857,
+        )
+
+        assert result.level == OK
+        # still reported, just not alerted on — the number is useful context
+        assert result.active_ratio == pytest.approx(0.312, rel=0.01)
+
+    def test_the_same_activity_alerts_once_the_window_is_long_enough(self):
+        elapsed = timedelta(hours=12)
+        result = evaluate_quota(
+            cpu_used_sec=0,
+            active_time_seconds=elapsed.total_seconds() * 0.312,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            now=PERIOD_START + elapsed,
+        )
+
+        assert result.level == WARN
+        assert any('active' in r.lower() for r in result.reasons)

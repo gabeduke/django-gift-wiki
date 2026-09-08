@@ -56,9 +56,14 @@ FREE_TIER_EGRESS_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB
 WARN_PCT = 50.0
 CRITICAL_PCT = 80.0
 
-# Ignore the projection until this much of the period has elapsed. A burst in
-# the first minutes of a period extrapolates to an absurd number otherwise.
-MIN_PROJECTION_HOURS = 6.0
+# Both the projection and the activity ratio are rates, so they need a
+# meaningful window before they mean anything. A consumption period resets
+# monthly — and on any plan change — after which a single CI deploy or a few
+# operator queries dominate the numerator: the projection extrapolates to an
+# absurd figure and the activity ratio spikes. Neither is alerted on until this
+# much of the period has elapsed. Both are still reported; they are useful
+# context even when they are too noisy to act on.
+MIN_RATE_WINDOW_HOURS = 6.0
 
 # Share of wall-clock time computes may be awake before we consider it a
 # regression. Summed across every endpoint in the project, so a value near 1.0
@@ -142,7 +147,7 @@ def evaluate_quota(
     pct_used = (cu_hours_used / allowance * 100.0) if allowance else 0.0
 
     projected = None
-    if elapsed_hours >= MIN_PROJECTION_HOURS and period_seconds > 0:
+    if elapsed_hours >= MIN_RATE_WINDOW_HOURS and period_seconds > 0:
         projected = cu_hours_used * (period_seconds / elapsed_seconds)
 
     active_ratio = (active_time_seconds / elapsed_seconds) if elapsed_seconds > 0 else None
@@ -185,7 +190,11 @@ def evaluate_quota(
             f'{allowance:.0f} CU-hour allowance'
         )
 
-    if active_ratio is not None and active_ratio >= ACTIVE_RATIO_WARN:
+    if (
+        active_ratio is not None
+        and elapsed_hours >= MIN_RATE_WINDOW_HOURS
+        and active_ratio >= ACTIVE_RATIO_WARN
+    ):
         level = max(level, Level.WARN)
         reasons.append(
             f'compute active {active_ratio * 100:.0f}% of elapsed time — expected '
