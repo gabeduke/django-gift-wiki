@@ -34,6 +34,7 @@ make run     # start dev server
 - **Media/uploads** — S3 when `USE_S3=TRUE`, local filesystem otherwise
 - **Feature flags** — DB-first via `FeatureFlag` model (admin-togglable), env var fallback
 - **Monitoring** — Prometheus metrics middleware
+- **Health endpoints** — `/health/` is process liveness and does **no** DB query; `/health/db/` is the deep DB connectivity check. Probes and uptime monitors must use `/health/`. Polling `/health/db/` more often than Neon's autosuspend timeout keeps the compute awake and burns the compute-hour allowance.
 - **Deployment** — Cloud Run (primary) via Terraform + GitHub Actions; Kubernetes manifests in `deploy/` are k3s reference/backup only
 - **Terraform state** — Remote backend in GCS bucket `wikileet-terraform-state`
 - **CI/CD** — GitHub Actions: `deploy.yml` (prod, triggers on push to `main`), `deploy-dev.yml` (dev, triggers on PRs)

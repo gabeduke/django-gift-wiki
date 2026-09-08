@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db.utils import OperationalError
 from django.http import HttpResponseServerError
 
 User = get_user_model()
@@ -15,6 +16,53 @@ class TestHealthCheckMiddleware:
         response = client.get('/health/')
         assert response.status_code == 200
         assert response.content == b'ok'
+
+    def test_health_endpoint_does_not_query_the_database(
+        self, client, db, django_assert_num_queries
+    ):
+        """Liveness must not touch the DB.
+
+        Every probe hit was running `SELECT 1`, which resets Neon's autosuspend
+        timer and pins the compute awake 24/7.
+        """
+        with django_assert_num_queries(0):
+            response = client.get('/health/')
+
+        assert response.status_code == 200
+        assert response.content == b'ok'
+
+    def test_health_endpoint_stays_up_when_database_is_unreachable(self, client):
+        """A dead DB means degraded, not dead. Liveness must still report ok."""
+        with patch(
+            'gift.middleware.healthcheck.connections.__getitem__',
+            side_effect=OperationalError('could not connect to server'),
+        ):
+            response = client.get('/health/')
+
+        assert response.status_code == 200
+        assert response.content == b'ok'
+
+
+@pytest.mark.unit
+class TestDatabaseHealthCheckMiddleware:
+    def test_db_health_endpoint_returns_200_when_database_reachable(
+        self, client, db, django_assert_num_queries
+    ):
+        with django_assert_num_queries(1):
+            response = client.get('/health/db/')
+
+        assert response.status_code == 200
+        assert response.content == b'ok'
+
+    def test_db_health_endpoint_returns_500_when_database_unreachable(self, client):
+        with patch(
+            'gift.middleware.healthcheck.connections.__getitem__',
+            side_effect=OperationalError('could not connect to server'),
+        ):
+            response = client.get('/health/db/')
+
+        assert response.status_code == 500
+        assert b'Database check failed' in response.content
 
 
 @pytest.mark.unit
