@@ -178,6 +178,7 @@
                                     <th>Description</th>
                                     <th style="width: 140px;">Price</th>
                                     <th style="width: 50px;">✓</th>
+                                    <th style="width: 50px;" title="Most wanted">⭐</th>
                                     {% if wishlist.family_name %}
                                     <th style="min-width: 150px;">Category</th>
                                     {% endif %}
@@ -207,6 +208,9 @@
                                     </td>
                                     <td class="text-center">
                                         {{ form.purchased }}
+                                    </td>
+                                    <td class="text-center" title="Most wanted">
+                                        {{ form.is_priority }}
                                     </td>
                                     {% if wishlist.family_name %}
                                     <td>
@@ -267,6 +271,7 @@
             price_range: `{{ form.price_range.value|default_if_none:''|escapejs }}`,
             url: `{{ form.url.value|default_if_none:''|escapejs }}`,
             purchased: {{ form.purchased.value|yesno:"true,false" }},
+            is_priority: {{ form.is_priority.value|yesno:"true,false" }},
         category: `{{ form.category.value|default_if_none:''|escapejs }}`,
         DELETE: {{ form.DELETE.value|yesno:"true,false" }},
         prefix: `{{ form.prefix }}`,
@@ -321,6 +326,7 @@
             price_range: '',
             url: '',
             purchased: false,
+            is_priority: false,
             category: '',
             DELETE: false,
             prefix: `${formPrefix}-${newIndex}`,
@@ -416,6 +422,7 @@
                                 <th>Description</th>
                                 <th style="width: 140px;">Price</th>
                                 <th style="width: 50px;">✓</th>
+                                <th style="width: 50px;" title="Most wanted">⭐</th>
                                 {% if wishlist.family_name %}
                                 <th style="min-width: 150px;">Category</th>
                                 {% endif %}
@@ -457,8 +464,12 @@
                                     </select>
                                 </td>
                                 <td class="text-center">
-                                    <input type="checkbox" class="form-check-input" 
+                                    <input type="checkbox" class="form-check-input"
                                            v-model="item.purchased" :name="item.prefix + '-purchased'">
+                                </td>
+                                <td class="text-center" title="Most wanted">
+                                    <input type="checkbox" class="form-check-input"
+                                           v-model="item.is_priority" :name="item.prefix + '-is_priority'">
                                 </td>
                                 {% if wishlist.family_name %}
                                 <td>
@@ -523,6 +534,13 @@
                                         <input type="checkbox" class="form-check-input" :id="'purchased-'+index"
                                                v-model="item.purchased" :name="item.prefix + '-purchased'">
                                         <label class="form-check-label small" :for="'purchased-'+index">Purchased?</label>
+                                    </div>
+                                </div>
+                                <div class="col-6 d-flex align-items-center">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" :id="'priority-'+index"
+                                               v-model="item.is_priority" :name="item.prefix + '-is_priority'">
+                                        <label class="form-check-label small" :for="'priority-'+index">⭐ Most wanted</label>
                                     </div>
                                 </div>
                             </div>

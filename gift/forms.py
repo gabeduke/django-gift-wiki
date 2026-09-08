@@ -151,7 +151,7 @@ def get_item_modelformset(wishlist):
     ItemModelFormSet = modelformset_factory(
         Item,
         form=ItemEditForm,
-        fields=['name', 'description', 'price', 'price_range', 'url', 'purchased'],
+        fields=['name', 'description', 'price', 'price_range', 'url', 'purchased', 'is_priority'],
         extra=0,  # Don't show empty forms
         can_delete=True,  # Allow deleting items
     )

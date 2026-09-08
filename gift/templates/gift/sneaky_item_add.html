@@ -1,0 +1,98 @@
+{% extends 'gift/base/base_generic.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="wl-page-narrow">
+
+  <a class="wl-back" href="{% url 'gift:wishlist_detail' wishlist.id %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    {{ wishlist.title }}
+  </a>
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">🤫 Add a Surprise Gift</h1>
+    <p class="wl-page-subtitle">
+      Adding to {{ wishlist.title }} — the list owner can't see this.
+      It will be revealed when they archive their received gifts.
+    </p>
+  </div>
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger mb-3">
+    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body" style="padding:24px;">
+      <form method="post">
+        {% csrf_token %}
+
+        {# Name #}
+        <div class="form-group">
+          <label for="{{ form.name.id_for_label }}">
+            {{ form.name.label }}
+            <span style="color:var(--brand);">*</span>
+          </label>
+          {{ form.name|add_class:"form-control"|attr:"placeholder:e.g. AirPods Pro" }}
+          {% for error in form.name.errors %}
+            <div class="text-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+
+        {# Description #}
+        <div class="form-group">
+          <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+          {{ form.description|add_class:"form-control"|attr:"rows:3"|attr:"placeholder:Color, size, model number, or any helpful notes…" }}
+          {% for error in form.description.errors %}
+            <div class="text-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+
+        {# Price + Price range — side by side on desktop #}
+        <div class="row">
+          <div class="col-sm-6">
+            <div class="form-group">
+              <label for="{{ form.price.id_for_label }}">{{ form.price.label }}</label>
+              {{ form.price|add_class:"form-control"|attr:"placeholder:29.99" }}
+              {% for error in form.price.errors %}
+                <div class="text-danger">{{ error }}</div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="col-sm-6">
+            <div class="form-group">
+              <label for="{{ form.price_range.id_for_label }}">{{ form.price_range.label }}</label>
+              {{ form.price_range|add_class:"form-control" }}
+              {% for error in form.price_range.errors %}
+                <div class="text-danger">{{ error }}</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        {# Product URL #}
+        <div class="form-group">
+          <label for="{{ form.url.id_for_label }}">{{ form.url.label }}</label>
+          {{ form.url|add_class:"form-control"|attr:"placeholder:https://…" }}
+          <small class="form-text">Optional — paste the product page link</small>
+          {% for error in form.url.errors %}
+            <div class="text-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button type="submit" class="btn btn-primary">Add Surprise Gift</button>
+          <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

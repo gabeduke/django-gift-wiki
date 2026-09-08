@@ -3,6 +3,7 @@ import logging
 import secrets
 import string
 from collections import defaultdict
+from datetime import date
 
 from django.conf import settings
 from django.contrib import messages
@@ -15,6 +16,7 @@ from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views import generic
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
@@ -31,7 +33,15 @@ from .forms import (
     UserProfileForm,
     WishListForm,
 )
-from .models import Category, Item, ScrapedWikiItem, ScrapedWikiPage, Season, WishList
+from .models import (
+    Category,
+    ChangelogEntry,
+    Item,
+    ScrapedWikiItem,
+    ScrapedWikiPage,
+    Season,
+    WishList,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -289,9 +299,58 @@ def item_add(request, wishlist_id):
     return render(request, 'gift/item_add.html', {'form': form, 'wishlist': wishlist})
 
 
+def get_item_visible_to_user(request, item_id):
+    """Fetch an item by id, 404ing on surprise items when the requester is the
+    list's owner/recipient — they must not learn the item exists."""
+    return get_object_or_404(
+        Item.objects.exclude(is_sneaky=True, wishlist__owner=request.user).exclude(
+            is_sneaky=True, wishlist__dependent=request.user
+        ),
+        id=item_id,
+    )
+
+
+@login_required
+def sneaky_item_add(request, wishlist_id):
+    """Add a surprise gift to someone else's list — hidden from the list owner."""
+    wishlist = get_object_or_404(WishList, id=wishlist_id)
+
+    # The list owner/recipient can never add surprise items to their own list
+    if request.user == wishlist.owner or request.user == wishlist.dependent:
+        logger.warning(
+            'Owner attempted to add a surprise item to their own list',
+            extra={'wishlist_id': wishlist_id, 'user': request.user.email},
+        )
+        messages.error(request, 'You cannot add surprise gifts to your own list.')
+        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+
+    if request.method == 'POST':
+        form = ItemForm(request.POST, wishlist=wishlist)
+        if form.is_valid():
+            item = form.save(commit=False, wishlist=wishlist, current_user=request.user)
+            item.is_sneaky = True
+            item.save()
+            logger.info(
+                'Surprise item added',
+                extra={
+                    'item_id': item.id,
+                    'wishlist_id': wishlist_id,
+                    'user': request.user.email,
+                },
+            )
+            messages.success(request, "Surprise gift added — the list owner can't see it. 🤫")
+            return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+        logger.error(f'Form validation errors: {form.errors}')
+        messages.error(request, 'Please correct the errors below.')
+    else:
+        form = ItemForm(wishlist=wishlist)
+
+    return render(request, 'gift/sneaky_item_add.html', {'form': form, 'wishlist': wishlist})
+
+
 @login_required
 def item_edit(request, item_id):
-    item = get_object_or_404(Item, id=item_id)
+    item = get_item_visible_to_user(request, item_id)
 
     # Business Rule: Only owner or managers can edit items
     is_owner = (request.user == item.wishlist.owner or request.user == item.wishlist.dependent)
@@ -331,7 +390,7 @@ def item_edit(request, item_id):
 @require_POST
 @login_required
 def item_delete(request, item_id):
-    item = get_object_or_404(Item, id=item_id)
+    item = get_item_visible_to_user(request, item_id)
 
     # Business Rule: Only owner or managers can delete items
     is_owner = (request.user == item.wishlist.owner or request.user == item.wishlist.dependent)
@@ -357,7 +416,7 @@ def item_delete(request, item_id):
 
 @login_required
 def item_purchase(request, item_id):
-    item = get_object_or_404(Item, id=item_id)
+    item = get_item_visible_to_user(request, item_id)
     wishlist = item.wishlist
 
     # Check if user is owner, steward, or manager
@@ -656,9 +715,20 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
 
 @login_required
 def profile(request):
+    # Profile lists are the viewer's own lists, so items shown there must exclude
+    # surprise items (and archived/deleted ones) to avoid spoiling them.
+    visible_items = models.Prefetch(
+        'items',
+        queryset=Item.objects.filter(
+            is_deleted=False, archived_at__isnull=True, is_sneaky=False
+        ),
+        to_attr='visible_items',
+    )
     # Get all lists where the user is the owner - optimize with select_related
-    wishlists = WishList.objects.filter(owner=request.user).select_related(
-        'family_name', 'owner', 'dependent'
+    wishlists = (
+        WishList.objects.filter(owner=request.user)
+        .select_related('family_name', 'owner', 'dependent')
+        .prefetch_related(visible_items)
     )
 
     # Optionally include wishlists where user is the steward (if feature enabled)
@@ -666,8 +736,10 @@ def profile(request):
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
     if STEWARD_PROXY_ENABLED:
-        stewarded = WishList.objects.filter(dependent=request.user).select_related(
-            'family_name', 'owner', 'dependent'
+        stewarded = (
+            WishList.objects.filter(dependent=request.user)
+            .select_related('family_name', 'owner', 'dependent')
+            .prefetch_related(visible_items)
         )
         wishlists = wishlists | stewarded
 
@@ -915,16 +987,84 @@ def get_grouping_strategies(seasons, request_user):
 
     return strategies
 
+
+def get_upcoming_birthdays(limit=5):
+    """
+    Return the next `limit` upcoming birthdays across all users with a birthday set
+    (managed/kid accounts are WikiUser rows, so they're included automatically),
+    ordered by days until the next occurrence. Today's birthday counts as upcoming
+    (days_until=0). Each entry is a dict with 'user', 'days_until', 'turning_age'
+    and 'wishlist_id' (None when the person has no wishlist to link to).
+    """
+    today = date.today()
+
+    def next_occurrence(birthday):
+        try:
+            next_birthday = birthday.replace(year=today.year)
+        except ValueError:
+            # Feb 29 birthdays are observed on Feb 28 in non-leap years
+            next_birthday = birthday.replace(year=today.year, day=28)
+        if next_birthday < today:
+            try:
+                next_birthday = birthday.replace(year=today.year + 1)
+            except ValueError:
+                next_birthday = birthday.replace(year=today.year + 1, day=28)
+        return next_birthday
+
+    upcoming = []
+    for user in User.objects.filter(birthday__isnull=False):
+        next_birthday = next_occurrence(user.birthday)
+        upcoming.append(
+            {
+                'user': user,
+                'days_until': (next_birthday - today).days,
+                'turning_age': next_birthday.year - user.birthday.year,
+                'wishlist_id': None,
+            }
+        )
+
+    upcoming.sort(key=lambda entry: (entry['days_until'], entry['user'].username))
+    upcoming = upcoming[:limit]
+
+    # Link each person to their most recently updated wishlist, using the same
+    # "person of the list" convention as the directory (dependent, else owner).
+    person_ids = {entry['user'].id for entry in upcoming}
+    if person_ids:
+        candidate_lists = (
+            WishList.objects.filter(
+                models.Q(owner_id__in=person_ids) | models.Q(dependent_id__in=person_ids)
+            )
+            .select_related('owner', 'dependent')
+            .order_by('-updated_at')
+        )
+        wishlist_by_person = {}
+        for wishlist in candidate_lists:
+            person = wishlist.dependent or wishlist.owner
+            if person.id in person_ids and person.id not in wishlist_by_person:
+                wishlist_by_person[person.id] = wishlist.id
+        for entry in upcoming:
+            entry['wishlist_id'] = wishlist_by_person.get(entry['user'].id)
+
+    return upcoming
+
+
 def home(request):
     # Only show wishlists if user is authenticated
     wishlists_grouped = {}
     current_grouping = 'house'
     grouping_options = []
+    upcoming_birthdays = []
+    unseen_changelog_entries = []
 
     if request.user.is_authenticated:
         # Prompt user to add birthday if missing
         if not request.user.birthday:
             messages.info(request, "Please add your birthday to your profile so others can organize gifts for you! 🎁")
+
+        # "What's new" card: active entries this user hasn't dismissed yet
+        unseen_changelog_entries = list(
+            ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user)
+        )
 
         # Fetch seasons once
         seasons = list(Season.objects.all())
@@ -948,24 +1088,43 @@ def home(request):
         else:
             current_grouping = request.session.get('wishlist_grouping')
             if not current_grouping or current_grouping not in strategies:
-                from datetime import date
                 if date.today().month in (11, 12):
                     current_grouping = 'christmas_exchange'
                 else:
                     current_grouping = 'house'
 
-        # Optimize query with select_related
-        wishlists = WishList.objects.select_related('family_name', 'owner', 'dependent').all()
+        # Optimize query with select_related; prefetch active (non-archived, non-deleted)
+        # items once so card counts don't leak surprise items to the list owner
+        wishlists = (
+            WishList.objects.select_related('family_name', 'owner', 'dependent')
+            .prefetch_related(
+                models.Prefetch(
+                    'items',
+                    queryset=Item.objects.filter(is_deleted=False, archived_at__isnull=True),
+                    to_attr='active_items',
+                )
+            )
+            .all()
+        )
         wishlists_grouped = defaultdict(list)
         strategy = strategies[current_grouping]
 
         for wishlist in wishlists:
+            if request.user == wishlist.owner or request.user == wishlist.dependent:
+                wishlist.card_item_count = sum(
+                    1 for item in wishlist.active_items if not item.is_sneaky
+                )
+            else:
+                wishlist.card_item_count = len(wishlist.active_items)
             group_key = strategy(wishlist)
             if group_key is not None:
                 wishlists_grouped[group_key].append(wishlist)
             
         # Sort the dictionary keys to have a predictable display order
         wishlists_grouped = dict(sorted(wishlists_grouped.items(), key=lambda item: str(item[0])))
+
+        # "What's coming up": next birthdays across all users (incl. managed accounts)
+        upcoming_birthdays = get_upcoming_birthdays(limit=5)
 
         # Check if logged in user needs to select a scraped page
         show_scraped_page_prompt = False
@@ -981,8 +1140,27 @@ def home(request):
         'current_grouping': current_grouping,
         'grouping_options': grouping_options,
         'show_scraped_page_prompt': show_scraped_page_prompt,
+        'upcoming_birthdays': upcoming_birthdays,
+        'unseen_changelog_entries': unseen_changelog_entries,
     }
     return render(request, 'gift/home.html', context)
+
+
+@login_required
+def changelog(request):
+    """Full "What's new" history — every active entry, newest first."""
+    entries = ChangelogEntry.objects.filter(is_active=True)
+    return render(request, 'gift/changelog.html', {'entries': entries})
+
+
+@require_POST
+@login_required
+def changelog_dismiss(request):
+    """Mark every currently-unseen active entry as seen by the current user."""
+    unseen = ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user)
+    for entry in unseen:
+        entry.seen_by.add(request.user)
+    return redirect('gift:home')
 
 
 @login_required
@@ -991,11 +1169,31 @@ def wishlist_detail(request, wishlist_id):
     wishlist = get_object_or_404(
         WishList.objects.select_related('owner', 'family_name', 'dependent'), id=wishlist_id
     )
+    # Check if user is owner, steward, or manager
+    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
+    from giftwiki.feature_flags import get_steward_proxy_enabled
+
+    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
+    is_steward = STEWARD_PROXY_ENABLED and request.user == wishlist.dependent
+    is_manager = request.user in wishlist.managers.all()
+    is_list_manager = is_owner or is_steward or is_manager
+    # Only the true owner archives purchased gifts — the reveal is their moment
+    can_archive = request.user == wishlist.owner
+
+    # List owners/managers should NOT see purchase information or be able to mark items as purchased
+    # Only other users can see and mark items as purchased
+
+    # Priority items first; id keeps a stable order within each group.
+    # Archived gifts live on the received-gifts page instead of the active list.
     items = (
-        wishlist.items.filter(is_deleted=False)
+        wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
         .select_related('purchased_by', 'updated_by')
         .prefetch_related('categories')
+        .order_by('-is_priority', 'id')
     )
+    # Surprise items never reach the owner/recipient's queryset at all
+    if is_owner:
+        items = items.exclude(is_sneaky=True)
 
     # Group items by category
     items_by_category = defaultdict(list)
@@ -1013,18 +1211,6 @@ def wishlist_detail(request, wishlist_id):
     # Sort categories by name alphabetically and create list of (category, items) tuples
     sorted_category_items = sorted(items_by_category.items(), key=lambda x: x[0].name.lower())
 
-    # Check if user is owner, steward, or manager
-    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
-    from giftwiki.feature_flags import get_steward_proxy_enabled
-
-    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
-    is_steward = STEWARD_PROXY_ENABLED and request.user == wishlist.dependent
-    is_manager = request.user in wishlist.managers.all()
-    is_list_manager = is_owner or is_steward or is_manager
-
-    # List owners/managers should NOT see purchase information or be able to mark items as purchased
-    # Only other users can see and mark items as purchased
-
     total_count = len(items)
     purchased_count = sum(1 for item in items if item.purchased)
 
@@ -1040,6 +1226,7 @@ def wishlist_detail(request, wishlist_id):
                 'is_steward': is_steward,
                 'is_manager': is_manager,
                 'is_list_manager': is_list_manager,
+                'can_archive': can_archive,
                 'total_count': total_count,
                 'purchased_count': purchased_count,
             },
@@ -1049,6 +1236,69 @@ def wishlist_detail(request, wishlist_id):
 
         logger.error(f'Error rendering wishlist_detail: {e}\n{traceback.format_exc()}')
         raise
+
+
+@login_required
+def my_purchases(request):
+    """Show every item the current user has marked as purchased, grouped by wishlist."""
+    from decimal import Decimal
+
+    items = (
+        Item.objects.filter(purchased_by=request.user, is_deleted=False)
+        .select_related('wishlist', 'wishlist__owner', 'wishlist__dependent')
+        .order_by('-updated_at')
+    )
+
+    # Group by wishlist. Items are ordered most-recently-updated first, so groups
+    # are headed by the wishlist with the most recent purchase and items within
+    # each group are most recent first as well.
+    purchases_by_wishlist = defaultdict(list)
+    total_spend = Decimal('0.00')
+    for item in items:
+        purchases_by_wishlist[item.wishlist].append(item)
+        if item.price is not None:
+            total_spend += item.price
+
+    context = {
+        'purchases_by_wishlist': purchases_by_wishlist.items(),
+        'total_spend': total_spend,
+        'total_count': len(items),
+    }
+    return render(request, 'gift/my_purchases.html', context)
+
+
+@login_required
+def received_gifts(request):
+    """The owner's archive of received gifts, grouped by year (newest first)."""
+    items = (
+        Item.objects.filter(wishlist__owner=request.user, archived_at__isnull=False)
+        .select_related('wishlist', 'purchased_by')
+        .order_by('-archived_at', '-id')
+    )
+
+    gifts_by_year = defaultdict(list)
+    for item in items:
+        gifts_by_year[item.archived_at.year].append(item)
+    # Newest year first; items within each year are already newest-first
+    gifts_by_year = sorted(gifts_by_year.items(), key=lambda pair: pair[0], reverse=True)
+
+    context = {
+        'gifts_by_year': gifts_by_year,
+        'total_count': len(items),
+    }
+    return render(request, 'gift/received_gifts.html', context)
+
+
+@require_POST
+@login_required
+def item_thank_you_toggle(request, item_id):
+    """Flip the thank-you-sent flag on an archived gift (owner only, 404 otherwise)."""
+    item = get_object_or_404(
+        Item, id=item_id, wishlist__owner=request.user, archived_at__isnull=False
+    )
+    item.thank_you_sent = not item.thank_you_sent
+    item.save(current_user=request.user)
+    return redirect('gift:received_gifts')
 
 
 @login_required
@@ -1067,8 +1317,11 @@ def wishlist_edit(request, wishlist_id):
         messages.error(request, 'You can only edit wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
-    # Get existing items
-    items = wishlist.items.filter(is_deleted=False)
+    # Get existing items — archived gifts live on the received-gifts page instead
+    items = wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
+    # Surprise items stay hidden from the owner/recipient; managers may see them
+    if is_owner:
+        items = items.exclude(is_sneaky=True)
 
     # Create wishlist form for editing title and other wishlist fields
     from .forms import WishListForm
@@ -1227,6 +1480,45 @@ def wishlist_clear_purchased(request, wishlist_id):
         messages.info(request, 'No purchased items to clear.')
 
     return redirect('gift:edit_wishlist', wishlist_id=wishlist.id)
+
+
+@require_POST
+@login_required
+def wishlist_archive_purchased(request, wishlist_id):
+    """Move purchased gifts to the owner's received-gifts archive, revealing surprises."""
+    wishlist = get_object_or_404(WishList, id=wishlist_id)
+
+    # Owner only — the reveal is the owner's moment; managers don't get this button
+    if request.user != wishlist.owner:
+        logger.warning(
+            'Unauthorized wishlist archive attempt',
+            extra={'wishlist_id': wishlist_id, 'user': request.user.email},
+        )
+        messages.error(request, 'Only the list owner can archive received gifts.')
+        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+
+    purchased_items = wishlist.items.filter(
+        purchased=True, is_deleted=False, archived_at__isnull=True
+    )
+    count = purchased_items.count()
+    if count:
+        now = timezone.now()
+        for item in purchased_items:
+            item.archived_at = now
+            item.is_sneaky = False  # Reveal surprises once the gift is received
+            item.save(current_user=request.user)
+        logger.info(
+            'Wishlist purchased gifts archived',
+            extra={'wishlist_id': wishlist_id, 'count': count, 'user': request.user.email},
+        )
+        messages.success(
+            request,
+            f'{count} gift{"s" if count != 1 else ""} moved to your received gifts.',
+        )
+    else:
+        messages.info(request, 'No purchased gifts to archive yet.')
+
+    return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
 
 @require_POST

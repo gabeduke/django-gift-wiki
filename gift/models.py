@@ -237,6 +237,10 @@ class Item(models.Model):
         name (CharField): The name of the Item
         description (TextField): The description of the Item
         purchased (BooleanField): The status of the Item
+        is_priority (BooleanField): Whether the owner marked this as a most-wanted item
+        is_sneaky (BooleanField): Whether this is a surprise item hidden from the list owner
+        archived_at (DateTimeField): When the owner moved this received gift to the archive
+        thank_you_sent (BooleanField): Whether the owner sent a thank-you for this gift
         price (DecimalField): The price of the Item
         price_range (CharField): A price range category for the item
         created_at (DateTimeField): The date and time the Item was created
@@ -255,6 +259,21 @@ class Item(models.Model):
     name = models.CharField(max_length=255)  # Required field - no default
     description = models.TextField(blank=True)
     purchased = models.BooleanField(default=False)
+    is_priority = models.BooleanField(
+        default=False, help_text='Mark as one of your most-wanted items'
+    )
+    is_sneaky = models.BooleanField(
+        default=False,
+        help_text='Surprise item added by someone else — hidden from the list owner',
+    )
+    archived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the owner moved this received gift to their archive',
+    )
+    thank_you_sent = models.BooleanField(
+        default=False, help_text='Whether the owner sent a thank-you for this gift'
+    )
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     price_range = models.CharField(
         max_length=20,
@@ -483,3 +502,30 @@ class Season(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ChangelogEntry(models.Model):
+    """
+    A "What's new" announcement. Unseen active entries are shown on the home
+    page until the user dismisses them (which adds them to seen_by).
+    """
+
+    slug = models.SlugField(unique=True)
+    title = models.CharField(max_length=120)
+    body = models.TextField(help_text='Plain text, one or two friendly sentences')
+    published_at = models.DateField()
+    is_active = models.BooleanField(default=True)
+    seen_by = models.ManyToManyField(
+        WikiUser,
+        blank=True,
+        related_name='seen_changelog_entries',
+        help_text='Users who have dismissed this entry',
+    )
+
+    class Meta:
+        ordering = ['-published_at', '-id']
+        verbose_name = 'Changelog Entry'
+        verbose_name_plural = 'Changelog Entries'
+
+    def __str__(self):
+        return self.title

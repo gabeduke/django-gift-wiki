@@ -7,32 +7,47 @@ from django.http import HttpResponse, HttpResponseServerError
 db_logger = logging.getLogger('django.db.backends')
 logger = logging.getLogger(__name__)
 
+LIVENESS_PATH = '/health/'
+READINESS_PATH = '/health/db/'
+
 
 class HealthCheckMiddleware:
+    """Serve the liveness and readiness endpoints.
+
+    `/health/` answers "is this process up?" and deliberately does not touch the
+    database. Probes hit it every few seconds, and running `SELECT 1` on each hit
+    kept resetting Neon's autosuspend timer — the compute never slept, which is
+    what put the project on a paid plan.
+
+    `/health/db/` is the real connectivity check. Poll it sparingly: anything
+    more frequent than Neon's suspend timeout holds the compute awake again.
+    """
+
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if request.path == '/health/':
-            # Temporarily suppress SQL query logging for health checks to reduce log noise
-            # Health checks run every 5 seconds (readiness) and 20 seconds (liveness)
-            old_level = db_logger.level
-            try:
-                # Suppress DEBUG level logs (which include SQL queries) for health checks
-                db_logger.setLevel(logging.WARNING)
-
-                # Check database connection
-                connection = connections['default']
-                with connection.cursor() as cursor:
-                    cursor.execute('SELECT 1')
-
-                return HttpResponse('ok')
-            except Exception as e:
-                # Log the actual error for debugging (but don't expose details in response)
-                logger.error(f'Health check failed: {type(e).__name__}: {str(e)}', exc_info=True)
-                # If any exception occurred while checking the database, return a server error
-                return HttpResponseServerError('Database check failed')
-            finally:
-                # Always restore the original logging level
-                db_logger.setLevel(old_level)
+        if request.path == LIVENESS_PATH:
+            return HttpResponse('ok')
+        if request.path == READINESS_PATH:
+            return self._check_database()
         return self.get_response(request)
+
+    def _check_database(self):
+        # Temporarily suppress SQL query logging to keep the check out of the logs
+        old_level = db_logger.level
+        try:
+            db_logger.setLevel(logging.WARNING)
+
+            connection = connections['default']
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT 1')
+
+            return HttpResponse('ok')
+        except Exception as e:
+            # Log the actual error for debugging (but don't expose details in response)
+            logger.error(f'Health check failed: {type(e).__name__}: {str(e)}', exc_info=True)
+            return HttpResponseServerError('Database check failed')
+        finally:
+            # Always restore the original logging level
+            db_logger.setLevel(old_level)

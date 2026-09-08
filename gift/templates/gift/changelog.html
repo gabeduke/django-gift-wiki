@@ -1,0 +1,47 @@
+{% extends 'gift/base/base_generic.html' %}
+
+{% block content %}
+<div class="wl-page">
+
+  {# Back link #}
+  <a class="wl-back" href="{% url 'gift:home' %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    All Lists
+  </a>
+
+  {# Page header #}
+  <div class="wl-page-header">
+    <div class="wl-page-header-row">
+      <div>
+        <h1 class="wl-page-title">What's New</h1>
+        <p class="wl-page-subtitle">Recent updates to your family's gift wiki.</p>
+      </div>
+    </div>
+  </div>
+
+  {% if entries %}
+    <div class="wl-cat-section">
+      {% for entry in entries %}
+      <div class="wl-item-row">
+        <div class="wl-item-main">
+          <div class="wl-item-name">
+            <span>{{ entry.title }}</span>
+            <span class="wl-changelog-date">{{ entry.published_at|date:"M j, Y" }}</span>
+          </div>
+          <div class="wl-item-desc">{{ entry.body }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div style="text-align:center;padding:56px 24px;color:var(--text-muted);">
+      <p style="font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Nothing here yet</p>
+      <p style="font-size:13px;">New features and updates will be announced on this page.</p>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}
