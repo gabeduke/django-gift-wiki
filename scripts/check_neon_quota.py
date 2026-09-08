@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Check Neon free-tier consumption and report how close we are to throttling.
 
-The Free plan allows 100 CU-hours per project per month. Exceeding it suspends
-the compute until the next billing period — that is downtime, not an overage
-charge — and the Free plan has no spending notifications, so nothing warns us.
+The Free plan has three per-project monthly limits, each of which takes the site
+down in its own way, and none of which Neon warns about (spending notifications
+are a paid feature):
 
-Three signals, because they fail differently:
+  compute  100 CU-hours   exceeding it suspends the database until the period
+                          resets — downtime, not an overage charge
+  storage  0.5 GB         exceeding it makes writes start failing
+  egress   5 GB           exceeding it suspends the database
+
+Five signals, because they fail differently:
 
   usage       absolute CU-hours consumed this period
+  storage     share of the 0.5 GB cap in use
+  egress      share of the 5 GB transfer allowance in use
   projection  period-to-date burn rate extrapolated to the period end, which
               catches a rising rate long before the absolute number looks bad
   activity    share of wall-clock time a compute has been awake. This is the
@@ -36,8 +43,14 @@ from datetime import UTC, datetime
 
 NEON_API = 'https://console.neon.tech/api/v2'
 
-# Free plan: 100 CU-hours per project per month.
+# Free plan, per project per month. Each of these takes the site down in its
+# own way, so all three are checked:
+#   compute  exceeding it suspends the compute until the period resets
+#   storage  exceeding it makes writes (insert/update/delete) start failing
+#   egress   exceeding it suspends the compute, same as running out of compute
 FREE_TIER_CU_HOURS = 100.0
+FREE_TIER_STORAGE_BYTES = 512 * 1024 * 1024  # 0.5 GB
+FREE_TIER_EGRESS_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB
 
 # Alert when absolute usage crosses these shares of the allowance.
 WARN_PCT = 50.0
@@ -73,6 +86,10 @@ class QuotaResult:
     projected_cu_hours: float | None
     active_ratio: float | None
     elapsed_hours: float
+    storage_bytes: int = 0
+    pct_storage: float = 0.0
+    egress_bytes: int = 0
+    pct_egress: float = 0.0
     reasons: list[str] = field(default_factory=list)
 
     def as_dict(self):
@@ -86,8 +103,20 @@ class QuotaResult:
             ),
             'active_ratio': (None if self.active_ratio is None else round(self.active_ratio, 3)),
             'elapsed_hours': round(self.elapsed_hours, 1),
+            'storage_mb': round(self.storage_bytes / 1024 / 1024, 1),
+            'pct_storage': round(self.pct_storage, 1),
+            'egress_mb': round(self.egress_bytes / 1024 / 1024, 1),
+            'pct_egress': round(self.pct_egress, 1),
             'reasons': self.reasons,
         }
+
+
+def _threshold_level(pct: float) -> Level:
+    if pct >= CRITICAL_PCT:
+        return Level.CRITICAL
+    if pct >= WARN_PCT:
+        return Level.WARN
+    return Level.OK
 
 
 def evaluate_quota(
@@ -97,6 +126,8 @@ def evaluate_quota(
     period_end: datetime,
     now: datetime,
     allowance: float = FREE_TIER_CU_HOURS,
+    storage_bytes: int = 0,
+    egress_bytes: int = 0,
 ) -> QuotaResult:
     """Turn raw Neon consumption counters into an alert level.
 
@@ -116,21 +147,36 @@ def evaluate_quota(
 
     active_ratio = (active_time_seconds / elapsed_seconds) if elapsed_seconds > 0 else None
 
+    pct_storage = (storage_bytes / FREE_TIER_STORAGE_BYTES * 100.0) if storage_bytes else 0.0
+    pct_egress = (egress_bytes / FREE_TIER_EGRESS_BYTES * 100.0) if egress_bytes else 0.0
+
     level = Level.OK
     reasons: list[str] = []
 
-    if pct_used >= CRITICAL_PCT:
-        level = max(level, Level.CRITICAL)
-        reasons.append(
-            f'{pct_used:.1f}% of the {allowance:.0f} CU-hour allowance used '
-            f'({cu_hours_used:.1f} CU-hours)'
-        )
-    elif pct_used >= WARN_PCT:
-        level = max(level, Level.WARN)
-        reasons.append(
-            f'{pct_used:.1f}% of the {allowance:.0f} CU-hour allowance used '
-            f'({cu_hours_used:.1f} CU-hours)'
-        )
+    def note(pct: float, message: str):
+        nonlocal level
+        crossed = _threshold_level(pct)
+        if crossed > Level.OK:
+            level = max(level, crossed)
+            reasons.append(message)
+
+    note(
+        pct_used,
+        f'{pct_used:.1f}% of the {allowance:.0f} CU-hour compute allowance used '
+        f'({cu_hours_used:.1f} CU-hours) — over it, the compute is suspended '
+        f'until the period resets',
+    )
+    note(
+        pct_storage,
+        f'{pct_storage:.1f}% of the {FREE_TIER_STORAGE_BYTES / 1024 / 1024:.0f} MB storage '
+        f'limit used ({storage_bytes / 1024 / 1024:.0f} MB) — over it, writes start failing',
+    )
+    note(
+        pct_egress,
+        f'{pct_egress:.1f}% of the {FREE_TIER_EGRESS_BYTES / 1024 / 1024 / 1024:.0f} GB egress '
+        f'allowance used ({egress_bytes / 1024 / 1024:.0f} MB) — over it, the compute is '
+        f'suspended',
+    )
 
     if projected is not None and projected >= allowance:
         level = max(level, Level.WARN)
@@ -154,6 +200,10 @@ def evaluate_quota(
         projected_cu_hours=projected,
         active_ratio=active_ratio,
         elapsed_hours=elapsed_hours,
+        storage_bytes=storage_bytes,
+        pct_storage=pct_storage,
+        egress_bytes=egress_bytes,
+        pct_egress=pct_egress,
         reasons=reasons,
     )
 
@@ -197,6 +247,8 @@ def main(argv=None):
         period_start=_parse_ts(project['consumption_period_start']),
         period_end=_parse_ts(project['consumption_period_end']),
         now=datetime.now(UTC),
+        storage_bytes=project.get('synthetic_storage_size', 0),
+        egress_bytes=project.get('data_transfer_bytes', 0),
     )
 
     if args.json:
@@ -209,6 +261,12 @@ def main(argv=None):
         )
         if result.projected_cu_hours is not None:
             print(f'  projected by period end: {result.projected_cu_hours:.0f} CU-hours')
+        print(
+            f'  storage: {result.storage_bytes / 1024 / 1024:.0f} MB '
+            f'({result.pct_storage:.1f}% of limit)   '
+            f'egress: {result.egress_bytes / 1024 / 1024:.0f} MB '
+            f'({result.pct_egress:.1f}% of allowance)'
+        )
         if result.active_ratio is not None:
             print(f'  compute active: {result.active_ratio * 100:.1f}% of elapsed time')
         for reason in result.reasons:

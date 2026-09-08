@@ -9,7 +9,15 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from scripts.check_neon_quota import CRITICAL, OK, WARN, WARN_PCT, evaluate_quota
+from scripts.check_neon_quota import (
+    CRITICAL,
+    FREE_TIER_EGRESS_BYTES,
+    FREE_TIER_STORAGE_BYTES,
+    OK,
+    WARN,
+    WARN_PCT,
+    evaluate_quota,
+)
 
 PERIOD_START = datetime(2026, 9, 1, tzinfo=UTC)
 PERIOD_END = datetime(2026, 10, 1, tzinfo=UTC)
@@ -138,3 +146,66 @@ class TestAgainstTheRealIncident:
         assert result.active_ratio == pytest.approx(1.03, rel=0.02)
         assert result.level == WARN
         assert len(result.reasons) == 2
+
+
+@pytest.mark.unit
+class TestStorageAndEgress:
+    """Compute hours are not the only free-tier limit that takes the site down.
+
+    Storage over 0.5 GB/project makes writes fail; egress over 5 GB/project
+    suspends the compute the same way exhausting CU-hours does.
+    """
+
+    def test_warns_when_storage_is_half_the_cap(self):
+        result = evaluate_quota(
+            cpu_used_sec=0,
+            active_time_seconds=0,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            now=PERIOD_START + timedelta(days=10),
+            storage_bytes=int(FREE_TIER_STORAGE_BYTES * 0.55),
+        )
+
+        assert result.level == WARN
+        assert any('storage' in r.lower() for r in result.reasons)
+
+    def test_critical_when_storage_is_nearly_full(self):
+        result = evaluate_quota(
+            cpu_used_sec=0,
+            active_time_seconds=0,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            now=PERIOD_START + timedelta(days=10),
+            storage_bytes=int(FREE_TIER_STORAGE_BYTES * 0.85),
+        )
+
+        assert result.level == CRITICAL
+        assert any('storage' in r.lower() for r in result.reasons)
+
+    def test_warns_when_egress_approaches_the_cap(self):
+        result = evaluate_quota(
+            cpu_used_sec=0,
+            active_time_seconds=0,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            now=PERIOD_START + timedelta(days=10),
+            egress_bytes=int(FREE_TIER_EGRESS_BYTES * 0.6),
+        )
+
+        assert result.level == WARN
+        assert any('egress' in r.lower() or 'transfer' in r.lower() for r in result.reasons)
+
+    def test_current_real_usage_is_nowhere_near_any_cap(self):
+        """Actual gift-wiki figures: 33 MB stored, 24 MB egress."""
+        result = evaluate_quota(
+            cpu_used_sec=0,
+            active_time_seconds=0,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            now=PERIOD_START + timedelta(days=10),
+            storage_bytes=34_250_752,
+            egress_bytes=24_985_788,
+        )
+
+        assert result.level == OK
+        assert result.pct_storage == pytest.approx(6.4, rel=0.05)
