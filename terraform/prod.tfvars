@@ -30,6 +30,10 @@ secret_names = [
   "aws-secret-access-key"
 ]
 
+# Alert email is passed via TF_VAR_alert_email (set from the ALERT_EMAIL
+# GitHub secret) rather than committed — this repository is public.
+# Empty disables database alerting entirely. See terraform/monitoring.tf.
+
 # Secret values are passed via TF_VAR_secret_values env var (not stored in VCS)
 # For local dev, create a terraform/secrets.auto.tfvars file with:
 #   secret_values = { "django-secret-key" = "...", ... }

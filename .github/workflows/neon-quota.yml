@@ -1,0 +1,114 @@
+name: Neon quota watch
+
+# The Neon Free plan gives 100 CU-hours per project per month. Going over
+# suspends the compute until the next billing period — downtime, not a bill —
+# and Free has no spending notifications, so this workflow is the only warning.
+#
+# Setup: add a NEON_API_KEY repository secret (Neon console → Account settings →
+# API keys). The project id is not a credential and is set below.
+
+on:
+  schedule:
+    - cron: '17 */6 * * *' # every 6 hours, off the hour to avoid the rush
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  NEON_PROJECT_ID: polished-bonus-40156660
+  ALERT_TITLE: 'Neon quota alert: compute usage approaching the free-tier limit'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Neon consumption
+        id: check
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          set +e
+          python scripts/check_neon_quota.py --json > result.json
+          status=$?
+          set -e
+          cat result.json
+
+          # A monitor that fails silently is worse than no monitor: if the
+          # script could not produce a reading (bad key, API down, network),
+          # surface that as its own alert rather than reporting nothing.
+          if ! jq -e 'has("level")' result.json >/dev/null 2>&1; then
+            echo "level=ERROR" >> "$GITHUB_OUTPUT"
+            {
+              echo 'report<<REPORT_EOF'
+              echo "The quota check could not read Neon consumption (script exited $status)."
+              echo "Usage is therefore **unknown**, not necessarily healthy."
+              echo "Check the NEON_API_KEY secret and the workflow run log."
+              echo REPORT_EOF
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "level=$(jq -r '.level' result.json)" >> "$GITHUB_OUTPUT"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          {
+            echo 'report<<REPORT_EOF'
+            jq -r '
+              "| metric | value |",
+              "|---|---|",
+              "| CU-hours used | \(.cu_hours_used) / \(.allowance) (\(.pct_used)%) |",
+              "| projected by period end | \(.projected_cu_hours // "n/a") |",
+              "| compute active | \(if .active_ratio == null then "n/a" else (.active_ratio * 100 | floor | tostring) + "% of elapsed" end) |",
+              "| elapsed this period | \(.elapsed_hours)h |",
+              "",
+              "**Findings**",
+              (.reasons[] | "- \(.)")
+            ' result.json
+            echo REPORT_EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the alert issue
+        if: steps.check.outputs.level != 'OK'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEVEL: ${{ steps.check.outputs.level }}
+          REPORT: ${{ steps.check.outputs.report }}
+        run: |
+          body=$(printf '%s\n\n%s\n\n%s\n' \
+            "Automated check from \`.github/workflows/neon-quota.yml\` — level: **$LEVEL**" \
+            "$REPORT" \
+            "Exceeding 100 CU-hours suspends the compute until the next billing period. If \"compute active\" is high, something is preventing Neon from suspending — check for probes or uptime monitors hitting a database-backed endpoint. See \`scripts/check_neon_quota.py\` for what each signal means.")
+
+          existing=$(gh issue list --state open --json number,title \
+            --jq "map(select(.title == \"$ALERT_TITLE\")) | .[0].number // empty")
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+            echo "commented on #$existing"
+          else
+            gh issue create --title "$ALERT_TITLE" --body "$body"
+          fi
+
+      - name: Close the alert issue once usage is healthy
+        if: steps.check.outputs.level == 'OK'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --state open --json number,title \
+            --jq "map(select(.title == \"$ALERT_TITLE\")) | .[0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Usage back within the free-tier allowance; closing automatically."
+          fi
+
+      - name: Fail the run when critical or unreadable
+        if: steps.check.outputs.level == 'CRITICAL' || steps.check.outputs.level == 'ERROR'
+        run: |
+          echo "::error::Neon quota check reported ${{ steps.check.outputs.level }}"
+          exit 1
