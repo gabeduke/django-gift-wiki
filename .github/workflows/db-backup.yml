@@ -1,0 +1,140 @@
+name: Nightly database backup
+
+# The Neon free plan caps instant-restore history at 6 hours, and that is a plan
+# ceiling rather than a setting. Six hours is not a backup strategy for wishlists
+# built up over years and imported from a decade-old wiki, and there has already
+# been one recovery incident (2026-07-16).
+#
+# RESTORE PROCEDURE (read this before you need it):
+#
+#   1. List available dumps:
+#        gcloud storage ls gs://wikileet-db-backups-prod/
+#   2. Pull one down:
+#        gcloud storage cp gs://wikileet-db-backups-prod/<file> .
+#   3. Verify it before trusting it:
+#        python scripts/verify_pg_dump.py <file>
+#   4. Restore into a NEW Neon branch first, never straight over prod:
+#        gunzip -c <file> | psql "postgres://USER:PASS@<new-branch-host>/neondb"
+#   5. Point the app at that branch, confirm the data, then promote.
+#
+# A backup nobody has restored is a hypothesis, not a backup. Worth doing a dry
+# run of steps 1-4 once so the procedure is known-good.
+
+on:
+  schedule:
+    - cron: '12 8 * * *' # 08:12 UTC, ~04:12 ET — after any overnight activity
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+env:
+  ALERT_TITLE: 'Database backup failed'
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          # Ubuntu runners ship an older client, and pg_dump refuses to dump a
+          # server newer than itself. Neon runs Postgres 17.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump the database
+        id: dump
+        env:
+          PGPASSWORD: ${{ secrets.DJANGO_DB_PASSWORD }}
+          DB_USER: ${{ secrets.DJANGO_DB_USER }}
+          POOLED_HOST: ${{ vars.DB_HOST }}
+          DB_NAME: ${{ vars.DB_NAME }}
+        run: |
+          set -euo pipefail
+
+          # pg_dump must NOT go through the connection pooler. PgBouncer runs in
+          # transaction mode, which breaks the session-level state and consistent
+          # snapshot pg_dump relies on. The direct endpoint is the pooled
+          # hostname with the "-pooler" suffix removed.
+          HOST="${POOLED_HOST/-pooler/}"
+          NAME="giftwiki-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+          echo "host=$HOST"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+          pg_dump \
+            --host="$HOST" \
+            --username="$DB_USER" \
+            --dbname="${DB_NAME:-neondb}" \
+            --no-owner --no-acl \
+            --format=plain \
+            | gzip -9 > "$NAME"
+
+          ls -lh "$NAME"
+
+      - name: Verify the dump before trusting it
+        run: python scripts/verify_pg_dump.py "${{ steps.dump.outputs.name }}"
+
+      - name: Upload to GCS
+        env:
+          # Deterministic from project + environment; override with a repo
+          # variable only if the bucket is renamed.
+          BUCKET: ${{ vars.DB_BACKUP_BUCKET || 'wikileet-db-backups-prod' }}
+        run: |
+          set -euo pipefail
+          gcloud storage cp "${{ steps.dump.outputs.name }}" \
+            "gs://${BUCKET}/${{ steps.dump.outputs.name }}"
+          echo "uploaded to gs://${BUCKET}/${{ steps.dump.outputs.name }}"
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body=$(printf '%s\n\n%s\n\n%s\n' \
+            "@$OWNER — the nightly database backup failed. **There is no new backup for today.**" \
+            "Run: $RUN" \
+            "Neon's free-plan restore window is only 6 hours, so a run of failed backups leaves effectively no recovery path. The restore procedure is documented at the top of .github/workflows/db-backup.yml.")
+
+          existing=$(gh issue list --state open --json number,title \
+            --jq "map(select(.title == \"$ALERT_TITLE\")) | .[0].number // empty")
+
+          if [ -z "$existing" ]; then
+            gh issue create --title "$ALERT_TITLE" --body "$body" --assignee "$OWNER"
+          else
+            gh issue comment "$existing" --body "$body"
+          fi
+
+      - name: Close the failure issue after a good run
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --state open --json number,title \
+            --jq "map(select(.title == \"$ALERT_TITLE\")) | .[0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Backup succeeded; closing automatically."
+          fi
