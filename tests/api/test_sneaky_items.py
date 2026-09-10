@@ -87,14 +87,16 @@ class TestSneakyVisibility:
         assert response.status_code == 200
         assert 'Secret Surprise Gift' not in response.content.decode()
 
-    def test_sneaky_item_visible_to_others_with_badge(
+    def test_sneaky_item_visible_to_others_in_its_own_section(
         self, authenticated_other_user, wishlist, sneaky_item
     ):
+        """The inline badge is gone: sneaky items are no longer interleaved
+        with the recipient's own items, they live under their own heading."""
         response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
         assert response.status_code == 200
         content = response.content.decode()
         assert 'Secret Surprise Gift' in content
-        assert '🤫 Surprise' in content
+        assert 'Sneaky things added by others' in content
 
     def test_owner_edit_formset_excludes_sneaky_item(
         self, authenticated_user, wishlist, item, sneaky_item
@@ -159,3 +161,106 @@ class TestSneakyVisibility:
         content = response.content.decode()
         assert 'Test Item' in content
         assert 'Secret Surprise Gift' not in content
+
+
+@pytest.mark.unit
+class TestSneakySection:
+    """Sneaky items live in their own labelled section, not folded into the
+    owner's categories — the whole point is that they read as *other people's*
+    additions rather than as things the recipient asked for.
+    """
+
+    SECTION_HEADING = 'Sneaky things added by others'
+
+    def test_non_owner_sees_the_section_with_its_items(
+        self, authenticated_other_user, wishlist, sneaky_item
+    ):
+        response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
+
+        content = response.content.decode()
+        assert self.SECTION_HEADING in content
+        assert 'Secret Surprise Gift' in content
+        assert list(response.context['sneaky_items']) == [sneaky_item]
+
+    def test_sneaky_items_are_pulled_out_of_the_category_groups(
+        self, authenticated_other_user, wishlist, item, sneaky_item
+    ):
+        """They used to render inline with a badge, which is how the feature
+        went unnoticed for six weeks."""
+        response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
+
+        grouped = list(response.context['uncategorized_items'])
+        for _category, items in response.context['sorted_category_items']:
+            grouped.extend(items)
+
+        assert sneaky_item not in grouped
+        assert item in grouped
+
+    def test_empty_section_still_renders_for_non_owner(
+        self, authenticated_other_user, wishlist, item
+    ):
+        """A section that only appears once items exist cannot teach anyone the
+        feature exists. Non-owners always see it, empty or not."""
+        response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
+
+        content = response.content.decode()
+        assert self.SECTION_HEADING in content
+        assert list(response.context['sneaky_items']) == []
+
+    def test_owner_never_sees_the_section(self, authenticated_user, wishlist, sneaky_item):
+        response = authenticated_user.get(f'/wishlist/{wishlist.id}/')
+
+        content = response.content.decode()
+        assert self.SECTION_HEADING not in content
+        assert not response.context['sneaky_items']
+
+    def test_steward_never_sees_the_section(self, authenticated_other_user, wishlist, other_user):
+        """The dependent is a recipient too — the surprise must hold for them."""
+        wishlist.dependent = other_user
+        wishlist.save()
+        Item.objects.create(
+            wishlist=wishlist, name='Secret Surprise Gift', is_sneaky=True, updated_by=other_user
+        )
+
+        response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
+
+        assert self.SECTION_HEADING not in response.content.decode()
+
+    def test_total_count_excludes_sneaky_items(
+        self, authenticated_other_user, wishlist, item, sneaky_item
+    ):
+        """The headline count reflects what the recipient actually asked for."""
+        response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
+
+        assert response.context['total_count'] == 1
+
+
+@pytest.mark.unit
+class TestSneakyAttribution:
+    """Knowing who claimed an idea is what stops two people buying it."""
+
+    def test_added_by_is_recorded_when_a_sneaky_item_is_created(
+        self, authenticated_other_user, wishlist, other_user
+    ):
+        authenticated_other_user.post(
+            f'/wishlist/{wishlist.id}/add_surprise_item/',
+            {'name': 'Pottery class gift card', 'description': ''},
+        )
+
+        created = Item.objects.get(name='Pottery class gift card')
+        assert created.added_by == other_user
+
+    def test_added_by_survives_an_edit_by_someone_else(self, wishlist, user, other_user):
+        """`updated_by` is clobbered on every save, which is why attribution
+        needs its own field."""
+        created = Item.objects.create(
+            wishlist=wishlist, name='Binoculars', is_sneaky=True,
+            added_by=other_user, updated_by=other_user,
+        )
+
+        created.name = 'Better binoculars'
+        created.save(current_user=user)
+
+        created.refresh_from_db()
+        assert created.updated_by == user
+        assert created.added_by == other_user
