@@ -23,6 +23,28 @@ install:
 migrate:
 	$(MANAGE) migrate
 
+# Dump the configured database to a local, verified file.
+# Uses the DIRECT endpoint, never the pooler: PgBouncer runs in transaction mode,
+# which breaks the session state and consistent snapshot pg_dump needs.
+db-backup:
+	@test -n "$$DJANGO_DB_HOST" || (echo "DJANGO_DB_HOST not set (source your .env)" && exit 1)
+	@HOST=$$(echo "$$DJANGO_DB_HOST" | sed 's/-pooler//'); \
+	NAME="giftwiki-$$(date -u +%Y%m%dT%H%M%SZ).sql.gz"; \
+	echo "dumping $${DJANGO_DB_NAME:-neondb} from $$HOST"; \
+	PGPASSWORD="$$DJANGO_DB_PASSWORD" pg_dump --host="$$HOST" --username="$$DJANGO_DB_USER" \
+	  --dbname="$${DJANGO_DB_NAME:-neondb}" --no-owner --no-acl --format=plain \
+	  | gzip -9 > "$$NAME"; \
+	$(PYTHON) scripts/verify_pg_dump.py "$$NAME"
+
+# Verify a dump is complete and trustworthy: make db-verify DUMP=file.sql.gz
+db-verify:
+	@test -n "$(DUMP)" || (echo "usage: make db-verify DUMP=<file>" && exit 1)
+	$(PYTHON) scripts/verify_pg_dump.py "$(DUMP)"
+
+# Restore is deliberately not automated -- see the runbook.
+db-restore:
+	@sed -n '/RESTORE PROCEDURE/,/^$$/p' .github/workflows/db-backup.yml | sed 's/^# \{0,1\}//'
+
 # Collect static files
 collectstatic:
 	$(MANAGE) collectstatic --noinput
