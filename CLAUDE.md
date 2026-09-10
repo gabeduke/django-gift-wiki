@@ -24,6 +24,9 @@ make run     # start dev server
 | Lint + auto-fix | `make lint-fix` |
 | Run migrations | `make migrate` |
 | Django shell | `make shell` |
+| Back up the DB | `make db-backup` |
+| Verify a dump | `make db-verify DUMP=<file>` |
+| Restore runbook | `make db-restore` |
 
 ## Architecture
 
@@ -34,6 +37,7 @@ make run     # start dev server
 - **Media/uploads** — S3 when `USE_S3=TRUE`, local filesystem otherwise
 - **Feature flags** — DB-first via `FeatureFlag` model (admin-togglable), env var fallback
 - **Monitoring** — Prometheus metrics middleware; database-error alerting via `terraform/monitoring.tf` (log-based, needs the `ALERT_EMAIL` GitHub secret)
+- **Backups** — nightly `pg_dump` to GCS via `.github/workflows/db-backup.yml`; bucket and 90-day retention in `terraform/backups.tf`. Neon's free-plan restore window is only **6 hours**, so these dumps are the real recovery path. Restore runbook: `make db-restore`. Dumps must use the **direct** endpoint, not the `-pooler` one — PgBouncer's transaction mode breaks pg_dump's snapshot.
 - **Neon quota** — Free plan allows **100 CU-hours/project/month**; exceeding it suspends the compute until the period resets (an outage, not a bill), and Free has no spending notifications. `.github/workflows/neon-quota.yml` polls consumption every 6h and opens an issue; it needs the `NEON_API_KEY` secret. Logic and thresholds live in `scripts/check_neon_quota.py`.
 - **Never poll a DB-backed endpoint on a schedule** — uptime checks or probes against `/health/db/` keep the Neon compute from suspending, which is what forced the paid plan (PR #93). Alerting here is passive/log-based for that reason.
 - **Health endpoints** — `/health/` is process liveness and does **no** DB query; `/health/db/` is the deep DB connectivity check. Probes and uptime monitors must use `/health/`. Polling `/health/db/` more often than Neon's autosuspend timeout keeps the compute awake and burns the compute-hour allowance.
