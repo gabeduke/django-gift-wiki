@@ -238,7 +238,8 @@ class Item(models.Model):
         description (TextField): The description of the Item
         purchased (BooleanField): The status of the Item
         is_priority (BooleanField): Whether the owner marked this as a most-wanted item
-        is_sneaky (BooleanField): Whether this is a surprise item hidden from the list owner
+        is_sneaky (BooleanField): Whether this is a sneaky item hidden from the list owner
+        added_by (ForeignKey): Who first added the item; never overwritten on edit
         archived_at (DateTimeField): When the owner moved this received gift to the archive
         thank_you_sent (BooleanField): Whether the owner sent a thank-you for this gift
         price (DecimalField): The price of the Item
@@ -290,13 +291,29 @@ class Item(models.Model):
     updated_by = models.ForeignKey(
         WikiUser, on_delete=models.CASCADE, related_name='updated_%(class)s_records', null=True
     )
+    added_by = models.ForeignKey(
+        WikiUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='added_items',
+        help_text=(
+            'Who first added this item. Set once and never overwritten, unlike '
+            'updated_by — attribution on a sneaky item is what stops two people '
+            'buying the same idea.'
+        ),
+    )
     url = models.URLField(blank=True, null=True, help_text='Link to the product page')
     is_deleted = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if 'current_user' in kwargs:
-            self.updated_by = kwargs['current_user']
-            del kwargs['current_user']
+            current_user = kwargs.pop('current_user')
+            self.updated_by = current_user
+            # added_by is set once, on creation only. updated_by is overwritten
+            # by every subsequent edit, which makes it useless for attribution.
+            if self._state.adding and self.added_by_id is None:
+                self.added_by = current_user
         if self.pk:
             try:
                 previous = Item.objects.get(pk=self.pk)

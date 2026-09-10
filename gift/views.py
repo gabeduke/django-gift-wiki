@@ -329,6 +329,7 @@ def sneaky_item_add(request, wishlist_id):
         if form.is_valid():
             item = form.save(commit=False, wishlist=wishlist, current_user=request.user)
             item.is_sneaky = True
+            item.added_by = request.user
             item.save()
             logger.info(
                 'Surprise item added',
@@ -1187,13 +1188,20 @@ def wishlist_detail(request, wishlist_id):
     # Archived gifts live on the received-gifts page instead of the active list.
     items = (
         wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
-        .select_related('purchased_by', 'updated_by')
+        .select_related('purchased_by', 'updated_by', 'added_by')
         .prefetch_related('categories')
         .order_by('-is_priority', 'id')
     )
-    # Surprise items never reach the owner/recipient's queryset at all
+    # Sneaky items never reach the owner/recipient's queryset at all
     if is_owner:
         items = items.exclude(is_sneaky=True)
+
+    # Sneaky items get their own labelled section rather than being folded into
+    # the recipient's categories: they are other people's additions, not things
+    # the recipient asked for. Interleaving them is how the feature went unseen.
+    fetched = list(items)
+    sneaky_items = [i for i in fetched if i.is_sneaky]
+    items = [i for i in fetched if not i.is_sneaky]
 
     # Group items by category
     items_by_category = defaultdict(list)
@@ -1222,6 +1230,7 @@ def wishlist_detail(request, wishlist_id):
                 'wishlist': wishlist,
                 'sorted_category_items': sorted_category_items,
                 'uncategorized_items': uncategorized_items,
+                'sneaky_items': sneaky_items,
                 'is_owner': is_owner,
                 'is_steward': is_steward,
                 'is_manager': is_manager,
