@@ -22,7 +22,11 @@ jobs:
         run: pip install pipenv
 
       - name: Install dependencies
-        run: pipenv install --dev
+        # --deploy: install strictly from Pipfile.lock and fail if it is out of
+        # date, rather than silently re-locking. Without it CI resolves fresh
+        # dependencies every run, so the build is not reproducible and a broken
+        # lock stays invisible until the hash happens to match again.
+        run: pipenv install --deploy --dev
 
       - name: Run linter
         run: make lint
