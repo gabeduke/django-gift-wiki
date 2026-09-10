@@ -39,6 +39,13 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     environment: development
+    # One dev deploy at a time. Tagging stops the wrong image being deployed;
+    # this stops concurrent runs racing `terraform apply` on the dev state lock
+    # (the Error 412 in #85). Queued rather than cancelled: every deploy should
+    # finish, so the last one to run is the last one merged.
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
     env:
       GOOGLE_PROJECT: wikileet
       GOOGLE_PROJECT_ID: wikileet
@@ -110,11 +117,12 @@ jobs:
           make terraform-init ENV=dev
           cd terraform
           terraform workspace select dev
-          terraform apply -auto-approve -var-file="dev.tfvars"
+          terraform apply -auto-approve -lock-timeout=5m -var-file="dev.tfvars"
 
       - name: Deploy Cloud Run (dev)
         run: |
           SUBS="^;^"
           SUBS+="_SERVICE_NAME=${{ vars.SERVICE_NAME }};"
-          SUBS+="_REGION=${{ vars.REGION }}"
+          SUBS+="_REGION=${{ vars.REGION }};"
+          SUBS+="_GIT_SHA=${{ github.sha }}"
           gcloud builds submit --config=cloudbuild.yaml --substitutions="${SUBS}"

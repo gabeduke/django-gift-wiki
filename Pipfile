@@ -26,6 +26,7 @@ requests = "*"
 google-cloud-logging = "*"
 django-import-export = "*"
 prometheus-client = "*"
+pyyaml = "*"
 
 [dev-packages]
 pytest = "*"
@@ -36,6 +37,7 @@ factory-boy = "*"
 coverage = "*"
 pytest-cov = "*"
 ruff = "*"
+pyyaml = "*"
 
 [requires]
 python_version = "3.12"
