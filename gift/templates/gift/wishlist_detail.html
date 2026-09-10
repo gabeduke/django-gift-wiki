@@ -55,7 +55,7 @@
         <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm">+ Add Item</a>
         {% endif %}
         {% if not is_owner %}
-        <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm">🤫 Add a surprise gift</a>
+        <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm">🤫 Add something sneaky</a>
         {% endif %}
       </div>
     </div>
@@ -98,9 +98,6 @@
             {% endif %}
             {% if item.is_priority %}
               <span class="badge badge-warning priority-badge">⭐ Most wanted</span>
-            {% endif %}
-            {% if item.is_sneaky %}
-              <span class="badge badge-warning surprise-badge">🤫 Surprise</span>
             {% endif %}
             {% if not is_list_manager and item.purchased %}
               {% if item.purchased_by %}
@@ -198,9 +195,6 @@
             {% if item.is_priority %}
               <span class="badge badge-warning priority-badge">⭐ Most wanted</span>
             {% endif %}
-            {% if item.is_sneaky %}
-              <span class="badge badge-warning surprise-badge">🤫 Surprise</span>
-            {% endif %}
             {% if not is_list_manager and item.purchased %}
               {% if item.purchased_by %}
                 <span class="badge badge-success purchased-badge">
@@ -277,6 +271,72 @@
       {% endif %}
     </div>
 
+  {% endif %}
+
+  {% comment %}
+    Sneaky items: other people's additions, hidden from the recipient.
+    Rendered for every non-owner even when empty — a section that only appears
+    once items exist cannot teach anyone the feature is there.
+    NB: {% raw %}{# #}{% endraw %} comments are single-line only in Django and leak if wrapped.
+  {% endcomment %}
+  {% if not is_owner %}
+  <div class="sneaky-section" style="margin-top:40px;padding-top:20px;border-top:1px solid var(--border);">
+    <div class="wl-cat-section">
+      <div class="wl-cat-header">
+        <span class="wl-cat-label">🤫 Sneaky things added by others</span>
+        <span class="wl-count-badge">{{ sneaky_items|length }}</span>
+      </div>
+    <p style="font-size:13px;color:var(--text-muted);margin:4px 0 16px;">
+      Hidden from {{ wishlist.owner.get_full_name|default:wishlist.owner.username }}.
+      Check here before you buy so two people don't get the same thing.
+    </p>
+
+    {% if sneaky_items %}
+      {% for item in sneaky_items %}
+      <div class="wl-item-row{% if item.purchased %} purchased{% endif %}">
+        <div>
+          <span class="wl-item-name">{{ item.name }}</span>
+          {% if item.price_range %}
+            <span class="badge-price">{{ item.get_price_range_display }}</span>
+          {% endif %}
+          {% if item.url %}
+            <a href="{{ item.url }}" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-primary" style="padding:2px 6px;font-size:11px;margin-left:6px;">Link</a>
+          {% endif %}
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+            {% if item.added_by %}added by {{ item.added_by.get_full_name|default:item.added_by.username }}{% endif %}
+            {% if item.purchased and item.purchased_by %}
+              · <strong>purchased by {{ item.purchased_by.get_full_name|default:item.purchased_by.username }}</strong>
+            {% endif %}
+          </div>
+          {% if item.description %}
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">{{ item.description }}</div>
+          {% endif %}
+        </div>
+        <div>
+          {% if item.purchased and item.purchased_by != request.user %}
+            {# already claimed by someone else #}
+          {% else %}
+            <a href="{% url 'gift:purchase_item' item.id %}"
+               class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+              {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+        Nothing yet. Know something they'd love but shouldn't see?
+      </p>
+    {% endif %}
+
+    </div>
+
+    <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm">
+      🤫 Add something sneaky
+    </a>
+  </div>
   {% endif %}
 
   {# Danger zone (owner only) #}
