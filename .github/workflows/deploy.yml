@@ -10,6 +10,12 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    # Production submits the same cloudbuild.yaml and so inherits the same race
+    # (#85). Less concurrent than dev, not immune: two merges landing close
+    # together is exactly the December pattern.
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
     env:
       GOOGLE_PROJECT: wikileet
       GOOGLE_PROJECT_ID: wikileet
@@ -85,7 +91,7 @@ jobs:
           make terraform-init ENV=prod
           cd terraform
           terraform workspace select prod
-          terraform apply -auto-approve -var-file="prod.tfvars"
+          terraform apply -auto-approve -lock-timeout=5m -var-file="prod.tfvars"
 
       - name: Deploy Cloud Run (prod)
         run: |
@@ -97,5 +103,6 @@ jobs:
           SUBS+="_FIREBASE_API_KEY_SECRET=${{ vars.FIREBASE_API_KEY_SECRET }};"
           SUBS+="_ALLOWED_USERS_SECRET=${{ vars.ALLOWED_USERS_SECRET }};"
           SUBS+="_ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS }};"
-          SUBS+="_ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }}"
+          SUBS+="_ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }};"
+          SUBS+="_GIT_SHA=${{ github.sha }}"
           gcloud builds submit --config=cloudbuild.yaml --substitutions="${SUBS}"

@@ -10,12 +10,12 @@ steps:
       - '--build-arg'
       - 'PROJECT_ID=$PROJECT_ID'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_GIT_SHA}'
       - '.'
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}']
+    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_GIT_SHA}']
   
   # Deploy container image to Cloud Run
   # 1. Update/Create the migration job with the new image
@@ -25,14 +25,14 @@ steps:
       - '-c'
       - |
         gcloud run jobs update ${_SERVICE_NAME}-migrate \
-          --image gcr.io/$PROJECT_ID/${_SERVICE_NAME} \
+          --image gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_GIT_SHA} \
           --region ${_REGION} \
           --command "python,manage.py,migrate,--noinput" \
           --set-env-vars "^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}" \
           --set-secrets DJANGO_SECRET_KEY=${_SECRET_KEY_SECRET}:latest,DJANGO_DB_USER=${_DB_USER_SECRET}:latest,DJANGO_DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,AWS_ACCESS_KEY_ID=${_AWS_ACCESS_KEY_SECRET}:latest,AWS_SECRET_ACCESS_KEY=${_AWS_SECRET_KEY_SECRET}:latest,FIREBASE_API_KEY=${_FIREBASE_API_KEY_SECRET}:latest,DJANGO_ALLOWED_USERS=${_ALLOWED_USERS_SECRET}:latest \
           --quiet || \
         gcloud run jobs create ${_SERVICE_NAME}-migrate \
-          --image gcr.io/$PROJECT_ID/${_SERVICE_NAME} \
+          --image gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_GIT_SHA} \
           --region ${_REGION} \
           --command "python,manage.py,migrate,--noinput" \
           --set-env-vars "^|^DJANGO_SETTINGS_MODULE=giftwiki.settings|DJANGO_DB_HOST=${_DB_HOST}|DJANGO_DB_NAME=${_DB_NAME}|DJANGO_DB_PORT=${_DB_PORT}|DJANGO_DB_CONN_MAX_AGE=600|USE_S3=TRUE|AWS_S3_REGION_NAME=us-east-1|AWS_STORAGE_BUCKET_NAME=gift-wiki|DJANGO_LOG_LEVEL=INFO|DJANGO_ALLOWED_HOSTS=${_ALLOWED_HOSTS}|DJANGO_ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}" \
@@ -57,7 +57,7 @@ steps:
       - 'deploy'
       - '${_SERVICE_NAME}'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_GIT_SHA}'
       - '--region'
       - '${_REGION}'
       - '--platform'
@@ -71,6 +71,12 @@ steps:
   # (Steps 4 and 6 are commented out or removed)
 
 substitutions:
+  # Per-commit tag. CI always overrides this with the commit SHA so that the
+  # image built by a run is the exact image that run deploys. Deploying a
+  # mutable tag is the race in #85: two builds 45s apart, the second deploy
+  # resolved the first build's digest, and dev served the wrong branch.
+  # The `latest` default exists only for manual `gcloud builds submit`.
+  _GIT_SHA: latest
   _SERVICE_NAME: giftwiki-dev
   _REGION: us-east1
   _ALLOWED_HOSTS: 'giftwiki-dev.leetserve.com,giftwiki-dev-tshpxht2la-ue.a.run.app,.a.run.app'
@@ -90,7 +96,7 @@ substitutions:
   _ALLOWED_USERS_SECRET: dev-django-allowed-users
 
 images:
-  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:${_GIT_SHA}'
 
 
 # availableSecrets:
