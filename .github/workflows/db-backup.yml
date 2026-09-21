@@ -36,6 +36,10 @@ env:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    # DB_HOST and DB_NAME are *environment* variables on "production", not
+    # repo-level variables. Without this binding, vars.DB_HOST is empty and
+    # pg_dump falls back to a local socket that does not exist.
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +66,11 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          # Installing the package is not enough: /usr/bin/pg_dump is Debian's
+          # pg_wrapper, which routes to the runner's preinstalled PostgreSQL 16
+          # cluster. Put the 17 binaries first on PATH for the following steps.
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Dump the database
         id: dump
@@ -73,6 +81,10 @@ jobs:
           DB_NAME: ${{ vars.DB_NAME }}
         run: |
           set -euo pipefail
+
+          : "${POOLED_HOST:?vars.DB_HOST is empty. Is the job bound to the production environment?}"
+          pg_dump --version | grep -q ' 17\.' \
+            || { echo "wrong pg_dump on PATH: $(pg_dump --version)"; exit 1; }
 
           # pg_dump must NOT go through the connection pooler. PgBouncer runs in
           # transaction mode, which breaks the session-level state and consistent
