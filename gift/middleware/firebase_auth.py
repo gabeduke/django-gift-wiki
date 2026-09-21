@@ -74,6 +74,86 @@ def _get_firebase_auth():
         return None
 
 
+def resolve_user_for_email(email):
+    """Map a verified Firebase email onto a Django account, creating one if needed.
+
+    Returns None if the lookup fails outright.
+    """
+    # Use email prefix as username
+    username = email.split('@')[0]
+
+    user = None
+    try:
+        # Check for linked email first
+        try:
+            from gift.models import LinkedEmail
+
+            linked = LinkedEmail.objects.filter(email__iexact=email).first()
+            if linked:
+                user = linked.user
+                logger.info(f'Found linked email for {email}, authenticating as {user.username}')
+        except Exception as e:
+            logger.error(f'Error checking linked emails: {e}')
+
+        # If not linked, proceed with regular lookup
+        if not user:
+            # First try to find by email (most reliable identifier)
+            users_by_email = User.objects.filter(email=email)
+            if users_by_email.exists():
+                if users_by_email.count() > 1:
+                    logger.warning(
+                        f'Multiple users found with email {email}. Using the first one.'
+                    )
+                user = users_by_email.first()
+                # Freshen the username, but never onto one somebody else holds: a
+                # parent assigning their kid an address whose prefix is taken would
+                # otherwise trip the unique constraint and lock the kid out.
+                if user.username != username:
+                    if User.objects.filter(username=username).exclude(pk=user.pk).exists():
+                        logger.info(
+                            f'Keeping username {user.username} for {email}: '
+                            f'{username} is already taken'
+                        )
+                    else:
+                        user.username = username
+                        user.save(update_fields=['username'])
+                        logger.info(f'Updated username for {email} to: {username}')
+
+        # If not found by email, try by username
+        if not user and username:
+            users_by_username = User.objects.filter(username=username)
+            if users_by_username.exists():
+                if users_by_username.count() > 1:
+                    logger.warning(
+                        f'Multiple users found with username {username}. Using the first one.'
+                    )
+                user = users_by_username.first()
+                # Update email if provided and different
+                if user.email != email:
+                    user.email = email
+                    user.save(update_fields=['email'])
+                    logger.info(f'Updated email for {username} to: {email}')
+
+        # If still not found, create new user
+        if not user:
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+            )
+            logger.info(f'Created new user from Firebase auth: {username} ({email})')
+
+        # Update email if provided and different (only if user already existed)
+        if email and user.email != email:
+            user.email = email
+            user.save(update_fields=['email'])
+
+    except Exception as e:
+        logger.error(f'Error getting or creating user: {e}', exc_info=True)
+        return None
+
+    return user
+
+
 class FirebaseAuthBackend(ModelBackend):
     """
     Authentication backend that authenticates users based on Firebase session cookies.
@@ -128,67 +208,7 @@ class FirebaseAuthBackend(ModelBackend):
 
             logger.info(f'Firebase token verified successfully for email: {email}')
 
-            # Use email prefix as username
-            username = email.split('@')[0]
-
-            # Get or create user
-            user = None
-            try:
-                # Check for linked email first
-                try:
-                    from gift.models import LinkedEmail
-                    linked = LinkedEmail.objects.filter(email__iexact=email).first()
-                    if linked:
-                        user = linked.user
-                        logger.info(f'Found linked email for {email}, authenticating as {user.username}')
-                except Exception as e:
-                    logger.error(f'Error checking linked emails: {e}')
-
-                # If not linked, proceed with regular lookup
-                if not user:
-                    # First try to find by email (most reliable identifier)
-                    users_by_email = User.objects.filter(email=email)
-                    if users_by_email.exists():
-                        if users_by_email.count() > 1:
-                            logger.warning(f"Multiple users found with email {email}. Using the first one.")
-                        user = users_by_email.first()
-                        # Update username if it changed
-                        if user.username != username:
-                            user.username = username
-                            user.save(update_fields=['username'])
-                            logger.info(f'Updated username for {email} to: {username}')
-
-                # If not found by email, try by username
-                if not user and username:
-                    users_by_username = User.objects.filter(username=username)
-                    if users_by_username.exists():
-                        if users_by_username.count() > 1:
-                            logger.warning(f"Multiple users found with username {username}. Using the first one.")
-                        user = users_by_username.first()
-                        # Update email if provided and different
-                        if user.email != email:
-                            user.email = email
-                            user.save(update_fields=['email'])
-                            logger.info(f'Updated email for {username} to: {email}')
-
-                # If still not found, create new user
-                if not user:
-                    user = User.objects.create_user(
-                        username=username,
-                        email=email,
-                    )
-                    logger.info(f'Created new user from Firebase auth: {username} ({email})')
-
-                # Update email if provided and different (only if user already existed)
-                if email and user.email != email:
-                    user.email = email
-                    user.save(update_fields=['email'])
-
-            except Exception as e:
-                logger.error(f'Error getting or creating user: {e}', exc_info=True)
-                return None
-
-            return user
+            return resolve_user_for_email(email)
 
         except Exception as e:
             logger.warning(f'Firebase token verification failed: {e}', exc_info=True)

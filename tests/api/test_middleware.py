@@ -96,6 +96,46 @@ class TestFirebaseAuthAllowlist:
 
 
 @pytest.mark.unit
+class TestFirebaseUserResolution:
+    """Resolving a verified Firebase email onto a Django account.
+
+    Matters for managed (child) accounts: a parent assigns `ellie` the address
+    ellie.duke@gmail.com, and the derived username `ellie.duke` may already
+    belong to somebody else.
+    """
+
+    def test_resolves_an_existing_account_by_email(self, db):
+        from gift.middleware.firebase_auth import resolve_user_for_email
+
+        kid = User.objects.create_user(username='ellie', email='ellie.duke@gmail.com')
+
+        assert resolve_user_for_email('ellie.duke@gmail.com') == kid
+
+    def test_keeps_the_username_when_the_email_prefix_belongs_to_someone_else(self, db):
+        """Renaming into a taken username raised IntegrityError and killed the login."""
+        from gift.middleware.firebase_auth import resolve_user_for_email
+
+        User.objects.create_user(username='ellie.duke', email='mom@example.com')
+        kid = User.objects.create_user(username='ellie', email='ellie.duke@gmail.com')
+
+        resolved = resolve_user_for_email('ellie.duke@gmail.com')
+
+        assert resolved == kid
+        kid.refresh_from_db()
+        assert kid.username == 'ellie'
+
+    def test_still_freshens_the_username_when_the_prefix_is_free(self, db):
+        from gift.middleware.firebase_auth import resolve_user_for_email
+
+        user = User.objects.create_user(username='old-handle', email='ellie.duke@gmail.com')
+
+        resolve_user_for_email('ellie.duke@gmail.com')
+
+        user.refresh_from_db()
+        assert user.username == 'ellie.duke'
+
+
+@pytest.mark.unit
 class TestErrorLoggingMiddleware:
     """Tests for the error logging middleware."""
 

@@ -22,6 +22,11 @@ urlpatterns = [
     path('password-reset-request/', views.password_reset_request, name='password_reset_request'),
     path('managed-user/create/', views.create_managed_user, name='create_managed_user'),
     path('managed-user/<int:user_id>/edit/', views.edit_managed_user, name='edit_managed_user'),
+    path(
+        'managed-user/<int:user_id>/assign-email/',
+        views.assign_login_email,
+        name='assign_login_email',
+    ),
     # Wishlists
     path('wishlist/create/', views.wishlist_create, name='create_wishlist'),
     path('wishlist/<int:wishlist_id>/', views.wishlist_detail, name='wishlist_detail'),

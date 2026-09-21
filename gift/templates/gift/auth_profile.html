@@ -136,7 +136,19 @@
                             <tr>
                                 <td>{{ data.user.username }}</td>
                                 <td>{{ data.user.first_name }} {{ data.user.last_name }}</td>
-                                <td>{{ data.user.email|default:"-" }}</td>
+                                <td>
+                                    {% if data.user.email %}
+                                        <div>{{ data.user.email }}</div>
+                                        <span class="badge badge-success">Can sign in</span>
+                                        <button type="button" class="btn btn-link btn-sm p-0 ml-1" data-toggle="modal" data-target="#assignLoginEmailModal{{ data.user.id }}">
+                                            Change
+                                        </button>
+                                    {% else %}
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#assignLoginEmailModal{{ data.user.id }}">
+                                            Enable sign-in
+                                        </button>
+                                    {% endif %}
+                                </td>
                                 <td>{{ data.user.birthday|default:"-" }}</td>
                                 <td>
                                     <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#editManagedUserModal{{ data.user.id }}">
@@ -145,6 +157,41 @@
                                 </td>
                             </tr>
                             
+                            <!-- Assign Login Email Modal for {{ data.user.username }} -->
+                            <div class="modal fade" id="assignLoginEmailModal{{ data.user.id }}" tabindex="-1" role="dialog" aria-labelledby="assignLoginEmailModalLabel{{ data.user.id }}" aria-hidden="true">
+                              <div class="modal-dialog" role="document">
+                                <div class="modal-content">
+                                  <div class="modal-header">
+                                    <h5 class="modal-title" id="assignLoginEmailModalLabel{{ data.user.id }}">Let {{ data.user.first_name|default:data.user.username }} sign in</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                      <span aria-hidden="true">&times;</span>
+                                    </button>
+                                  </div>
+                                  <form action="{% url 'gift:assign_login_email' data.user.id %}" method="post">
+                                      <div class="modal-body">
+                                          {% csrf_token %}
+                                          <p class="text-muted">Give them the email address of their own Google account. They can then sign in with &ldquo;Sign in with Google&rdquo; and manage this wishlist themselves.</p>
+                                          {% for field in data.assign_email_form %}
+                                              <div class="mb-3">
+                                                  <label for="{{ field.id_for_label }}" class="form-label">
+                                                      {{ field.label }}
+                                                  </label>
+                                                  {{ field }}
+                                                  {% if field.help_text %}
+                                                      <div class="form-text">{{ field.help_text }}</div>
+                                                  {% endif %}
+                                              </div>
+                                          {% endfor %}
+                                      </div>
+                                      <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                        <button type="submit" class="btn btn-primary">Save</button>
+                                      </div>
+                                  </form>
+                                </div>
+                              </div>
+                            </div>
+
                             <!-- Edit Modal for {{ data.user.username }} -->
                             <div class="modal fade" id="editManagedUserModal{{ data.user.id }}" tabindex="-1" role="dialog" aria-labelledby="editManagedUserModalLabel{{ data.user.id }}" aria-hidden="true">
                               <div class="modal-dialog" role="document">
