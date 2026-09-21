@@ -15,6 +15,32 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
+def validate_login_email_available(email, exclude_user=None):
+    """Reject an email that already routes to some other account.
+
+    Checks both WikiUser.email and LinkedEmail, since the Firebase middleware
+    resolves a login against either one.
+    """
+    if not email:
+        return email
+
+    from .models import LinkedEmail
+
+    users = User.objects.filter(email__iexact=email)
+    if exclude_user is not None and exclude_user.pk:
+        users = users.exclude(pk=exclude_user.pk)
+    if users.exists():
+        raise forms.ValidationError('This email address is already in use by another account.')
+
+    linked = LinkedEmail.objects.filter(email__iexact=email)
+    if exclude_user is not None and exclude_user.pk:
+        linked = linked.exclude(user_id=exclude_user.pk)
+    if linked.exists():
+        raise forms.ValidationError('This email address is already linked to another account.')
+
+    return email
+
+
 class ItemForm(forms.ModelForm):
     category = forms.ModelChoiceField(
         queryset=None,
@@ -245,14 +271,35 @@ class CreateManagedUserForm(ManagedUserForm):
         self.fields['link_to_wishlist'].help_text = "Optional. Select a wishlist to link this user to. If left blank, a new one will be created."
 
     def clean_email(self):
-        email = self.cleaned_data.get('email')
-        if email:
-            qs = User.objects.filter(email__iexact=email)
-            if self.instance and self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise forms.ValidationError("This email address is already in use by another account.")
-        return email
+        return validate_login_email_available(
+            self.cleaned_data.get('email'),
+            exclude_user=self.instance,
+        )
+
+
+class AssignLoginEmailForm(forms.Form):
+    """Grants an existing managed user an email address they can sign in with.
+
+    Kept separate from ManagedUserForm on purpose: that form edits harmless
+    profile details, while this one hands somebody the keys to the account.
+    """
+
+    email = forms.EmailField(
+        required=True,
+        label='Email Address',
+        help_text='They sign in with "Sign in with Google" using this address.',
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'name@example.com'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.managed_user = kwargs.pop('managed_user', None)
+        super().__init__(*args, **kwargs)
+
+    def clean_email(self):
+        return validate_login_email_available(
+            self.cleaned_data.get('email'),
+            exclude_user=self.managed_user,
+        )
 
 
 class ProfilePictureForm(forms.ModelForm):

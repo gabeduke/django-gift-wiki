@@ -23,6 +23,7 @@ from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_POST
 
 from .forms import (
+    AssignLoginEmailForm,
     CategoryForm,
     CreateManagedUserForm,
     CustomUserCreationForm,
@@ -807,7 +808,13 @@ def profile(request):
     
     # Pre-initialize forms for each managed user to use in modals
     managed_users_data = [
-        {'user': user, 'form': ManagedUserForm(instance=user, user=request.user)} 
+        {
+            'user': user,
+            'form': ManagedUserForm(instance=user, user=request.user),
+            'assign_email_form': AssignLoginEmailForm(
+                managed_user=user, initial={'email': user.email}
+            ),
+        }
         for user in managed_users
     ]
     
@@ -824,6 +831,27 @@ def profile(request):
     }
 
     return render(request, 'gift/auth_profile.html', context)
+
+def _get_managed_user_or_none(request_user, user_id):
+    """The managed user `request_user` is allowed to act on, or None.
+
+    A caller qualifies only if they own or manage a wishlist on which that user
+    is the dependent, and they are never their own managed user.
+    """
+    User = get_user_model()
+    managed_wishlists = WishList.objects.filter(
+        models.Q(owner=request_user) | models.Q(managers=request_user)
+    )
+    try:
+        return (
+            User.objects.filter(id=user_id, stewarded_wishlists__in=managed_wishlists)
+            .distinct()
+            .exclude(id=request_user.id)
+            .get()
+        )
+    except User.DoesNotExist:
+        return None
+
 
 @require_POST
 @login_required
@@ -873,19 +901,8 @@ def create_managed_user(request):
 @require_POST
 @login_required
 def edit_managed_user(request, user_id):
-    User = get_user_model()
-    
-    # Security check: User must manage at least one wishlist where this user_id is the dependent
-    managed_wishlists = WishList.objects.filter(
-        models.Q(owner=request.user) | models.Q(managers=request.user)
-    )
-    
-    try:
-        managed_user = User.objects.filter(
-            id=user_id, 
-            stewarded_wishlists__in=managed_wishlists
-        ).distinct().exclude(id=request.user.id).get()
-    except User.DoesNotExist:
+    managed_user = _get_managed_user_or_none(request.user, user_id)
+    if managed_user is None:
         messages.error(request, "You do not have permission to edit this user.")
         return redirect('gift:account')
 
@@ -912,6 +929,41 @@ def edit_managed_user(request, user_id):
         messages.error(request, f"Error updating details for {managed_user.username}. Please check the form.")
         
     return redirect('gift:account')
+
+@require_POST
+@login_required
+def assign_login_email(request, user_id):
+    """Give an existing managed user an email address so they can sign in.
+
+    Sets the address and allowlists it together — doing only the first leaves
+    an account that looks ready but is rejected at the door.
+    """
+    from .models import AllowedEmail
+
+    managed_user = _get_managed_user_or_none(request.user, user_id)
+    if managed_user is None:
+        messages.error(request, 'You do not have permission to edit this user.')
+        return redirect('gift:account')
+
+    form = AssignLoginEmailForm(request.POST, managed_user=managed_user)
+    if not form.is_valid():
+        for error in form.errors.get('email', ['Please enter a valid email address.']):
+            messages.error(request, error)
+        return redirect('gift:account')
+
+    email = form.cleaned_data['email']
+    managed_user.email = email
+    managed_user.save(update_fields=['email'])
+    AllowedEmail.objects.get_or_create(email=email)
+
+    display_name = managed_user.first_name or managed_user.username
+    messages.success(
+        request,
+        f'{display_name} can now sign in with {email}. '
+        'Have them use "Sign in with Google" on the login page.',
+    )
+    return redirect('gift:account')
+
 
 @require_POST
 @login_required
