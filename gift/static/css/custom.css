@@ -348,6 +348,55 @@ label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bo
 .wl-list-title { font-weight: 500; font-size: 14px; }
 .wl-list-owner { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
 .wl-list-birthday { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+/* Quick filter (home page) */
+.wl-filter {
+  position: relative;
+  display: flex; align-items: center;
+  margin-top: 16px; max-width: 420px;
+}
+.wl-filter-icon {
+  position: absolute; left: 11px;
+  color: var(--text-muted); pointer-events: none;
+}
+.wl-filter-input {
+  width: 100%; height: 38px;
+  padding: 6px 34px;
+  font-family: inherit; font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: 6px;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.wl-filter-input::placeholder { color: var(--text-muted); }
+.wl-filter-input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-light);
+}
+/* WebKit draws its own clear button; ours is consistent across browsers */
+.wl-filter-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.wl-filter-clear {
+  position: absolute; right: 6px;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 4px;
+  color: var(--text-muted); font-size: 18px; line-height: 1;
+  cursor: pointer;
+}
+.wl-filter-clear:hover { background: var(--bg-subtle); color: var(--text-primary); }
+.wl-filter-clear[hidden] { display: none; }
+.wl-filter-status {
+  margin: 6px 0 0; min-height: 1em;
+  font-size: 12px; color: var(--text-muted);
+}
+.wl-filter-empty { margin-top: 32px; color: var(--text-muted); }
+.wl-filter-empty[hidden] { display: none; }
+
+/* Filtered-out rows and sections. Needed because the class rules above set an
+   explicit display, which outranks the UA stylesheet's [hidden] rule. */
+.wl-list-row[hidden] { display: none; }
+.wl-family-section[hidden] { display: none; }
 .wl-list-meta  { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-muted); }
 
 /* Category header */
