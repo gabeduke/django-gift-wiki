@@ -57,6 +57,7 @@
 
       <div class="wl-nav-right">
         {% if request.user.is_authenticated %}
+          <button type="button" id="wl-quick-add-open" class="btn btn-outline-secondary btn-sm">+ Add item</button>
           <a href="{% url 'gift:create_wishlist' %}" class="btn btn-primary btn-sm">+ New List</a>
           <a href="{% url 'gift:account' %}" class="wl-avatar" title="{{ request.user.get_full_name|default:request.user.username }}">
             {% if request.user.first_name %}
@@ -82,6 +83,14 @@
   </div>
   {% endif %}
 
+  {% if request.user.is_authenticated %}
+  {% comment %}
+  Quick-add confirms over XHR, so Django's messages framework never renders for
+  it — the JS drops its alert in here instead.
+  {% endcomment %}
+  <div id="wl-flash" class="wl-flash"></div>
+  {% endif %}
+
 
   <main>
     {% block content %}{% endblock %}
@@ -95,6 +104,10 @@
   <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+  {% if request.user.is_authenticated %}
+  {% include 'gift/partials/quick_add_modal.html' %}
+  {% endif %}
 
 </body>
 </html>

@@ -1,0 +1,369 @@
+{% comment %}
+Quick-add modal, included once from the base template so the nav button works
+from every page. The list options are fetched lazily the first time it opens —
+see views.wishlist_picker for why they aren't in a context processor.
+{% endcomment %}
+
+<div class="modal fade" id="wl-quick-add-modal" tabindex="-1" role="dialog"
+     aria-labelledby="wl-qa-title" aria-hidden="true"
+     data-picker-url="{% url 'gift:wishlist_picker' %}"
+     data-submit-url="{% url 'gift:quick_add_item' %}">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="wl-qa-form" novalidate>
+        {% csrf_token %}
+
+        <div class="modal-header">
+          <h5 class="modal-title" id="wl-qa-title">Quick add</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="wl-qa-field">
+            <label for="wl-qa-list">To which list?</label>
+
+            <div class="wl-qa-combo">
+              <input type="text" id="wl-qa-list" class="wl-qa-input"
+                     placeholder="Search lists…" autocomplete="off"
+                     role="combobox" aria-expanded="false"
+                     aria-controls="wl-qa-results" aria-autocomplete="list">
+              <ul id="wl-qa-results" class="wl-qa-results" role="listbox"
+                  aria-label="Matching lists" hidden></ul>
+            </div>
+
+            <div id="wl-qa-selected" class="wl-qa-selected" hidden>
+              <span id="wl-qa-selected-label"></span>
+              <button type="button" id="wl-qa-change" aria-label="Choose a different list">&times;</button>
+            </div>
+
+            <p id="wl-qa-surprise" class="wl-qa-surprise" hidden>
+              🤫 Surprise — <span id="wl-qa-surprise-person"></span> won’t see this on their list.
+            </p>
+          </div>
+
+          <div class="wl-qa-field">
+            <label for="wl-qa-name">Item</label>
+            <input type="text" id="wl-qa-name" class="wl-qa-input" maxlength="255"
+                   placeholder="e.g. Lego Botanicals" autocomplete="off">
+          </div>
+
+          <div class="wl-qa-field">
+            <label for="wl-qa-url">Link <span class="wl-qa-optional">(optional)</span></label>
+            <input type="url" id="wl-qa-url" class="wl-qa-input" placeholder="https://…"
+                   autocomplete="off">
+          </div>
+
+          <p id="wl-qa-error" class="wl-qa-error" role="alert" hidden></p>
+        </div>
+
+        <div class="modal-footer wl-qa-footer">
+          <a href="#" id="wl-qa-more" class="wl-qa-more">More options…</a>
+          <span class="wl-qa-footer-actions">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Cancel</button>
+            <button type="submit" id="wl-qa-submit" class="btn btn-primary btn-sm">Add</button>
+          </span>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var modal = document.getElementById('wl-quick-add-modal');
+  var openButton = document.getElementById('wl-quick-add-open');
+  if (!modal || !openButton || !window.jQuery) {
+    return;
+  }
+
+  var $modal = window.jQuery(modal);
+  var form = document.getElementById('wl-qa-form');
+  var listInput = document.getElementById('wl-qa-list');
+  var results = document.getElementById('wl-qa-results');
+  var selected = document.getElementById('wl-qa-selected');
+  var selectedLabel = document.getElementById('wl-qa-selected-label');
+  var changeButton = document.getElementById('wl-qa-change');
+  var surprise = document.getElementById('wl-qa-surprise');
+  var surprisePerson = document.getElementById('wl-qa-surprise-person');
+  var nameInput = document.getElementById('wl-qa-name');
+  var urlInput = document.getElementById('wl-qa-url');
+  var errorBox = document.getElementById('wl-qa-error');
+  var submitButton = document.getElementById('wl-qa-submit');
+  var moreLink = document.getElementById('wl-qa-more');
+  var flash = document.getElementById('wl-flash');
+
+  var options = null;      // cached picker payload; fetched on first open
+  var loading = false;
+  var chosen = null;
+  var highlighted = -1;
+
+  function csrfToken() {
+    var field = form.querySelector('[name=csrfmiddlewaretoken]');
+    return field ? field.value : '';
+  }
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = !message;
+  }
+
+  function label(option) {
+    return option.title + ' · ' + option.person;
+  }
+
+  function renderResults(query) {
+    var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    var matched = (options || []).filter(function (option) {
+      var haystack = (option.title + ' ' + option.person).toLowerCase();
+      return terms.every(function (term) { return haystack.indexOf(term) !== -1; });
+    }).slice(0, 8);
+
+    results.innerHTML = '';
+    highlighted = -1;
+
+    if (matched.length === 0) {
+      var none = document.createElement('li');
+      none.className = 'wl-qa-result wl-qa-result-empty';
+      none.textContent = options === null ? 'Loading lists…' : 'No lists match';
+      results.appendChild(none);
+    } else {
+      matched.forEach(function (option, index) {
+        var li = document.createElement('li');
+        li.className = 'wl-qa-result';
+        li.setAttribute('role', 'option');
+        li.setAttribute('id', 'wl-qa-result-' + index);
+        li.setAttribute('aria-selected', 'false');
+        li.textContent = label(option);
+        li.addEventListener('mousedown', function (event) {
+          event.preventDefault();  // keep focus off the list so blur doesn't close it first
+          choose(option);
+        });
+        results.appendChild(li);
+      });
+    }
+
+    results.hidden = false;
+    listInput.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeResults() {
+    results.hidden = true;
+    listInput.setAttribute('aria-expanded', 'false');
+    highlighted = -1;
+  }
+
+  function moveHighlight(delta) {
+    var items = results.querySelectorAll('.wl-qa-result:not(.wl-qa-result-empty)');
+    if (items.length === 0) {
+      return;
+    }
+    if (highlighted >= 0 && items[highlighted]) {
+      items[highlighted].classList.remove('is-highlighted');
+      items[highlighted].setAttribute('aria-selected', 'false');
+    }
+    highlighted = (highlighted + delta + items.length) % items.length;
+    items[highlighted].classList.add('is-highlighted');
+    items[highlighted].setAttribute('aria-selected', 'true');
+    listInput.setAttribute('aria-activedescendant', items[highlighted].id);
+  }
+
+  function choose(option) {
+    chosen = option;
+    selectedLabel.textContent = label(option);
+    selected.hidden = false;
+    listInput.hidden = true;
+    closeResults();
+
+    // The server decides this for real on submit; this only sets expectations
+    // before the user types, so nobody is surprised by a surprise.
+    surprise.hidden = option.can_add_openly;
+    surprisePerson.textContent = option.person;
+
+    showError('');
+    nameInput.focus();
+  }
+
+  function unchoose() {
+    chosen = null;
+    selected.hidden = true;
+    selectedLabel.textContent = '';
+    surprise.hidden = true;
+    listInput.hidden = false;
+    listInput.value = '';
+    listInput.focus();
+  }
+
+  // Refreshed on every open, not just the first: a list created since the last
+  // open should be pickable without a reload. Cached options stay on screen
+  // while the refresh is in flight, so reopening never shows a loading state.
+  function loadOptions() {
+    if (loading) {
+      return;
+    }
+    loading = true;
+    fetch(modal.getAttribute('data-picker-url'), {
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      credentials: 'same-origin'
+    })
+      .then(function (response) {
+        if (!response.ok) { throw new Error('picker request failed'); }
+        return response.json();
+      })
+      .then(function (data) {
+        options = data.wishlists || [];
+        loading = false;
+        if (!results.hidden || document.activeElement === listInput) {
+          renderResults(listInput.value);
+        }
+      })
+      .catch(function () {
+        loading = false;
+        showError('Could not load your lists. Please try again.');
+      });
+  }
+
+  function reset() {
+    form.reset();
+    unchoose();
+    showError('');
+    submitButton.disabled = false;
+    submitButton.textContent = 'Add';
+  }
+
+  function announce(message, isSurprise) {
+    if (!flash) {
+      return;
+    }
+    var alert = document.createElement('div');
+    alert.className = 'alert ' + (isSurprise ? 'alert-info' : 'alert-success') + ' mb-2';
+    alert.setAttribute('role', 'status');
+    alert.textContent = message;
+    flash.appendChild(alert);
+    window.setTimeout(function () { alert.remove(); }, 6000);
+  }
+
+  function moreOptionsUrl() {
+    if (!chosen) {
+      return null;
+    }
+    var params = [];
+    if (nameInput.value.trim()) {
+      params.push('name=' + encodeURIComponent(nameInput.value.trim()));
+    }
+    if (urlInput.value.trim()) {
+      params.push('url=' + encodeURIComponent(urlInput.value.trim()));
+    }
+    // The server already resolved which form this list needs.
+    return chosen.more_options_url + (params.length ? '?' + params.join('&') : '');
+  }
+
+  openButton.addEventListener('click', function () {
+    loadOptions();
+    $modal.modal('show');
+  });
+
+  $modal.on('shown.bs.modal', function () {
+    (chosen ? nameInput : listInput).focus();
+  });
+  $modal.on('hidden.bs.modal', reset);
+
+  listInput.addEventListener('focus', function () { renderResults(listInput.value); });
+  listInput.addEventListener('input', function () { renderResults(listInput.value); });
+  listInput.addEventListener('blur', function () {
+    window.setTimeout(closeResults, 120);  // let a click on a result land first
+  });
+
+  listInput.addEventListener('keydown', function (event) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (results.hidden) { renderResults(listInput.value); }
+      moveHighlight(1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveHighlight(-1);
+    } else if (event.key === 'Enter') {
+      // Enter picks a list rather than submitting a form with no list chosen.
+      event.preventDefault();
+      var items = results.querySelectorAll('.wl-qa-result:not(.wl-qa-result-empty)');
+      var index = highlighted >= 0 ? highlighted : 0;
+      if (items[index]) {
+        items[index].dispatchEvent(new MouseEvent('mousedown'));
+      }
+    } else if (event.key === 'Escape' && !results.hidden) {
+      event.stopPropagation();  // close the dropdown before the modal
+      closeResults();
+    }
+  });
+
+  changeButton.addEventListener('click', unchoose);
+
+  moreLink.addEventListener('click', function (event) {
+    event.preventDefault();
+    var url = moreOptionsUrl();
+    if (!url) {
+      showError('Pick a list first.');
+      listInput.focus();
+      return;
+    }
+    window.location.href = url;
+  });
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+
+    if (!chosen) {
+      showError('Pick a list first.');
+      listInput.focus();
+      return;
+    }
+    if (!nameInput.value.trim()) {
+      showError('Give the item a name.');
+      nameInput.focus();
+      return;
+    }
+
+    showError('');
+    submitButton.disabled = true;
+    submitButton.textContent = 'Adding…';
+
+    fetch(modal.getAttribute('data-submit-url'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken()
+      },
+      body: JSON.stringify({
+        wishlist_id: chosen.id,
+        name: nameInput.value.trim(),
+        url: urlInput.value.trim()
+      })
+    })
+      .then(function (response) {
+        return response.json().then(function (data) {
+          return {ok: response.ok, data: data};
+        });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          showError(result.data.message || 'Could not add that item.');
+          submitButton.disabled = false;
+          submitButton.textContent = 'Add';
+          return;
+        }
+        announce(result.data.message, result.data.is_sneaky);
+        $modal.modal('hide');
+      })
+      .catch(function () {
+        showError('Could not add that item. Please try again.');
+        submitButton.disabled = false;
+        submitButton.textContent = 'Add';
+      });
+  });
+})();
+</script>

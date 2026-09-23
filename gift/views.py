@@ -12,6 +12,7 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.core.validators import URLValidator
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,7 +21,7 @@ from django.utils import timezone
 from django.views import generic
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from .forms import (
     AssignLoginEmailForm,
@@ -219,42 +220,142 @@ def logout_view(request):
     return response
 
 
+def quick_add_prefill(request):
+    """Carry what was typed in the quick-add modal over to the full item form.
+
+    Populated by the modal's 'More options…' link, so switching to the full
+    form doesn't throw away the name and link already entered.
+    """
+    return {
+        field: request.GET[field]
+        for field in ('name', 'url')
+        if request.GET.get(field, '').strip()
+    }
+
+
+def can_add_openly(wishlist, user):
+    """Whether `user` may put an ordinary, visible item on `wishlist`.
+
+    Owner-side means the owner, the dependent the list is kept for, or a
+    manager. Everyone else is a gift-giver, and what they add has to stay
+    hidden from the recipient.
+    """
+    if user == wishlist.owner or user == wishlist.dependent:
+        return True
+    return wishlist.managers.filter(pk=user.pk).exists()
+
+
+@require_GET
+@login_required
+def wishlist_picker(request):
+    """Lists for the quick-add picker.
+
+    Fetched lazily when the modal first opens rather than supplied by a context
+    processor, so browsing the site doesn't pay for a wishlist query on every
+    page — Neon's compute-hour budget makes that worth caring about.
+    """
+    wishlists = WishList.objects.select_related('owner', 'dependent').prefetch_related('managers')
+
+    entries = []
+    for wishlist in wishlists:
+        open_add = can_add_openly(wishlist, request.user)
+        entries.append(
+            {
+                'id': wishlist.id,
+                'title': wishlist.title,
+                'person': person_display_name(wishlist.dependent or wishlist.owner),
+                'can_add_openly': open_add,
+                # Where 'More options…' goes for this list. Resolved here so the
+                # modal never has to build a URL, and so no page carries the
+                # surprise-form path just in case it might be needed.
+                'more_options_url': reverse(
+                    'gift:add_item' if open_add else 'gift:add_sneaky_item',
+                    args=[wishlist.id],
+                ),
+            }
+        )
+    entries.sort(key=lambda entry: (entry['person'].lower(), entry['title'].lower()))
+
+    return JsonResponse({'wishlists': entries})
+
+
 @require_POST
 @login_required
-def item_add_ajax(request, wishlist_id):
+def item_quick_add(request):
+    """Add an item to any list from the nav, in one round trip.
+
+    Whether the item is a surprise is decided here from who is asking — never
+    from the request body — so a client can't spoil a gift by asking for the
+    wrong one, or reveal itself by asking for a surprise on its own list.
+    """
     try:
         data = json.loads(request.body)
-        wishlist = get_object_or_404(WishList, id=wishlist_id)
+    except (TypeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'Malformed request.'}, status=400)
+    if not isinstance(data, dict):
+        return JsonResponse({'status': 'error', 'message': 'Malformed request.'}, status=400)
 
-        # Business Rule: Only owner or managers can add items
-        is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
-        is_manager = request.user in wishlist.managers.all()
-        from giftwiki.feature_flags import get_steward_proxy_enabled
+    try:
+        wishlist_id = int(data.get('wishlist_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'status': 'error', 'message': 'Pick a list first.'}, status=400)
 
-        is_steward = get_steward_proxy_enabled() and request.user == wishlist.dependent
+    wishlist = get_object_or_404(
+        WishList.objects.select_related('owner', 'dependent'), id=wishlist_id
+    )
 
-        if not (is_owner or is_manager or is_steward):
-            logger.warning(
-                'Unauthorized item add attempt',
-                extra={'wishlist_id': wishlist_id, 'user': request.user.email},
-            )
-            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
-
-        # Create a new item
-        item = Item(name=data['name'], wishlist=wishlist)
-        # Set other fields as necessary
-        item.save(current_user=request.user)
-        logger.info(
-            'Item added',
-            extra={'item_id': item.id, 'wishlist_id': wishlist_id, 'user': request.user.email},
+    name = (data.get('name') or '').strip()
+    if not name:
+        return JsonResponse({'status': 'error', 'message': 'Give the item a name.'}, status=400)
+    if len(name) > 255:
+        return JsonResponse(
+            {'status': 'error', 'message': 'That name is too long (255 characters max).'},
+            status=400,
         )
 
-        # Return the new item details
-        return JsonResponse({'id': item.id, 'name': item.name})
-    except Exception as e:
-        # Log the exception for debugging
-        logger.error(f'Error in item_add_ajax: {e}', exc_info=True)
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    url = (data.get('url') or '').strip()
+    if url:
+        try:
+            URLValidator()(url)
+        except ValidationError:
+            return JsonResponse(
+                {'status': 'error', 'message': "That link doesn't look like a valid URL."},
+                status=400,
+            )
+
+    is_sneaky = not can_add_openly(wishlist, request.user)
+    item = Item(wishlist=wishlist, name=name, url=url or None, is_sneaky=is_sneaky)
+    item.save(current_user=request.user)
+
+    logger.info(
+        'Item quick-added',
+        extra={
+            'item_id': item.id,
+            'wishlist_id': wishlist.id,
+            'is_sneaky': is_sneaky,
+            'user': request.user.email,
+        },
+    )
+
+    person = person_display_name(wishlist.dependent or wishlist.owner)
+    if is_sneaky:
+        message = f'Surprise gift added to {wishlist.title} — {person} can’t see it. 🤫'
+    else:
+        message = f'Added “{item.name}” to {wishlist.title}.'
+
+    return JsonResponse(
+        {
+            'status': 'ok',
+            'item': {'id': item.id, 'name': item.name},
+            'is_sneaky': is_sneaky,
+            'wishlist': {
+                'id': wishlist.id,
+                'title': wishlist.title,
+                'url': reverse('gift:wishlist_detail', args=[wishlist.id]),
+            },
+            'message': message,
+        }
+    )
 
 
 @login_required
@@ -295,7 +396,7 @@ def item_add(request, wishlist_id):
             logger.error(f'Form validation errors: {form.errors}')
             messages.error(request, 'Please correct the errors below.')
     else:
-        form = ItemForm(wishlist=wishlist)
+        form = ItemForm(wishlist=wishlist, initial=quick_add_prefill(request))
 
     return render(request, 'gift/item_add.html', {'form': form, 'wishlist': wishlist})
 
@@ -345,7 +446,7 @@ def sneaky_item_add(request, wishlist_id):
         logger.error(f'Form validation errors: {form.errors}')
         messages.error(request, 'Please correct the errors below.')
     else:
-        form = ItemForm(wishlist=wishlist)
+        form = ItemForm(wishlist=wishlist, initial=quick_add_prefill(request))
 
     return render(request, 'gift/sneaky_item_add.html', {'form': form, 'wishlist': wishlist})
 
