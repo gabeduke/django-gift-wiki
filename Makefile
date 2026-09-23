@@ -14,6 +14,8 @@ endif
 PYTHON = pipenv run python
 PYTEST = pipenv run pytest
 MANAGE = $(PYTHON) manage.py
+# Override when 8000 is taken: make local PORT=8765
+PORT ?= 8000
 
 # Install dependencies
 install:
@@ -87,9 +89,9 @@ run: build
 
 # Fast dev server - skips collectstatic for faster iteration (CSS/JS changes work without it)
 local:
-	@echo "🚀 Starting dev server (fast mode - no collectstatic)..."
+	@echo "🚀 Starting dev server (fast mode - no collectstatic) on port $(PORT)..."
 	$(MANAGE) migrate --check || $(MANAGE) migrate
-	$(MANAGE) runserver
+	$(MANAGE) runserver $(PORT)
 
 # Django shell
 shell:

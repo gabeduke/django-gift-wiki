@@ -1101,6 +1101,29 @@ def get_upcoming_birthdays(limit=5):
     return upcoming
 
 
+def person_display_name(person):
+    """The name shown for a person in the UI: full name when set, else username.
+
+    Mirrors the `get_full_name|default:username` idiom the row templates use —
+    get_full_name() returns '' when neither name is set, which is falsy.
+    """
+    if not person:
+        return ''
+    return person.get_full_name() or person.username
+
+
+def wishlist_search_text(wishlist):
+    """Lowercased haystack the home page's quick filter matches a row against.
+
+    Covers exactly what the row displays — its title and the person it's for
+    (the dependent when there is one, else the owner) — so filtering can never
+    match on something the viewer can't see. Group headings are matched
+    separately by the JS via each section's data-group-label.
+    """
+    person = wishlist.dependent or wishlist.owner
+    return f'{wishlist.title} {person_display_name(person)}'.strip().lower()
+
+
 def home(request):
     # Only show wishlists if user is authenticated
     wishlists_grouped = {}
@@ -1169,6 +1192,7 @@ def home(request):
                 )
             else:
                 wishlist.card_item_count = len(wishlist.active_items)
+            wishlist.search_text = wishlist_search_text(wishlist)
             group_key = strategy(wishlist)
             if group_key is not None:
                 wishlists_grouped[group_key].append(wishlist)
@@ -1178,6 +1202,8 @@ def home(request):
 
         # "What's coming up": next birthdays across all users (incl. managed accounts)
         upcoming_birthdays = get_upcoming_birthdays(limit=5)
+        for entry in upcoming_birthdays:
+            entry['search_text'] = person_display_name(entry['user']).lower()
 
         # Check if logged in user needs to select a scraped page
         show_scraped_page_prompt = False
