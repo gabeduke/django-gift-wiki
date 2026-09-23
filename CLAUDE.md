@@ -58,8 +58,16 @@ terraform/               # Infrastructure as code (remote state: GCS wikileet-te
 .github/workflows/       # CI/CD: deploy.yml (prod), deploy-dev.yml (dev/PR)
 firebase-functions/      # Legacy Cloud Functions (sessionLogin moved to Django)
 local-docs/              # Extensive internal documentation
+docs/superpowers/specs/  # Approved design specs for work not yet built
 scripts/                 # Helper/utility scripts
 ```
+
+## Designs not yet built
+Approved specs live in `docs/superpowers/specs/`. Read the relevant one before
+starting work it covers — the decisions and their reasons are recorded there.
+- `2026-09-23-in-app-assistant-design.md` — app-owned Gemini assistant (chat
+  bubble, per-user context document, usage metering). Also records why MCP was
+  deferred and what it will need.
 
 ## Models (gift/models.py)
 - `WikiUser` — Custom user with family membership, profile picture, color palette

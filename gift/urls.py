@@ -42,14 +42,15 @@ urlpatterns = [
         views.wishlist_archive_purchased,
         name='archive_purchased',
     ),
+    path('wishlist/picker/', views.wishlist_picker, name='wishlist_picker'),
     path('wishlist/<int:wishlist_id>/add_item/', views.item_add, name='add_item'),
-    path('wishlist/<int:wishlist_id>/add_item_ajax/', views.item_add_ajax, name='item_add_ajax'),
     path(
         'wishlist/<int:wishlist_id>/add_surprise_item/',
         views.sneaky_item_add,
         name='add_sneaky_item',
     ),
     # Items
+    path('item/quick-add/', views.item_quick_add, name='quick_add_item'),
     path('item/edit/<int:item_id>/', views.item_edit, name='edit_item'),
     path('item/delete/<int:item_id>/', views.item_delete, name='delete_item'),
     path('item/purchase/<int:item_id>/', views.item_purchase, name='purchase_item'),
