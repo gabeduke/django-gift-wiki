@@ -1,5 +1,5 @@
 # Development Commands
-.PHONY: install setup build run migrate shell createsuperuser test clean
+.PHONY: install setup build run migrate makemigrations shell createsuperuser test clean
 .PHONY: test-cov test-unit test-api test-file test-parallel test-bdd check lint format lint-fix
 .PHONY: docker-build docker-build-no-load docker-build-local docker-push
 .PHONY: k8s-deploy k8s-clean
@@ -24,6 +24,10 @@ install:
 # Run migrations
 migrate:
 	$(MANAGE) migrate
+
+# Generate migrations for model changes
+makemigrations:
+	$(MANAGE) makemigrations
 
 # Dump the configured database to a local, verified file.
 # Uses the DIRECT endpoint, never the pooler: PgBouncer runs in transaction mode,

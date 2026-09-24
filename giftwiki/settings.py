@@ -147,6 +147,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'widget_tweaks',
     'gift.apps.GiftConfig',
+    'assistant.apps.AssistantConfig',
     'import_export',
 ]
 

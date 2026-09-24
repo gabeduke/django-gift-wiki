@@ -97,6 +97,11 @@ def get_profile_picture_enabled():
     return get_flag('PROFILE_PICTURE_ENABLED', 'PROFILE_PICTURE_ENABLED', default=False)
 
 
+def get_assistant_enabled():
+    """Get ASSISTANT_ENABLED flag - uses cached value unless invalidated."""
+    return get_flag('ASSISTANT_ENABLED', 'ASSISTANT_ENABLED', default=False)
+
+
 # Module-level accessors - use simple environment variables at import time
 # Database flags will be checked when needed via get_flag() functions
 STEWARD_PROXY_ENABLED = os.getenv('STEWARD_PROXY_ENABLED', 'FALSE').upper() == 'TRUE'
@@ -108,6 +113,7 @@ def _get_feature_flags_dict():
     return {
         'STEWARD_PROXY_ENABLED': get_steward_proxy_enabled(),
         'PROFILE_PICTURE_ENABLED': get_profile_picture_enabled(),
+        'ASSISTANT_ENABLED': get_assistant_enabled(),
     }
 
 
