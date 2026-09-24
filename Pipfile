@@ -27,6 +27,7 @@ google-cloud-logging = "*"
 django-import-export = "*"
 prometheus-client = "*"
 pyyaml = "*"
+google-genai = "*"
 
 [dev-packages]
 pytest = "*"

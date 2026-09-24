@@ -195,6 +195,12 @@ FIREBASE_CLIENT_CONFIG = {
 
 # Google Analytics
 GOOGLE_ANALYTICS_ID = os.environ.get('GOOGLE_ANALYTICS_ID')
+
+# Assistant — Vertex AI. Authenticated with ADC: the Cloud Run service account
+# in production, `gcloud auth application-default login` locally.
+ASSISTANT_VERTEX_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
+ASSISTANT_VERTEX_LOCATION = os.getenv('VERTEX_LOCATION', 'us-central1')
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
