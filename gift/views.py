@@ -44,7 +44,7 @@ from .models import (
     Season,
     WishList,
 )
-from .rules import can_add_openly, person_display_name
+from .rules import can_add_openly, person_display_name, visible_items
 
 logger = logging.getLogger(__name__)
 
@@ -809,7 +809,7 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
 def profile(request):
     # Profile lists are the viewer's own lists, so items shown there must exclude
     # surprise items (and archived/deleted ones) to avoid spoiling them.
-    visible_items = models.Prefetch(
+    visible_items_prefetch = models.Prefetch(
         'items',
         queryset=Item.objects.filter(
             is_deleted=False, archived_at__isnull=True, is_sneaky=False
@@ -820,7 +820,7 @@ def profile(request):
     wishlists = (
         WishList.objects.filter(owner=request.user)
         .select_related('family_name', 'owner', 'dependent')
-        .prefetch_related(visible_items)
+        .prefetch_related(visible_items_prefetch)
     )
 
     # Optionally include wishlists where user is the steward (if feature enabled)
@@ -831,7 +831,7 @@ def profile(request):
         stewarded = (
             WishList.objects.filter(dependent=request.user)
             .select_related('family_name', 'owner', 'dependent')
-            .prefetch_related(visible_items)
+            .prefetch_related(visible_items_prefetch)
         )
         wishlists = wishlists | stewarded
 
@@ -1343,15 +1343,8 @@ def wishlist_detail(request, wishlist_id):
 
     # Priority items first; id keeps a stable order within each group.
     # Archived gifts live on the received-gifts page instead of the active list.
-    items = (
-        wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
-        .select_related('purchased_by', 'updated_by', 'added_by')
-        .prefetch_related('categories')
-        .order_by('-is_priority', 'id')
-    )
-    # Sneaky items never reach the owner/recipient's queryset at all
-    if is_owner:
-        items = items.exclude(is_sneaky=True)
+    # Surprise items never reach the recipient's queryset at all — see gift.rules.
+    items = visible_items(wishlist, request.user)
 
     # Sneaky items get their own labelled section rather than being folded into
     # the recipient's categories: they are other people's additions, not things

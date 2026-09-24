@@ -43,3 +43,94 @@ class TestPersonDisplayName:
 
     def test_none_is_empty(self):
         assert person_display_name(None) == ''
+
+
+from gift.models import Item
+from gift.rules import is_recipient_side, may_see_purchase_info, visible_items
+
+
+@pytest.fixture
+def surprise(db, wishlist, other_user):
+    """A surprise item added by a gift-giver — hidden from the recipient."""
+    return Item.objects.create(
+        wishlist=wishlist, name='Secret Bike', is_sneaky=True, added_by=other_user
+    )
+
+
+@pytest.mark.unit
+class TestVisibleItems:
+    def test_owner_never_sees_a_surprise(self, wishlist, user, item, surprise):
+        names = {i.name for i in visible_items(wishlist, user)}
+
+        assert names == {item.name}
+
+    def test_dependent_never_sees_a_surprise(self, wishlist, other_user, item, surprise):
+        wishlist.dependent = other_user
+        wishlist.save()
+
+        names = {i.name for i in visible_items(wishlist, other_user)}
+
+        assert names == {item.name}
+
+    def test_manager_does_see_surprises(self, wishlist, other_user, item, surprise):
+        """A manager helps run the list without being its recipient — hiding
+        surprises from them would break the feature, not protect it."""
+        wishlist.managers.add(other_user)
+
+        names = {i.name for i in visible_items(wishlist, other_user)}
+
+        assert names == {item.name, surprise.name}
+
+    def test_gift_giver_sees_surprises(self, wishlist, other_user, item, surprise):
+        names = {i.name for i in visible_items(wishlist, other_user)}
+
+        assert names == {item.name, surprise.name}
+
+    def test_deleted_and_archived_items_are_excluded(self, wishlist, user):
+        from django.utils import timezone
+
+        Item.objects.create(wishlist=wishlist, name='Gone', is_deleted=True)
+        Item.objects.create(wishlist=wishlist, name='Archived', archived_at=timezone.now())
+        Item.objects.create(wishlist=wishlist, name='Here')
+
+        assert {i.name for i in visible_items(wishlist, user)} == {'Here'}
+
+    def test_priority_items_come_first(self, wishlist, user):
+        Item.objects.create(wishlist=wishlist, name='Ordinary')
+        Item.objects.create(wishlist=wishlist, name='Wanted', is_priority=True)
+
+        assert [i.name for i in visible_items(wishlist, user)][0] == 'Wanted'
+
+
+@pytest.mark.unit
+class TestPurchaseInfoAudience:
+    """Purchase information has a wider audience than surprise items: it is
+    hidden from managers too, because a manager reads the list with the owner."""
+
+    def test_owner_may_not_see_purchase_info(self, wishlist, user):
+        assert may_see_purchase_info(wishlist, user) is False
+
+    def test_dependent_may_not_see_purchase_info(self, wishlist, other_user):
+        wishlist.dependent = other_user
+        wishlist.save()
+
+        assert may_see_purchase_info(wishlist, other_user) is False
+
+    def test_manager_may_not_see_purchase_info(self, wishlist, other_user):
+        wishlist.managers.add(other_user)
+
+        assert may_see_purchase_info(wishlist, other_user) is False
+
+    def test_gift_giver_may_see_purchase_info(self, wishlist, other_user):
+        assert may_see_purchase_info(wishlist, other_user) is True
+
+
+@pytest.mark.unit
+class TestRecipientSide:
+    def test_owner_is_recipient_side(self, wishlist, user):
+        assert is_recipient_side(wishlist, user) is True
+
+    def test_manager_is_not_recipient_side(self, wishlist, other_user):
+        wishlist.managers.add(other_user)
+
+        assert is_recipient_side(wishlist, other_user) is False
