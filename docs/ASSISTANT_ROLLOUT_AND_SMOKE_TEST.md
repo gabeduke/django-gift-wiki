@@ -214,20 +214,20 @@ Do not compress it into a single sitting.
    command (Cloud Run revision detail, or the container startup log line
    `Starting Gunicorn on 0.0.0.0:<port>...`) reflects it, since a stale
    image or a manual override could still be serving the old default.
-4. **Set deliberately low caps.** At `/admin/assistant/assistantsettings/`:
+3. **Set deliberately low caps.** At `/admin/assistant/assistantsettings/`:
    `per_user_monthly_messages = 30`, `global_monthly_messages = 50`,
    `enabled_until` set a week out.
-5. **Turn `ASSISTANT_ENABLED` on.** You are the only one who knows it's
+4. **Turn `ASSISTANT_ENABLED` on.** You are the only one who knows it's
    there yet — this is not the announcement.
-6. **Use it for a week.** Read the token totals at
+5. **Use it for a week.** Read the token totals at
    `/admin/assistant/assistantusage/` as you go, not just at the end.
-7. **Set real caps.** Work out the real cost per message from that week's
+6. **Set real caps.** Work out the real cost per message from that week's
    token totals and **current** Vertex pricing — look it up fresh, don't
    reuse a number from this document, which will be stale by the time
    you're reading it. Set `per_user_monthly_messages` and
    `global_monthly_messages` to whatever matches a budget you're actually
    happy with, and clear `enabled_until`.
-8. **Announce it.** Add a `ChangelogEntry` — the "What's new" card is how
+7. **Announce it.** Add a `ChangelogEntry` — the "What's new" card is how
    this app tells the family about a feature. Say there are seven secrets
    hidden in the assistant and that the profile page keeps score; the hunt
    only works if the kids know it's there to look for. Then open it up for
