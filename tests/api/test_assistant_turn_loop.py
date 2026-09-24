@@ -297,14 +297,40 @@ class TestFailureAndCaps:
         assert response.status_code == 503
         assert messages_used(user) == 0
 
+    def test_an_sdk_import_failure_becomes_a_friendly_503(
+        self, authenticated_user, user, assistant_on, settings, monkeypatch
+    ):
+        """The `from google import genai` / `from google.genai import types`
+        imports at the top of generate() used to sit one line *above* the try
+        that converts failures into ModelUnavailable — only the client
+        construction and call below them were guarded. An ImportError raised
+        by those two lines is exactly the symptom of shipping without the SDK
+        installed (requirements.txt drift from Pipfile, see
+        tests/test_dependency_lock.py's parity guard), and it escaped as a
+        raw 500 instead of the spec's friendly 503 with the reservation
+        refunded. Setting sys.modules['google.genai'] = None is the standard
+        way to force an import of that name to raise ImportError, and it
+        drives the real VertexModelClient through that exact path.
+        """
+        import sys
+
+        monkeypatch.setitem(sys.modules, 'google.genai', None)
+        settings.ASSISTANT_MODEL_CLIENT = VertexModelClient(
+            project='test-project', location='us-central1', model_name='gemini-test'
+        )
+
+        response = say(authenticated_user, 'hello')
+
+        assert response.status_code == 503
+        assert messages_used(user) == 0
+
     def test_a_non_model_unavailable_failure_still_refunds_the_message(
         self, authenticated_user, user, assistant_on, settings
     ):
-        """ModelUnavailable isn't the only way this can fail: VertexModelClient
-        builds its genai.Client() outside its own try, and a tool's DB
+        """ModelUnavailable isn't the only way this can fail: a tool's DB
         reconnect after connection.close() can raise OperationalError — this
-        repo's documented failure mode (#12, #95). Neither is caught by the
-        ModelUnavailable handler, so the refund can't depend on which
+        repo's documented failure mode (#12, #95), and it is not caught by
+        the ModelUnavailable handler, so the refund can't depend on which
         exception it was."""
 
         class ExplodingModelClient:
@@ -402,3 +428,123 @@ class TestGlobalBudgetAlert:
             say(authenticated_user, 'hello')
 
         assert 'Assistant global budget at 80%' not in caplog.text
+
+
+@pytest.mark.unit
+class TestConnectionHygiene:
+    """`connection.close()` runs immediately before every model call
+    (assistant/views.py), deliberately: a connection held open across the
+    model call — the longest thing the app ever does inside a request — is
+    the documented shape of issues #12 and #95, a mid-request SSL drop
+    against Neon while Cloud Run's `DJANGO_DB_CONN_MAX_AGE=600` keeps the
+    connection pinned open in between. Nothing pins this today: delete the
+    `connection.close()` line and every other test in this suite still
+    passes, because none of them look at the connection's state from inside
+    generate(). This drives a real turn through the endpoint with a model
+    client that checks the connection itself."""
+
+    def test_the_connection_is_closed_before_every_model_call(
+        self, authenticated_user, user, wishlist, assistant_on, settings, monkeypatch
+    ):
+        """Checking `connection.connection is None` from inside generate() —
+        the literal shape of this check — cannot be driven honestly against
+        this suite's test database: it runs on SQLite, and
+        `SQLiteDatabaseWrapper.close()` deliberately no-ops on an in-memory
+        database (pytest-django's default here) to avoid destroying it, so
+        `connection.connection` never actually goes to None no matter what
+        the view does. Spying on `connection.close` itself proves the same
+        thing without depending on the test database's engine: it fails
+        exactly when the production code stops calling close() before the
+        model call, on any backend. Scripting two tool-loop iterations
+        checks it happens before *every* call, not just the first.
+        """
+        from django.db import connection as db_connection
+
+        events = []
+        real_close = db_connection.close
+        monkeypatch.setattr(db_connection, 'close', lambda: (events.append('close'), real_close()))
+
+        fake = FakeModelClient(
+            [
+                ModelTurn(tool_calls=(ToolCall('list_wishlists', {}),)),
+                ModelTurn(text='ok'),
+            ]
+        )
+        real_generate = fake.generate
+        monkeypatch.setattr(
+            fake,
+            'generate',
+            lambda **kwargs: (events.append('generate'), real_generate(**kwargs))[1],
+        )
+        settings.ASSISTANT_MODEL_CLIENT = fake
+
+        response = say(authenticated_user, 'what lists are there?')
+
+        assert response.status_code == 200
+        assert events == ['close', 'generate', 'close', 'generate'], (
+            'connection.close() must run immediately before every model call, not just the first'
+        )
+
+
+@pytest.mark.unit
+class TestNoTranscriptPersists:
+    """The design's hardest constraint, per assistant/models.py's own module
+    docstring: conversation text is never written to the database or the
+    logs, so a gift secret can't reach Postgres or the nightly GCS backups.
+    The only test near this today covers EasterEggFind's field list
+    (test_only_the_slug_is_stored in test_assistant_easter_eggs.py) — this is
+    broader: a distinctive sentinel string is driven through a real turn,
+    and then confirmed absent from both captured log output and every
+    text-ish field of every row of every model in the project. This is the
+    guard Plan 2 will need most, since Plan 2 is where conversation text
+    first legitimately approaches the database."""
+
+    def test_no_conversation_text_reaches_a_log_or_a_database_row(
+        self, authenticated_user, user, wishlist, assistant_on, settings, caplog
+    ):
+        import logging
+
+        from django.apps import apps
+        from django.db import models as db_models
+
+        sentinel = 'zzz-sentinel-purple-narwhal-8675309'
+        settings.ASSISTANT_MODEL_CLIENT = FakeModelClient(
+            [ModelTurn(text=f'Noted: {sentinel}.')]
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            response = say(authenticated_user, f'please remember that {sentinel}')
+
+        assert response.status_code == 200
+        assert sentinel not in caplog.text
+        # caplog.text only renders each record's formatted message — it
+        # would miss a leak carried in a structured `extra={...}` field
+        # (e.g. `logger.info(..., extra={'reply': reply})`), which is
+        # exactly what a real deploy's CloudLoggingHandler *does* pick up
+        # and ship to Cloud Logging as structured jsonPayload. Checking
+        # every attribute on every captured record closes that gap.
+        for record in caplog.records:
+            for value in vars(record).values():
+                assert sentinel not in str(value), (
+                    f'log record {record.name!r} carries the sentinel in a field caplog.text misses'
+                )
+
+        text_field_types = (
+            db_models.CharField,
+            db_models.TextField,
+            db_models.EmailField,
+            db_models.URLField,
+            db_models.SlugField,
+        )
+        for model in apps.get_models():
+            text_fields = [
+                f.name for f in model._meta.get_fields() if isinstance(f, text_field_types)
+            ]
+            if not text_fields:
+                continue
+            for obj in model.objects.all():
+                for field_name in text_fields:
+                    value = getattr(obj, field_name, None) or ''
+                    assert sentinel not in value, (
+                        f'{model.__name__}.{field_name} (pk={obj.pk}) contains the sentinel'
+                    )
