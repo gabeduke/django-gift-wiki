@@ -59,10 +59,10 @@ class VertexModelClient:
         self.timeout_seconds = timeout_seconds
 
     def generate(self, *, system_instructions, contents, tool_declarations):
-        from google import genai
-        from google.genai import types
-
         try:
+            from google import genai
+            from google.genai import types
+
             client = genai.Client(vertexai=True, project=self.project, location=self.location)
             config = types.GenerateContentConfig(
                 system_instruction=system_instructions,

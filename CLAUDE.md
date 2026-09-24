@@ -91,7 +91,8 @@ starting work it covers — the decisions and their reasons are recorded there.
 - **Allowlist**: Firebase middleware enforces an email allowlist (env or hardcoded default)
 
 ## Feature Flags
-Checked at runtime via `get_steward_proxy_enabled()` / `get_profile_picture_enabled()`:
+Checked at runtime via `get_steward_proxy_enabled()` / `get_profile_picture_enabled()` /
+`get_assistant_enabled()`:
 - `STEWARD_PROXY_ENABLED` — Shows dependent/steward fields on wishlists
 - `PROFILE_PICTURE_ENABLED` — Enables profile picture upload/display
 - `ASSISTANT_ENABLED` — Shows the assistant bubble and opens its endpoint

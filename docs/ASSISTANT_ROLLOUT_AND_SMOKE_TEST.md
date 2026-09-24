@@ -151,7 +151,12 @@ in that case the record still reaches Cloud Logging as plain stderr text via
 the `console` handler, and `textPayload` is what catches that path.
 
 Still worth a live check, because nothing above was run against a real
-Cloud Run deployment: temporarily set `global_monthly_messages` very low
+Cloud Run deployment. **This check needs an actual deployed Cloud Run
+revision — local `make run` cannot exercise it**, even with real Vertex
+credentials: `settings.py`'s Cloud Logging block, the `cloud_run_revision`
+log resource, and the log-based metric all only exist once the app is
+running as a Cloud Run service, not as a local process. Run it against a
+`dev` deployment: temporarily set `global_monthly_messages` very low
 (e.g. `1`) at `/admin/assistant/assistantsettings/`, send one message, and
 confirm a `cloud_run_revision` log entry containing `Assistant global
 budget at 80%` shows up in Cloud Logging with `severity: WARNING` (or
@@ -171,26 +176,58 @@ make test && make lint
 Expect green, including `tests/test_deploy_config.py` and
 `tests/test_dependency_lock.py`.
 
+**Before any deploy, also check `requirements.txt` by hand, not just the test.**
+`Dockerfile.cloudrun` installs from `requirements.txt`, not from the Pipfile —
+`tests/test_dependency_lock.py::test_every_shipped_package_is_in_requirements_txt`
+now guards this in CI, but that guard only runs if `make test` runs. Before a
+deploy specifically:
+
+```bash
+grep -q '^google-genai==' requirements.txt && echo "google-genai: present" || echo "MISSING — deploy will ImportError"
+```
+
+This is the exact class of bug that shipped invisibly for this feature:
+`google-genai` was declared in `Pipfile`/`Pipfile.lock` and every offline test
+passed (CI installs with pipenv), but the deployed image installs from
+`requirements.txt` alone and had no SDK — the first real assistant turn would
+have raised `ImportError`. The Part 1 smoke test below would have caught it
+too, but only *after* a deploy; this check catches it before one.
+
 ## Part 3: Staged rollout
 
 Cost is the unknown here, not correctness — this is deliberate and slow.
 Do not compress it into a single sitting.
 
 1. **Merge with `ASSISTANT_ENABLED` off.** Confirm prod renders no bubble.
-2. **Set deliberately low caps.** At `/admin/assistant/assistantsettings/`:
+2. **Confirm gunicorn's timeout and worker settings deployed.**
+   `entrypoint.sh`'s `exec gunicorn` line must carry `--timeout 120
+   --workers 2 --threads 4 --worker-class gthread`. Gunicorn's own default
+   timeout is 30 seconds with a single sync worker — below
+   `assistant/views.py`'s 60-second turn budget, which itself allows up to 5
+   calls each capped at `assistant/llm.py`'s 30-second
+   `MODEL_TIMEOUT_SECONDS`. Without the explicit flags, a turn running past
+   30s gets its gunicorn worker SIGKILLed mid-call: no `except` runs, so
+   `refund_message()` never fires and the reservation leaks — a fourth way
+   into the same leak that three earlier rounds closed from inside Python,
+   this time from outside the process. Check the value actually running,
+   not just the file in the repo — confirm the deployed container's start
+   command (Cloud Run revision detail, or the container startup log line
+   `Starting Gunicorn on 0.0.0.0:<port>...`) reflects it, since a stale
+   image or a manual override could still be serving the old default.
+4. **Set deliberately low caps.** At `/admin/assistant/assistantsettings/`:
    `per_user_monthly_messages = 30`, `global_monthly_messages = 50`,
    `enabled_until` set a week out.
-3. **Turn `ASSISTANT_ENABLED` on.** You are the only one who knows it's
+5. **Turn `ASSISTANT_ENABLED` on.** You are the only one who knows it's
    there yet — this is not the announcement.
-4. **Use it for a week.** Read the token totals at
+6. **Use it for a week.** Read the token totals at
    `/admin/assistant/assistantusage/` as you go, not just at the end.
-5. **Set real caps.** Work out the real cost per message from that week's
+7. **Set real caps.** Work out the real cost per message from that week's
    token totals and **current** Vertex pricing — look it up fresh, don't
    reuse a number from this document, which will be stale by the time
    you're reading it. Set `per_user_monthly_messages` and
    `global_monthly_messages` to whatever matches a budget you're actually
    happy with, and clear `enabled_until`.
-6. **Announce it.** Add a `ChangelogEntry` — the "What's new" card is how
+8. **Announce it.** Add a `ChangelogEntry` — the "What's new" card is how
    this app tells the family about a feature. Say there are seven secrets
    hidden in the assistant and that the profile page keeps score; the hunt
    only works if the kids know it's there to look for. Then open it up for

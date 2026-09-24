@@ -161,10 +161,9 @@ def message(request):
         refund_message(request.user)
         return JsonResponse({'error': BUSY_MESSAGE}, status=503)
     except Exception:
-        # Not every failure path raises ModelUnavailable: VertexModelClient
-        # builds its genai.Client() outside its own try, and a tool's DB
+        # Not every failure path raises ModelUnavailable: a tool's DB
         # reconnect after connection.close() above can raise OperationalError
-        # (this repo's documented failure mode, #12 and #95) — neither is
+        # (this repo's documented failure mode, #12 and #95), and that is not
         # caught by the handler above. The reservation must not survive any
         # failure that keeps the user from getting an answer, whichever
         # exception carries it.

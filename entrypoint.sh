@@ -74,5 +74,24 @@ fi
 
 # Start the Gunicorn server
 # Cloud Run injects the PORT environment variable
+#
+# --timeout / --workers / --threads / --worker-class exist for the assistant:
+# assistant/views.py's TURN_BUDGET_SECONDS (60s) allows up to 5 model calls,
+# each capped by assistant/llm.py's MODEL_TIMEOUT_SECONDS (30s). Gunicorn's
+# default --timeout is 30s with a single sync worker, so a turn running past
+# 30s used to get its worker SIGKILLed mid-call — no `except` runs, so
+# refund_message() never fires and the reserved message leaks. That is a
+# fourth way to leak the reservation, from outside the Python process, after
+# three separate rounds closed it from inside. The three values must stay
+# ordered gunicorn timeout > turn budget > per-call timeout, so gunicorn
+# never kills a worker before the app's own budget would have ended the
+# turn cleanly. --worker-class gthread is required for --threads to take
+# effect at all (see gunicorn's own docs: plain --threads with the default
+# sync worker either does nothing or silently changes worker class,
+# depending on version) — set explicitly rather than relying on that.
+# A single sync worker also blocks every other request on the instance for
+# the duration of a model call, hence >1 worker.
 echo "Starting Gunicorn on 0.0.0.0:${PORT}..."
-exec gunicorn --bind 0.0.0.0:${PORT} --access-logfile - --error-logfile - --log-level info giftwiki.wsgi:application
+exec gunicorn --bind 0.0.0.0:${PORT} --timeout 120 --workers 2 --threads 4 \
+    --worker-class gthread --access-logfile - --error-logfile - --log-level info \
+    giftwiki.wsgi:application
