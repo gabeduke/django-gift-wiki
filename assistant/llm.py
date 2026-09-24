@@ -30,6 +30,15 @@ MODEL_TIMEOUT_SECONDS = 30
 class ToolCall:
     name: str
     arguments: dict = field(default_factory=dict)
+    # Gemini 3.x returns an encrypted record of its own reasoning alongside a
+    # function call, and REQUIRES it back, on the same part, when the tool
+    # result is sent. Omitting it is a 400: "Function call FC1 in the 1.
+    # content block is missing a thought_signature." The SDK handles this for
+    # callers who append the raw response object to history; this turn loop
+    # rebuilds parts by hand, so it has to carry the signature itself. Only the
+    # first call of a parallel set carries one, so None here is normal and must
+    # stay absent from the echoed part rather than being sent as null.
+    thought_signature: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -109,6 +118,8 @@ class VertexModelClient:
                         ToolCall(
                             name=part.function_call.name,
                             arguments=dict(part.function_call.args or {}),
+                            # Carried back verbatim — see ToolCall.
+                            thought_signature=getattr(part, 'thought_signature', None),
                         )
                     )
                 elif getattr(part, 'text', None):

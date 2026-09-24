@@ -39,8 +39,12 @@ class AssistantSettings(models.Model):
     )
     model_name = models.CharField(
         max_length=100,
-        default='gemini-2.5-flash',
-        help_text='Vertex AI model id. Verify against current Vertex docs before changing.',
+        default='gemini-3.8-flash',
+        help_text=(
+            'Vertex AI model id. Confirm against the live publisher list rather than memory: '
+            'curl the aiplatform publishers/google/models endpoint with an access token and '
+            'an x-goog-user-project header, and pick a GA Flash model.'
+        ),
     )
     enabled_until = models.DateField(
         null=True,

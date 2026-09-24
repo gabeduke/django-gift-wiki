@@ -32,6 +32,31 @@ def assistant_on(db):
 
 @pytest.mark.unit
 class TestAssistantFlag:
+    def test_a_stale_process_picks_up_a_toggle_once_the_ttl_passes(self, db, monkeypatch):
+        """The cache is per process and admin's _clear_cache() only reaches the
+        process that served the save. Production runs several workers, so
+        without an expiry a toggled flag reaches one of them and the rest keep
+        answering with the old value — which shipped, and showed up as the
+        assistant bubble vanishing whenever a request landed on a worker that
+        had never seen the flag. This is the convergence that fixes it, and it
+        fails if CACHE_TTL_SECONDS stops being honoured."""
+        from giftwiki import feature_flags
+
+        _cache.clear()
+        _clear_cache()
+        assert get_assistant_enabled() is False  # warms this process's cache
+
+        # The flag appears — as it would from another process's admin save,
+        # which cannot invalidate this one's cache.
+        FeatureFlag.objects.update_or_create(name='ASSISTANT_ENABLED', defaults={'enabled': True})
+        assert get_assistant_enabled() is False, 'still cached, which is the point'
+
+        # Let the TTL lapse without touching _clear_cache().
+        clock = feature_flags.time.monotonic() + feature_flags.CACHE_TTL_SECONDS + 1
+        monkeypatch.setattr(feature_flags.time, 'monotonic', lambda: clock)
+
+        assert get_assistant_enabled() is True
+
     def test_off_by_default(self, db):
         _cache.clear()
         _clear_cache()

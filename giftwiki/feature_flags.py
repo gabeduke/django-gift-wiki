@@ -17,14 +17,30 @@ Usage:
 """
 
 import os
+import time
 
 # Cache for database flags
 _cache = {}
 _cache_valid = False
+_cache_loaded_at = 0.0
+
+# The cache is per *process*, and admin's _clear_cache() only reaches the one
+# process that served the save. Production runs several gunicorn workers per
+# instance and several instances, so without an expiry a flag toggled in admin
+# reaches exactly one of them and the others answer with the old value until
+# they restart. That is not theoretical: it shipped, and the symptom was the
+# assistant bubble vanishing mid-conversation whenever a request happened to
+# land on a worker that had never seen the flag, because the endpoint returned
+# 'disabled' while the page that rendered the bubble had said otherwise.
+# A short TTL makes every process converge on its own.
+CACHE_TTL_SECONDS = 60
 
 
 def _clear_cache():
-    """Clear the feature flag cache."""
+    """Invalidate this process's feature flag cache immediately.
+
+    Other processes catch up within CACHE_TTL_SECONDS — see the note there.
+    """
     global _cache_valid
     _cache_valid = False
 
@@ -65,14 +81,16 @@ def get_flag(env_name: str, db_name: str = None, default: bool = False) -> bool:
         db_name = env_name
 
     # Check cache first
-    global _cache_valid
-    if not _cache_valid:
+    global _cache_valid, _cache_loaded_at
+    expired = time.monotonic() - _cache_loaded_at >= CACHE_TTL_SECONDS
+    if not _cache_valid or expired:
         # Replace, not merge: a flag whose row has disappeared since the last
         # load (deleted in admin, or rolled back at a test's transaction
         # boundary) must not keep answering with its last cached value.
         _cache.clear()
         _cache.update(_load_from_database())
         _cache_valid = True
+        _cache_loaded_at = time.monotonic()
 
     # Priority 1: Database
     if db_name in _cache:

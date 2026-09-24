@@ -134,6 +134,47 @@ class TestAPlainTurn:
 
 @pytest.mark.unit
 class TestToolCycle:
+    def test_a_thought_signature_is_returned_on_its_own_part(
+        self, authenticated_user, wishlist, assistant_on, settings
+    ):
+        """Gemini 3.x rejects the second call of a tool-using turn with a 400 if
+        the signature it issued doesn't come back on the same part. The SDK does
+        this for callers who append the raw response to history; this loop
+        rebuilds parts by hand, so dropping it would break every tool call
+        against a 3.x model while every fake-driven test stayed green."""
+        fake = FakeModelClient(
+            [
+                ModelTurn(
+                    tool_calls=(ToolCall('list_wishlists', {}, thought_signature=b'sig-A'),)
+                ),
+                ModelTurn(text='There is one list.'),
+            ]
+        )
+        settings.ASSISTANT_MODEL_CLIENT = fake
+
+        say(authenticated_user, 'what lists are there?')
+
+        model_part = fake.calls[1]['contents'][-2]['parts'][0]
+        assert model_part['function_call']['name'] == 'list_wishlists'
+        assert model_part['thought_signature'] == b'sig-A'
+
+    def test_a_call_without_a_signature_omits_the_key(
+        self, authenticated_user, wishlist, assistant_on, settings
+    ):
+        """Only the first call of a parallel set carries a signature. Sending an
+        explicit null for the others is not the same as omitting the key."""
+        fake = FakeModelClient(
+            [
+                ModelTurn(tool_calls=(ToolCall('list_wishlists', {}),)),
+                ModelTurn(text='Done.'),
+            ]
+        )
+        settings.ASSISTANT_MODEL_CLIENT = fake
+
+        say(authenticated_user, 'what lists are there?')
+
+        assert 'thought_signature' not in fake.calls[1]['contents'][-2]['parts'][0]
+
     def test_a_tool_call_runs_and_the_result_comes_back(
         self, authenticated_user, user, wishlist, assistant_on, settings
     ):

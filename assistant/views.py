@@ -128,13 +128,7 @@ def message(request):
                 break
 
             contents.append(
-                {
-                    'role': 'model',
-                    'parts': [
-                        {'function_call': {'name': call.name, 'args': call.arguments}}
-                        for call in turn.tool_calls
-                    ],
-                }
+                {'role': 'model', 'parts': [_model_part(call) for call in turn.tool_calls]}
             )
             contents.append(
                 {
@@ -190,6 +184,24 @@ def message(request):
             'messages_left': max(0, config.per_user_monthly_messages - used),
         }
     )
+
+
+def _model_part(call):
+    """Rebuild the model's own function-call part for the next request.
+
+    Gemini 3.x requires the thought signature it issued with a function call to
+    come back on that same part; omitting it is a 400 that kills the turn on the
+    second model call, which is every tool-using conversation. The SDK does this
+    for callers who append the raw response object to history — this loop
+    rebuilds parts by hand, so it carries the signature explicitly.
+
+    Only the first call of a parallel set has one. A part without a signature
+    must omit the key rather than send null, so this mirrors what arrived.
+    """
+    part = {'function_call': {'name': call.name, 'args': call.arguments}}
+    if call.thought_signature is not None:
+        part['thought_signature'] = call.thought_signature
+    return part
 
 
 def _as_response_payload(result):

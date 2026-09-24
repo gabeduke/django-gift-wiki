@@ -11,21 +11,54 @@ match Steps 6 and 9 of the task brief
 explicitly could not be executed in that environment and were turned into
 this runbook instead.
 
-## Before you start: two unconfirmed judgment calls
+## Before you start: region and model id, both now confirmed
 
-- **Region.** `VERTEX_LOCATION=us-central1` is what's wired into
-  `env.example` and `cloudbuild.yaml`, per the plan brief's suggested
-  default. Cloud Run itself runs in `us-east1` (`cloudbuild.yaml`'s
-  `_REGION`) — the two don't need to match, but Vertex model availability is
-  regional, and this has **not** been confirmed against current Vertex docs.
-  Check that the Gemini Flash model actually serves from `us-central1`
-  before relying on it. If it doesn't, the location needs changing in three
-  places that must stay in sync: `env.example`, all three
-  `--set-env-vars` sites in `cloudbuild.yaml`, and whatever you set locally
-  in Part 1 below.
-- **Model id.** `assistant/models.py`'s `AssistantSettings.model_name`
-  defaults to `gemini-2.5-flash`. Part 1, step 6 below is the first real
-  test of whether Vertex actually accepts that id.
+Both were open questions when this branch was written. Both were checked
+against the live Vertex publisher list on 2026-09-24 — **don't take a model
+id from memory, ask the API**, which is how the original default came to be
+two generations stale:
+
+```bash
+TOKEN=$(gcloud auth print-access-token)
+curl -s -H "Authorization: Bearer $TOKEN" \
+     -H "x-goog-user-project: wikileet" \
+     "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/google/models?pageSize=200" \
+  | python3 -c "import json,sys; [print(m['name'].split('/')[-1], m.get('launchStage')) for m in json.load(sys.stdin)['publisherModels'] if 'flash' in m['name']]"
+```
+
+The `x-goog-user-project` header is required — without it the call fails with
+`SERVICE_DISABLED` about a missing quota project, which looks like the API is
+off when it isn't.
+
+- **Region: `us-central1` confirmed.** That endpoint returned 133 models
+  including every GA Flash variant, so Flash serves from there. Cloud Run
+  itself runs in `us-east1`; the two don't need to match. If you ever do move
+  it, three places must stay in sync: `env.example`, all three
+  `--set-env-vars` sites in `cloudbuild.yaml`, and whatever you set locally.
+- **Model id: `gemini-3.8-flash`.** The GA text Flash models are 2.5, 3.5,
+  3.6, 3.7 and 3.8 (`gemini-3-flash-preview` is PUBLIC_PREVIEW; the
+  `-lite`, `-image`, `-tts` and `-omni` variants are for other jobs). The
+  default was `gemini-2.5-flash`, which is GA but two generations behind.
+  Any of the GA ids above will work if you'd rather run something that has
+  been out longer — it's one field in the admin.
+
+Step 6 of Part 1 is still the first test of whether Vertex accepts the id
+**with function calling**, which the model list cannot tell you.
+
+### If you tune this later, two 3.x rules
+
+- **Do not set `temperature`, `top_p` or `top_k`.** Google now recommends
+  against all three on 3.x models — the model manages its own sampling, and
+  pinning a low temperature for "more deterministic" answers is documented to
+  cause looping and degrade complex tasks. `assistant/llm.py` deliberately
+  sets none of them; the knob for determinism is a more explicit system
+  instruction, not a colder sample.
+- **Use `thinking_level` (a string enum), not `thinking_budget`.** The numeric
+  budget is no longer recommended on 3.x. We set neither and take the default.
+  If turns feel slow or cost more than you want, `thinking_level` is the lever
+  to reach for first — it goes in the `GenerateContentConfig` in
+  `assistant/llm.py`, and it is the one place worth re-reading the current docs
+  before changing.
 
 ## Part 1: Smoke test against the real model
 
@@ -128,9 +161,10 @@ casually against `prod`.
 
 Set the working id at `/admin/assistant/assistantsettings/` (the
 `model_name` field) to keep the app running, **and** update the default in
-`assistant/models.py` (`AssistantSettings.model_name`'s
-`default='gemini-2.5-flash'`) to match — otherwise a fresh install or a
-`AssistantSettings` row reset repeats the same failure.
+`assistant/models.py` (`AssistantSettings.model_name`'s `default`, currently
+`'gemini-3.8-flash'`) to match — otherwise a fresh install or an
+`AssistantSettings` row reset repeats the same failure. Changing the default
+needs a migration; `make makemigrations` generates it.
 
 ### Also worth checking while you're here: the 80% budget alert
 

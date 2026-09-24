@@ -117,10 +117,22 @@ secret never reaches the database or the nightly backups.
       })
       .then(function (result) {
         if (result.status === 403 && result.data.available === false) {
-          // The gate closed mid-conversation. Take the bubble away rather than
-          // leaving a dead one behind.
-          thinking.textContent = result.data.message || '';
-          window.setTimeout(function () { root.remove(); }, result.data.message ? 4000 : 0);
+          // A cap or an end date is settled: the bubble goes away, after the
+          // message has had time to be read, rather than sitting there dead.
+          //
+          // 'disabled' is different, and removing the bubble for it was a bug.
+          // The flag cache is per process, so a request can land on a worker
+          // that hasn't picked up a toggle yet and answer 'disabled' while the
+          // page that rendered this bubble said otherwise. Deleting the icon
+          // over a disagreement that a refresh resolves is the worst of both
+          // worlds. The endpoint still refuses either way — the server is the
+          // control, not this element's existence.
+          var sticky = ['user_cap', 'global_cap', 'expired'];
+          thinking.textContent =
+            result.data.message || 'The assistant is not available right now.';
+          if (sticky.indexOf(result.data.reason) !== -1) {
+            window.setTimeout(function () { root.remove(); }, 4000);
+          }
           return;
         }
         if (result.status !== 200) {
