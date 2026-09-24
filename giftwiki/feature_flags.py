@@ -67,6 +67,10 @@ def get_flag(env_name: str, db_name: str = None, default: bool = False) -> bool:
     # Check cache first
     global _cache_valid
     if not _cache_valid:
+        # Replace, not merge: a flag whose row has disappeared since the last
+        # load (deleted in admin, or rolled back at a test's transaction
+        # boundary) must not keep answering with its last cached value.
+        _cache.clear()
         _cache.update(_load_from_database())
         _cache_valid = True
 

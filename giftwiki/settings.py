@@ -215,6 +215,7 @@ TEMPLATES = [
                 'gift.context_processors.google_analytics',
                 'gift.context_processors.unseen_changelog_count',
                 'giftwiki.feature_flags.get_context_processor',
+                'assistant.context_processors.assistant_availability',
             ],
         },
     },
