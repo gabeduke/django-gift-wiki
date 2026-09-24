@@ -7,6 +7,11 @@ the tool layer must not have to import a view module to do it.
 
 import logging
 
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
+
+from gift.models import Item
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,3 +114,43 @@ def visible_items_for(wishlist, viewer):
             entry['purchased_by'] = person_display_name(item.purchased_by)
         entries.append(entry)
     return entries
+
+
+class ItemValidationError(ValueError):
+    """Item input a person needs to fix. str(exc) is copy shown to them."""
+
+
+def create_item_for(user, wishlist, name, url=None):
+    """Add an item to `wishlist` on behalf of `user`.
+
+    Whether the item is a surprise is decided here from who is asking — never
+    from the caller — so neither a browser nor a language model can spoil a
+    gift by asking for the wrong one.
+    """
+    name = (name or '').strip()
+    if not name:
+        raise ItemValidationError('Give the item a name.')
+    if len(name) > 255:
+        raise ItemValidationError('That name is too long (255 characters max).')
+
+    url = (url or '').strip()
+    if url:
+        try:
+            URLValidator()(url)
+        except ValidationError as exc:
+            raise ItemValidationError("That link doesn't look like a valid URL.") from exc
+
+    is_sneaky = not can_add_openly(wishlist, user)
+    item = Item(wishlist=wishlist, name=name, url=url or None, is_sneaky=is_sneaky)
+    item.save(current_user=user)
+
+    logger.info(
+        'Item created',
+        extra={
+            'item_id': item.id,
+            'wishlist_id': wishlist.id,
+            'is_sneaky': is_sneaky,
+            'user': getattr(user, 'email', None),
+        },
+    )
+    return item

@@ -12,7 +12,6 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
-from django.core.validators import URLValidator
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -44,7 +43,13 @@ from .models import (
     Season,
     WishList,
 )
-from .rules import can_add_openly, person_display_name, visible_items
+from .rules import (
+    ItemValidationError,
+    can_add_openly,
+    create_item_for,
+    person_display_name,
+    visible_items,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -293,38 +298,12 @@ def item_quick_add(request):
         WishList.objects.select_related('owner', 'dependent'), id=wishlist_id
     )
 
-    name = (data.get('name') or '').strip()
-    if not name:
-        return JsonResponse({'status': 'error', 'message': 'Give the item a name.'}, status=400)
-    if len(name) > 255:
-        return JsonResponse(
-            {'status': 'error', 'message': 'That name is too long (255 characters max).'},
-            status=400,
-        )
+    try:
+        item = create_item_for(request.user, wishlist, data.get('name'), data.get('url'))
+    except ItemValidationError as exc:
+        return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
 
-    url = (data.get('url') or '').strip()
-    if url:
-        try:
-            URLValidator()(url)
-        except ValidationError:
-            return JsonResponse(
-                {'status': 'error', 'message': "That link doesn't look like a valid URL."},
-                status=400,
-            )
-
-    is_sneaky = not can_add_openly(wishlist, request.user)
-    item = Item(wishlist=wishlist, name=name, url=url or None, is_sneaky=is_sneaky)
-    item.save(current_user=request.user)
-
-    logger.info(
-        'Item quick-added',
-        extra={
-            'item_id': item.id,
-            'wishlist_id': wishlist.id,
-            'is_sneaky': is_sneaky,
-            'user': request.user.email,
-        },
-    )
+    is_sneaky = item.is_sneaky
 
     person = person_display_name(wishlist.dependent or wishlist.owner)
     if is_sneaky:

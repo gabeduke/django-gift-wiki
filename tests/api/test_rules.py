@@ -10,7 +10,9 @@ from django.contrib.auth.models import AnonymousUser
 
 from gift.models import Item
 from gift.rules import (
+    ItemValidationError,
     can_add_openly,
+    create_item_for,
     is_recipient_side,
     may_see_purchase_info,
     person_display_name,
@@ -212,3 +214,58 @@ class TestVisibleItemsFor:
         )
 
         assert entry['is_surprise'] is True
+
+
+@pytest.mark.unit
+class TestCreateItemFor:
+    def test_owner_gets_an_ordinary_item(self, wishlist, user):
+        item = create_item_for(user, wishlist, 'Coffee Grinder')
+
+        assert item.is_sneaky is False
+        assert item.added_by == user
+        assert item.updated_by == user
+
+    def test_gift_giver_gets_a_surprise(self, wishlist, other_user):
+        item = create_item_for(other_user, wishlist, 'Secret Bike')
+
+        assert item.is_sneaky is True
+
+    def test_manager_gets_an_ordinary_item(self, wishlist, other_user):
+        wishlist.managers.add(other_user)
+
+        assert create_item_for(other_user, wishlist, 'Socks').is_sneaky is False
+
+    def test_dependent_gets_an_ordinary_item(self, wishlist, other_user):
+        wishlist.dependent = other_user
+        wishlist.save()
+
+        assert create_item_for(other_user, wishlist, 'Socks').is_sneaky is False
+
+    def test_name_is_trimmed(self, wishlist, user):
+        assert create_item_for(user, wishlist, '  Wool Socks  ').name == 'Wool Socks'
+
+    def test_blank_name_is_rejected(self, wishlist, user):
+        with pytest.raises(ItemValidationError):
+            create_item_for(user, wishlist, '   ')
+
+    def test_overlong_name_is_rejected(self, wishlist, user):
+        with pytest.raises(ItemValidationError):
+            create_item_for(user, wishlist, 'x' * 256)
+
+    def test_url_is_saved(self, wishlist, user):
+        item = create_item_for(user, wishlist, 'Linked', url='https://example.com/thing')
+
+        assert item.url == 'https://example.com/thing'
+
+    def test_malformed_url_is_rejected(self, wishlist, user):
+        with pytest.raises(ItemValidationError):
+            create_item_for(user, wishlist, 'Bad Link', url='not a url')
+
+    def test_blank_url_becomes_none(self, wishlist, user):
+        assert create_item_for(user, wishlist, 'No Link', url='   ').url is None
+
+    def test_nothing_is_created_when_validation_fails(self, wishlist, user):
+        with pytest.raises(ItemValidationError):
+            create_item_for(user, wishlist, '')
+
+        assert Item.objects.filter(wishlist=wishlist).count() == 0
