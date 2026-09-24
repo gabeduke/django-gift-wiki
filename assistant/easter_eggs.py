@@ -84,7 +84,12 @@ CATALOG = (
         patterns=(
             r'(developer|debug|admin|god|jailbreak) mode',
             r'\bsudo\b',
-            r'\bDAN\b',
+            # Case-sensitivity is scoped off for this one alternative rather than
+            # the whole pattern: the module compiles every pattern with
+            # re.IGNORECASE, and this app's vocabulary is full of family members'
+            # names — "Dan" is a person here, not a jailbreak. Matching only the
+            # literal, all-caps "DAN" keeps the reference without catching him.
+            r'(?-i:\bDAN\b)',
         ),
     ),
     EasterEgg(
@@ -105,7 +110,10 @@ CATALOG = (
         patterns=(
             r"let'?s play a game where you",
             r'(write|tell) (me )?a story (where|in which) you',
-            r'\brole ?-? ?play\b',
+            # Requires the assistant as the subject — "role play" alone is also
+            # a mainstream children's-toy label ("role play kitchen"), which is
+            # exactly the phrase a child types into a gift wishlist.
+            r"(let'?s|will you|can you|please) role ?-? ?play",
             r'imagine you (are|were) (a|an|not)',
         ),
     ),

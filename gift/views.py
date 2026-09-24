@@ -889,8 +889,9 @@ def profile(request):
     
     new_managed_user_form = CreateManagedUserForm(user=request.user)
 
-    # The Easter egg shelf. Imported here rather than at module scope to keep
-    # gift's import graph free of assistant, which depends on gift.rules.
+    # The Easter egg shelf. Imported here to match this view's existing
+    # convention of importing feature-gated dependencies locally (see
+    # get_steward_proxy_enabled and get_profile_picture_enabled above).
     from assistant.easter_eggs import shelf_for
     from giftwiki.feature_flags import get_assistant_enabled
 
