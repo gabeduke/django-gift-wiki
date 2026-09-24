@@ -292,6 +292,26 @@ class TestFailureAndCaps:
 
         assert messages_used(user) == 0
 
+    def test_a_prompt_assembly_failure_still_refunds_the_message(
+        self, authenticated_user, user, assistant_on, settings, monkeypatch
+    ):
+        """roster_for() queries the database before the model is ever called —
+        it is exposed to the same reconnect failure as anything inside the
+        loop, so it has to be inside the same guarded region. The reservation
+        can't depend on which side of the model call the failure happened."""
+        from assistant import views as assistant_views
+
+        def exploding_roster_for(user):
+            raise RuntimeError('reconnect exploded')
+
+        monkeypatch.setattr(assistant_views, 'roster_for', exploding_roster_for)
+        settings.ASSISTANT_MODEL_CLIENT = FakeModelClient([ModelTurn(text='should not run')])
+
+        with pytest.raises(RuntimeError):
+            say(authenticated_user, 'hello')
+
+        assert messages_used(user) == 0
+
     def test_the_personal_cap_closes_the_door(
         self, authenticated_user, user, assistant_on, settings
     ):

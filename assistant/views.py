@@ -75,14 +75,21 @@ def message(request):
             status=403,
         )
 
-    instructions = system_instructions(request.user, roster_for(request.user))
-    client = get_model_client()
     deadline = time.monotonic() + TURN_BUDGET_SECONDS
     input_tokens = 0
     output_tokens = 0
     reply = ''
 
     try:
+        # Assembling the prompt is not free: roster_for() queries the
+        # database, and that query is exactly as exposed to a reconnect
+        # failure as anything inside the loop below. It has to be inside the
+        # same guarded region as the model call it precedes, or a failure
+        # here leaks the reservation just as the loop's own failures would
+        # without the handler below.
+        instructions = system_instructions(request.user, roster_for(request.user))
+        client = get_model_client()
+
         for iteration in range(MAX_TOOL_ITERATIONS):
             # Never hold a Neon connection across the model call: this is the
             # longest thing the app ever does inside a request, and a held
