@@ -80,3 +80,32 @@ def person_display_name(person):
     if not person:
         return ''
     return person.get_full_name() or person.username
+
+
+def visible_items_for(wishlist, viewer):
+    """`visible_items` as plain dicts, for callers that cannot use the template.
+
+    The wishlist page hides purchase information in the template, via
+    is_list_manager. Anything that renders items without that template — the
+    assistant, above all — has to do the hiding here instead, which is why the
+    purchase keys are omitted rather than blanked: an absent key cannot be
+    mistaken for 'not purchased yet'.
+    """
+    show_purchases = may_see_purchase_info(wishlist, viewer)
+    entries = []
+    for item in visible_items(wishlist, viewer):
+        entry = {
+            'id': item.id,
+            'name': item.name,
+            'description': item.description or '',
+            'url': item.url or '',
+            'price': str(item.price) if item.price is not None else '',
+            'is_priority': item.is_priority,
+            'is_surprise': item.is_sneaky,
+            'categories': [category.name for category in item.categories.all()],
+        }
+        if show_purchases:
+            entry['purchased'] = item.purchased
+            entry['purchased_by'] = person_display_name(item.purchased_by)
+        entries.append(entry)
+    return entries

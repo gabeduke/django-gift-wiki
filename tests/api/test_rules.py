@@ -15,6 +15,7 @@ from gift.rules import (
     may_see_purchase_info,
     person_display_name,
     visible_items,
+    visible_items_for,
 )
 
 
@@ -148,3 +149,66 @@ class TestRecipientSide:
         wishlist.managers.add(other_user)
 
         assert is_recipient_side(wishlist, other_user) is False
+
+
+@pytest.mark.unit
+class TestVisibleItemsFor:
+    def test_shape_for_a_gift_giver(self, wishlist, other_user, item):
+        (entry,) = visible_items_for(wishlist, other_user)
+
+        assert entry['id'] == item.id
+        assert entry['name'] == 'Test Item'
+        assert entry['price'] == '29.99'
+        assert entry['is_surprise'] is False
+        assert entry['categories'] == []
+
+    def test_purchase_keys_are_absent_for_the_owner(
+        self, wishlist, user, item, other_user
+    ):
+        item.purchased = True
+        item.purchased_by = other_user
+        item.save()
+
+        (entry,) = visible_items_for(wishlist, user)
+
+        assert 'purchased' not in entry
+        assert 'purchased_by' not in entry
+
+    def test_purchase_keys_are_absent_for_a_manager(self, wishlist, other_user, item):
+        """Managers read the list with the owner, so they are spoiler-side too."""
+        wishlist.managers.add(other_user)
+        item.purchased = True
+        item.save()
+
+        (entry,) = visible_items_for(wishlist, other_user)
+
+        assert 'purchased' not in entry
+
+    def test_purchase_keys_are_present_for_a_gift_giver(
+        self, wishlist, other_user, item
+    ):
+        item.purchased = True
+        item.purchased_by = other_user
+        item.save()
+
+        (entry,) = visible_items_for(wishlist, other_user)
+
+        assert entry['purchased'] is True
+        assert entry['purchased_by'] == 'otheruser'
+
+    def test_a_surprise_is_never_serialized_for_the_recipient(
+        self, wishlist, user, item, surprise
+    ):
+        names = [e['name'] for e in visible_items_for(wishlist, user)]
+
+        assert names == [item.name]
+
+    def test_a_surprise_is_flagged_for_a_gift_giver(
+        self, wishlist, other_user, surprise
+    ):
+        entry = next(
+            e for e in visible_items_for(wishlist, other_user)
+            if e['id'] == surprise.id
+        )
+
+        assert entry['is_surprise'] is True
