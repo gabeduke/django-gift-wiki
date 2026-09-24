@@ -1,0 +1,157 @@
+"""The assistant's one endpoint: a synchronous turn on a WSGI worker.
+
+Streaming would need ASGI, which is this project's biggest risk bought for its
+smallest payoff on exchanges lasting about two seconds. So the worker is held
+for the duration of the call — which is exactly why the DB connection is not.
+"""
+
+import json
+import logging
+import time
+
+from django.contrib.auth.decorators import login_required
+from django.db import connection
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
+from assistant.gating import CAP_MESSAGE, assistant_available_for
+from assistant.llm import ModelUnavailable, get_model_client
+from assistant.models import AssistantSettings
+from assistant.prompt import build_contents, roster_for, system_instructions
+from assistant.quota import global_messages_used, record_tokens, refund_message, reserve_message
+from assistant.tools import TOOL_DECLARATIONS, run_tool
+
+logger = logging.getLogger(__name__)
+
+MAX_TOOL_ITERATIONS = 5
+TURN_BUDGET_SECONDS = 60
+BUSY_MESSAGE = "I couldn't reach my brain just then — try that again in a moment."
+LOST_MESSAGE = 'I got a bit lost there. Ask me again?'
+
+
+@require_POST
+@login_required
+def message(request):
+    availability = assistant_available_for(request.user)
+    if not availability.available:
+        return JsonResponse(
+            {
+                'available': False,
+                'reason': availability.reason,
+                'message': availability.message,
+            },
+            status=403,
+        )
+
+    try:
+        data = json.loads(request.body)
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Malformed request.'}, status=400)
+    if not isinstance(data, dict) or not isinstance(data.get('messages'), list):
+        return JsonResponse({'error': 'Malformed request.'}, status=400)
+
+    contents = build_contents(data['messages'])
+    if not contents:
+        return JsonResponse({'error': 'Say something first.'}, status=400)
+
+    config = AssistantSettings.load()
+
+    # Reserved before the call it pays for, with an atomic increment, so two
+    # tabs can't both slip under the cap. Checked after, which is what makes it
+    # race-free; refunded below if the call never happens.
+    used = reserve_message(request.user)
+    if (
+        used > config.per_user_monthly_messages
+        or global_messages_used() > config.global_monthly_messages
+    ):
+        refund_message(request.user)
+        closed = assistant_available_for(request.user)
+        return JsonResponse(
+            {
+                'available': False,
+                'reason': closed.reason or 'user_cap',
+                'message': closed.message or CAP_MESSAGE,
+            },
+            status=403,
+        )
+
+    instructions = system_instructions(request.user, roster_for(request.user))
+    client = get_model_client()
+    deadline = time.monotonic() + TURN_BUDGET_SECONDS
+    input_tokens = 0
+    output_tokens = 0
+    reply = ''
+
+    try:
+        for _ in range(MAX_TOOL_ITERATIONS):
+            # Never hold a Neon connection across the model call: this is the
+            # longest thing the app ever does inside a request, and a held
+            # connection across it is the shape that produces a mid-request SSL
+            # drop (issues #12, #95). Django reopens lazily on the next query.
+            connection.close()
+
+            turn = client.generate(
+                system_instructions=instructions,
+                contents=contents,
+                tool_declarations=TOOL_DECLARATIONS,
+            )
+            input_tokens += turn.input_tokens
+            output_tokens += turn.output_tokens
+            if turn.text:
+                reply = turn.text
+            if not turn.tool_calls:
+                break
+
+            contents.append(
+                {
+                    'role': 'model',
+                    'parts': [
+                        {'function_call': {'name': call.name, 'args': call.arguments}}
+                        for call in turn.tool_calls
+                    ],
+                }
+            )
+            contents.append(
+                {
+                    'role': 'user',
+                    'parts': [
+                        {
+                            'function_response': {
+                                'name': call.name,
+                                # user is bound here, from the session. Nothing
+                                # the model said has any say in whose data this is.
+                                'response': _as_response_payload(
+                                    run_tool(request.user, call.name, call.arguments)
+                                ),
+                            }
+                        }
+                        for call in turn.tool_calls
+                    ],
+                }
+            )
+            if time.monotonic() > deadline:
+                logger.warning('Assistant turn exceeded its budget', extra={'user': request.user.email})
+                break
+    except ModelUnavailable:
+        refund_message(request.user)
+        return JsonResponse({'error': BUSY_MESSAGE}, status=503)
+
+    record_tokens(request.user, input_tokens, output_tokens)
+    return JsonResponse(
+        {
+            'reply': reply or LOST_MESSAGE,
+            'messages_left': max(0, config.per_user_monthly_messages - used),
+        }
+    )
+
+
+def _as_response_payload(result):
+    """Shape a tool's return value for `function_response.response`.
+
+    The Vertex SDK types that field as a dict, but tools stay Pythonic for
+    their Python callers — `list_wishlists` returns a bare list. This is the
+    vendor boundary, so the wrapping happens here rather than in tools.py.
+    """
+    if not isinstance(result, dict):
+        return {'result': result}
+    return result
