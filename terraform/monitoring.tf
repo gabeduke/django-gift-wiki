@@ -252,7 +252,7 @@ resource "google_monitoring_alert_policy" "assistant_budget_warning" {
          `/admin/assistant/assistantsettings/`, or let the cap hold.
       3. If this fires repeatedly early in the month, the caps set during the
          staged rollout may need revisiting against real Vertex pricing — see
-         the assistant runbook in `local-docs/`.
+         `docs/ASSISTANT_ROLLOUT_AND_SMOKE_TEST.md`.
 
       This alert is driven by an application log line (`assistant/views.py`,
       logged just before token usage is recorded on any turn that crosses the
