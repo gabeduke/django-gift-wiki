@@ -16,11 +16,19 @@ def current_period(when=None):
 
 
 class AssistantSettings(models.Model):
-    """Operational knobs, editable in admin without a deploy. Always pk=1.
+    """Operational knobs, editable in admin without a deploy.
 
     These are policy decisions that want changing from real data, which is why
     they are rows rather than constants. Things that change *behavior* rather
     than policy stay as module constants in the code that uses them.
+
+    Reach the row through `load()`, and saving any instance writes row 1 (its
+    `save()` forces `self.pk = 1`). That only covers the `.save()` path:
+    `AssistantSettings.objects.create(...)` bypasses it — Django's `create()`
+    forces an INSERT rather than routing through `save()`'s UPDATE-first
+    branch — so creating a second row raises `IntegrityError` instead of
+    silently overwriting row 1. That's deliberate: refusing loudly is safer
+    than clobbering the family's spending caps.
     """
 
     per_user_monthly_messages = models.PositiveIntegerField(

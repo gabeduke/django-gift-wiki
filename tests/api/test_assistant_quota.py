@@ -63,6 +63,11 @@ class TestUsageModel:
 
         assert current_period(date(2026, 9, 23)) == '2026-09'
 
+    def test_period_defaults_to_the_current_month(self):
+        from django.utils import timezone
+
+        assert current_period() == timezone.localdate().strftime('%Y-%m')
+
     def test_one_row_per_user_per_period(self, db, user):
         from django.db import IntegrityError
 

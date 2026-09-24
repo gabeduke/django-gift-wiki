@@ -23,3 +23,7 @@ class AssistantUsageAdmin(admin.ModelAdmin):
     list_filter = ['period']
     search_fields = ['user__username', 'user__email']
     readonly_fields = ['user', 'period', 'message_count', 'input_tokens', 'output_tokens']
+
+    def has_add_permission(self, request):
+        """Usage rows are written by the turn loop, never by hand."""
+        return False
