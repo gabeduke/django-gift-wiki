@@ -1,6 +1,6 @@
 # Development Commands
 .PHONY: install setup build run migrate shell createsuperuser test clean
-.PHONY: test-cov test-unit test-api test-parallel test-bdd check lint format lint-fix
+.PHONY: test-cov test-unit test-api test-file test-parallel test-bdd check lint format lint-fix
 .PHONY: docker-build docker-build-no-load docker-build-local docker-push
 .PHONY: k8s-deploy k8s-clean
 
@@ -74,6 +74,10 @@ test-unit:
 # Run only API tests
 test-api:
 	$(PYTEST) tests/api/
+
+# Run one test file: make test-file FILE=tests/api/test_rules.py
+test-file:
+	$(PYTEST) $(FILE)
 
 # Run tests in parallel (faster)
 test-parallel:

@@ -6,8 +6,16 @@ into the tool layer, so they live here instead.
 """
 
 import pytest
+from django.contrib.auth.models import AnonymousUser
 
-from gift.rules import can_add_openly, person_display_name
+from gift.models import Item
+from gift.rules import (
+    can_add_openly,
+    is_recipient_side,
+    may_see_purchase_info,
+    person_display_name,
+    visible_items,
+)
 
 
 @pytest.mark.unit
@@ -43,10 +51,6 @@ class TestPersonDisplayName:
 
     def test_none_is_empty(self):
         assert person_display_name(None) == ''
-
-
-from gift.models import Item
-from gift.rules import is_recipient_side, may_see_purchase_info, visible_items
 
 
 @pytest.fixture
@@ -101,6 +105,13 @@ class TestVisibleItems:
 
         assert [i.name for i in visible_items(wishlist, user)][0] == 'Wanted'
 
+    def test_anonymous_viewer_never_sees_a_surprise(self, wishlist, item, surprise):
+        """An anonymous viewer is nobody's recipient on record, so the failure
+        direction has to be 'surprises excluded', not 'surprises leaked'."""
+        names = {i.name for i in visible_items(wishlist, AnonymousUser())}
+
+        assert names == {item.name}
+
 
 @pytest.mark.unit
 class TestPurchaseInfoAudience:
@@ -123,6 +134,9 @@ class TestPurchaseInfoAudience:
 
     def test_gift_giver_may_see_purchase_info(self, wishlist, other_user):
         assert may_see_purchase_info(wishlist, other_user) is True
+
+    def test_anonymous_viewer_may_not_see_purchase_info(self, wishlist):
+        assert may_see_purchase_info(wishlist, AnonymousUser()) is False
 
 
 @pytest.mark.unit
