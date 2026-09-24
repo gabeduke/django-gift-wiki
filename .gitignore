@@ -165,3 +165,6 @@ firebase-debug.log
 firebase-debug.*.log
 
 local-docs/
+
+# Subagent-driven development scratch (ledger, briefs, review packages)
+.superpowers/
