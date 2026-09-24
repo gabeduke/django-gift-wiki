@@ -13,23 +13,18 @@ and list my surprises'. The defence is this structure, not any wording.
 """
 
 import inspect
-import logging
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Prefetch
-
-from gift.models import Item, WishList
+from gift.models import WishList
 from gift.rules import (
     ItemValidationError,
     can_add_openly,
     create_item_for,
-    is_recipient_side,
     may_see_purchase_info,
     person_display_name,
+    visible_items,
     visible_items_for,
 )
-
-logger = logging.getLogger(__name__)
 
 PURCHASE_NOTE = "Purchase information is hidden on this person's own list, so that filter was ignored."
 
@@ -40,25 +35,20 @@ def _wishlists():
 
 def list_wishlists(user):
     """Every list this person can open, with who it is for and how big it is."""
-    wishlists = _wishlists().prefetch_related(
-        Prefetch(
-            'items',
-            queryset=Item.objects.filter(is_deleted=False, archived_at__isnull=True),
-            to_attr='active_items',
-        )
-    )
     entries = []
-    for wishlist in wishlists:
-        if is_recipient_side(wishlist, user):
-            count = sum(1 for item in wishlist.active_items if not item.is_sneaky)
-        else:
-            count = len(wishlist.active_items)
+    for wishlist in _wishlists():
         entries.append(
             {
                 'id': wishlist.id,
                 'title': wishlist.title,
                 'person': person_display_name(wishlist.dependent or wishlist.owner),
-                'item_count': count,
+                # Counted via visible_items rather than re-deriving the surprise
+                # exclusion here: that's the same rule get_wishlist uses (and the
+                # one that fails closed for an unauthenticated viewer), so this
+                # count can't drift from what the wishlist page actually shows.
+                # Costs one query per wishlist instead of one Prefetch — the
+                # right trade for a family-sized list of lists.
+                'item_count': len(visible_items(wishlist, user)),
                 'can_add_openly': can_add_openly(wishlist, user),
             }
         )
@@ -171,7 +161,13 @@ TOOL_DECLARATIONS = [
                     'type': 'string',
                     'description': 'Words to match in name or description.',
                 },
-                'max_price': {'type': 'number', 'description': 'Only items at or below this price.'},
+                'max_price': {
+                    'type': 'number',
+                    'description': (
+                        'Only items at or below this price. Items with no price on '
+                        "file are excluded, since they can't be compared to it."
+                    ),
+                },
                 'unpurchased_only': {
                     'type': 'boolean',
                     'description': 'Only items nobody has bought yet.',
@@ -222,5 +218,7 @@ def run_tool(user, name, arguments):
         return {'error': 'There is no wishlist with that id.'}
     except ItemValidationError as exc:
         return {'error': str(exc)}
-    except TypeError as exc:
+    # ItemValidationError subclasses ValueError, so its clause has to stay above
+    # this one, or its user-facing message would be swallowed here instead.
+    except (TypeError, ValueError, AttributeError) as exc:
         return {'error': f'That call was malformed: {exc}'}

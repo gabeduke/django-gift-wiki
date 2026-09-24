@@ -10,7 +10,10 @@ import inspect
 import pytest
 
 from assistant import tools
-from gift.models import Item, WishList
+from gift.models import Item
+
+# Shared by both of TestTheBoundary's "no identity argument anywhere" checks.
+FORBIDDEN_IDENTITY_PARAMS = {'user_id', 'username', 'email', 'as_user', 'on_behalf_of', 'owner'}
 
 
 @pytest.fixture
@@ -44,6 +47,20 @@ class TestListWishlists:
     def test_says_whether_the_person_can_add_openly(self, db, wishlist, user, other_user):
         assert tools.list_wishlists(user)[0]['can_add_openly'] is True
         assert tools.list_wishlists(other_user)[0]['can_add_openly'] is False
+
+    def test_counts_include_surprises_for_a_manager(
+        self, db, wishlist, other_user, item, surprise
+    ):
+        """A manager runs the list without being its recipient (gift/rules.py's
+        is_recipient_side/can_add_openly distinction), so a manager must see
+        surprises even though they can also add items openly. Counting by
+        can_add_openly instead of is_recipient_side would collapse that
+        distinction and hide this manager's surprise from them."""
+        wishlist.managers.add(other_user)
+
+        (entry,) = tools.list_wishlists(other_user)
+
+        assert entry['item_count'] == 2
 
 
 @pytest.mark.unit
@@ -131,30 +148,46 @@ class TestTheBoundary:
     """The rule is that acting as someone else is unsayable, not refused."""
 
     def test_no_tool_takes_an_argument_naming_a_user(self):
-        forbidden = {'user_id', 'username', 'email', 'as_user', 'on_behalf_of', 'owner'}
         for name in tools.TOOLS:
             parameters = set(inspect.signature(tools.TOOLS[name]).parameters)
-            assert parameters & forbidden == set(), f'{name} exposes an identity argument'
+            assert parameters & FORBIDDEN_IDENTITY_PARAMS == set(), (
+                f'{name} exposes an identity argument'
+            )
 
     def test_no_declaration_offers_the_model_a_user_argument(self):
-        forbidden = {'user_id', 'username', 'email', 'as_user', 'on_behalf_of', 'owner'}
         for declaration in tools.TOOL_DECLARATIONS:
             properties = set(declaration['parameters'].get('properties', {}))
-            assert properties & forbidden == set(), f"{declaration['name']} offers an identity"
+            assert properties & FORBIDDEN_IDENTITY_PARAMS == set(), (
+                f"{declaration['name']} offers an identity"
+            )
 
     def test_every_tool_takes_user_first(self):
         for name, function in tools.TOOLS.items():
             first = list(inspect.signature(function).parameters)[0]
             assert first == 'user', f'{name} does not take user first'
 
-    def test_an_extra_argument_from_the_model_is_refused(self, db, wishlist, user, other_user):
+    def test_an_extra_argument_from_the_model_is_refused(
+        self, db, wishlist, user, other_user, monkeypatch
+    ):
         """A manipulated model inventing `user_id` must not be able to smuggle
-        it through run_tool into a tool that would accept **kwargs."""
+        it through run_tool — not even into a tool whose signature would
+        otherwise swallow it via **kwargs. The gate has to reject the call
+        before it reaches the tool, not rely on every tool raising TypeError
+        on an argument it doesn't recognise."""
+        calls = []
+
+        def spy(user, wishlist_id=None, **kwargs):
+            calls.append(kwargs)
+            return {'ok': True}
+
+        monkeypatch.setitem(tools.TOOLS, 'get_wishlist', spy)
+
         result = tools.run_tool(
             user, 'get_wishlist', {'wishlist_id': wishlist.id, 'user_id': other_user.id}
         )
 
         assert 'error' in result
+        assert calls == []
 
     def test_unknown_tool_names_are_refused(self, db, user):
         assert 'error' in tools.run_tool(user, 'delete_everything', {})
@@ -162,7 +195,30 @@ class TestTheBoundary:
     def test_a_missing_wishlist_is_an_error_not_a_crash(self, db, user):
         assert 'error' in tools.run_tool(user, 'get_wishlist', {'wishlist_id': 999999})
 
+    def test_a_non_numeric_wishlist_id_is_an_error_not_a_crash(self, db, user):
+        """Django's IntegerField coercion raises ValueError here, not TypeError
+        — run_tool has to catch that too, or its 'always {"error": ...}, never
+        an exception' contract is false for the argument shape a model is most
+        likely to actually send."""
+        result = tools.run_tool(user, 'get_wishlist', {'wishlist_id': 'the blue one'})
+
+        assert 'error' in result
+
+    def test_a_non_string_item_name_is_an_error_not_a_crash(self, db, wishlist, user):
+        """create_item_for's `.strip()` raises AttributeError on a non-string
+        name, not TypeError — same contract gap as the non-numeric id above."""
+        result = tools.run_tool(user, 'add_item', {'wishlist_id': wishlist.id, 'name': 123})
+
+        assert 'error' in result
+        assert Item.objects.count() == 0
+
     def test_there_is_no_write_tool_beyond_add(self):
         """Read + add only: the blast radius of a successful injection is one
         junk item somebody removes with a tap."""
         assert set(tools.TOOLS) == {'list_wishlists', 'get_wishlist', 'search_items', 'add_item'}
+
+    def test_the_advertised_tool_set_matches_the_callable_tool_set(self):
+        """TOOL_DECLARATIONS is what the model is actually offered — a fifth
+        declaration, or a renamed one that's silently uncallable, has to fail
+        this even though it wouldn't fail the TOOLS-only check above."""
+        assert {declaration['name'] for declaration in tools.TOOL_DECLARATIONS} == set(tools.TOOLS)
