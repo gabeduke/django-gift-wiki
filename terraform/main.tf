@@ -143,6 +143,7 @@ resource "google_project_service" "required_apis" {
     "cloudtrace.googleapis.com",        # Cloud Trace API
     "apikeys.googleapis.com",           # API Keys API
     "cloudbilling.googleapis.com",      # Cloud Billing API
+    "aiplatform.googleapis.com",        # Vertex AI, for the in-app assistant
   ])
 
   project = var.project_id
@@ -310,6 +311,16 @@ resource "google_secret_manager_secret_iam_member" "firebase_api_key_access" {
 resource "google_project_iam_member" "firebase_admin" {
   project = var.project_id
   role    = "roles/firebase.admin"
+  member  = "serviceAccount:${local.compute_service_account}"
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# The assistant calls Vertex AI with ADC — this is what makes that work on
+# Cloud Run. No API key is managed anywhere.
+resource "google_project_iam_member" "vertex_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
   member  = "serviceAccount:${local.compute_service_account}"
 
   depends_on = [google_project_service.required_apis]

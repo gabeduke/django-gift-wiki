@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from assistant.llm import ModelTurn, ToolCall
+from assistant.llm import ModelTurn, ToolCall, VertexModelClient
 from assistant.models import AssistantSettings, AssistantUsage, current_period
 from assistant.prompt import MAX_MESSAGE_CHARS
 from assistant.quota import messages_used
@@ -271,6 +271,32 @@ class TestFailureAndCaps:
         assert response.status_code == 503
         assert messages_used(user) == 0
 
+    def test_a_vertex_client_construction_failure_becomes_a_friendly_503(
+        self, authenticated_user, user, assistant_on, settings, monkeypatch
+    ):
+        """VertexModelClient.generate() used to build genai.Client(...) and
+        GenerateContentConfig(...) *outside* its own try — only the
+        generate_content() call itself was wrapped, so a credentials or
+        configuration failure during construction propagated raw instead of
+        becoming ModelUnavailable. This drives the real VertexModelClient
+        (not a fake) with genai.Client() patched to blow up on construction,
+        and pins that the endpoint still returns the spec's friendly 503
+        with the reservation refunded — not a bare 500."""
+        from google import genai
+
+        def exploding_client(*args, **kwargs):
+            raise RuntimeError('could not build a credentialed client')
+
+        monkeypatch.setattr(genai, 'Client', exploding_client)
+        settings.ASSISTANT_MODEL_CLIENT = VertexModelClient(
+            project='test-project', location='us-central1', model_name='gemini-test'
+        )
+
+        response = say(authenticated_user, 'hello')
+
+        assert response.status_code == 503
+        assert messages_used(user) == 0
+
     def test_a_non_model_unavailable_failure_still_refunds_the_message(
         self, authenticated_user, user, assistant_on, settings
     ):
@@ -343,3 +369,36 @@ class TestFailureAndCaps:
         )
 
         assert response.status_code == 400
+
+
+@pytest.mark.unit
+class TestGlobalBudgetAlert:
+    """The passive 80%-of-ceiling alert: a warning the app logs on the way out
+    of an ordinary turn, never a probe. terraform/monitoring.tf's log-based
+    metric matches this exact message string, so the two must stay in sync —
+    this pins the string the code actually emits."""
+
+    def test_logs_a_warning_at_80_percent_of_the_global_ceiling(
+        self, authenticated_user, user, other_user, assistant_on, settings, caplog
+    ):
+        AssistantSettings.objects.update_or_create(pk=1, defaults={'global_monthly_messages': 10})
+        AssistantUsage.objects.create(user=other_user, period=current_period(), message_count=7)
+        settings.ASSISTANT_MODEL_CLIENT = FakeModelClient([ModelTurn(text='ok')])
+
+        with caplog.at_level('WARNING', logger='assistant.views'):
+            say(authenticated_user, 'hello')
+
+        assert 'Assistant global budget at 80%' in caplog.text
+
+    def test_does_not_log_below_80_percent(
+        self, authenticated_user, user, assistant_on, settings, caplog
+    ):
+        AssistantSettings.objects.update_or_create(
+            pk=1, defaults={'global_monthly_messages': 100}
+        )
+        settings.ASSISTANT_MODEL_CLIENT = FakeModelClient([ModelTurn(text='ok')])
+
+        with caplog.at_level('WARNING', logger='assistant.views'):
+            say(authenticated_user, 'hello')
+
+        assert 'Assistant global budget at 80%' not in caplog.text

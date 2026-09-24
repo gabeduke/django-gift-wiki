@@ -62,15 +62,15 @@ class VertexModelClient:
         from google import genai
         from google.genai import types
 
-        client = genai.Client(vertexai=True, project=self.project, location=self.location)
-        config = types.GenerateContentConfig(
-            system_instruction=system_instructions,
-            tools=[types.Tool(function_declarations=tool_declarations)],
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            safety_settings=self._safety_settings(types),
-            http_options=types.HttpOptions(timeout=self.timeout_seconds * 1000),
-        )
         try:
+            client = genai.Client(vertexai=True, project=self.project, location=self.location)
+            config = types.GenerateContentConfig(
+                system_instruction=system_instructions,
+                tools=[types.Tool(function_declarations=tool_declarations)],
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                safety_settings=self._safety_settings(types),
+                http_options=types.HttpOptions(timeout=self.timeout_seconds * 1000),
+            )
             response = client.models.generate_content(
                 model=self.model_name, contents=contents, config=config
             )

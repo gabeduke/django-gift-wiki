@@ -171,6 +171,19 @@ def message(request):
         refund_message(request.user)
         raise
 
+    # Passive alerting, not a probe: this only ever runs as a side effect of a
+    # real user turn, so it costs nothing extra and cannot keep Neon awake the
+    # way a scheduled check against a DB-backed endpoint would (see
+    # terraform/monitoring.tf's database-error alert for why that's banned
+    # here). The log-based metric in terraform/monitoring.tf matches this
+    # exact message string — keep them in sync if either changes.
+    used_globally = global_messages_used()
+    if used_globally >= config.global_monthly_messages * 0.8:
+        logger.warning(
+            'Assistant global budget at 80%',
+            extra={'used': used_globally, 'ceiling': config.global_monthly_messages},
+        )
+
     record_tokens(request.user, input_tokens, output_tokens)
     return JsonResponse(
         {
