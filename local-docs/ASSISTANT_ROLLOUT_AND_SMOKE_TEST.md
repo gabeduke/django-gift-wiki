@@ -135,26 +135,28 @@ Set the working id at `/admin/assistant/assistantsettings/` (the
 ### Also worth checking while you're here: the 80% budget alert
 
 `terraform/monitoring.tf`'s `assistant_budget_warnings` log-based metric
-depends on the warning `assistant/views.py` logs
-(`'Assistant global budget at 80%'`) actually reaching Cloud Logging with a
-payload the metric's filter can match. This was written but **not verified
-live**, for a concrete reason found while writing it: `giftwiki/settings.py`'s
-`LOGGING` config only explicitly attaches the `cloud` (`CloudLoggingHandler`)
-handler to the `django` and `gift` loggers — `assistant.views` and
-`assistant.llm` (the actual logger names, via `logging.getLogger(__name__)`)
-are not listed there, so their records take Python's default propagation
-path rather than the confirmed-working one `gift`'s logs use.
+matches the warning `assistant/views.py` logs
+(`'Assistant global budget at 80%'`). The payload question that an earlier
+version of this document flagged as open is now settled in code:
+`giftwiki/settings.py`'s "Configure Cloud Logging" block wires an
+`assistant` logger to the same `['cloud', 'console']` handlers as `gift`
+(both `propagate: False`, level `INFO`), so in the normal case this record
+reaches Cloud Logging structured, through the `CloudLoggingHandler`, the
+same confirmed-working path `gift`'s own alert-worthy logs use — the metric
+matches it via `jsonPayload.message`. The filter also matches `textPayload`,
+not because the payload shape is still in doubt, but because that handler
+setup lives inside a `try/except` (`settings.py`'s Cloud Logging block) that
+falls back silently if the Cloud Logging client fails to initialize —
+in that case the record still reaches Cloud Logging as plain stderr text via
+the `console` handler, and `textPayload` is what catches that path.
 
-To check it: temporarily set `global_monthly_messages` very low (e.g. `1`)
-at `/admin/assistant/assistantsettings/`, send one message, and look in
-Cloud Logging for a `cloud_run_revision` log entry containing `Assistant
-global budget at 80%`. Confirm two things: whether it lands in
-`textPayload` or `jsonPayload.message` (the metric's filter matches
-either), and what `severity` it actually has — `WARNING`, `ERROR`, or
-`DEFAULT`. The filter uses `severity>=WARNING`, so `DEFAULT` would silently
-fail to match. If that happens, the fix is adding `assistant` alongside
-`gift` in `giftwiki/settings.py`'s `LOGGING['loggers']` — not a change to
-`terraform/monitoring.tf`.
+Still worth a live check, because nothing above was run against a real
+Cloud Run deployment: temporarily set `global_monthly_messages` very low
+(e.g. `1`) at `/admin/assistant/assistantsettings/`, send one message, and
+confirm a `cloud_run_revision` log entry containing `Assistant global
+budget at 80%` shows up in Cloud Logging with `severity: WARNING` (or
+higher) and the log-based metric (`giftwiki-dev-assistant-budget-warnings`
+or the prod equivalent) actually increments.
 
 ## Part 2: Full verification
 

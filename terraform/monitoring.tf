@@ -157,12 +157,16 @@ output "db_alerting_enabled" {
 
 locals {
   # The exact string assistant/views.py logs — keep these in sync if either
-  # changes. Matched against both textPayload and jsonPayload.message, same
-  # as db_error_pattern above: assistant.views/assistant.llm aren't among the
-  # loggers giftwiki/settings.py explicitly routes to the CloudLoggingHandler
-  # (only 'django' and 'gift' are), so which payload field the entry actually
-  # lands in has not been confirmed live — this is one of the things the
-  # smoke-test runbook (local-docs/) asks the owner to check.
+  # changes. giftwiki/settings.py wires the `assistant` logger to the same
+  # CloudLoggingHandler as `gift` (both go through ['cloud', 'console']), so
+  # in the normal case this arrives structured and the match is on
+  # jsonPayload.message. The filter also matches textPayload, same as
+  # db_error_pattern above: that handler setup lives inside a try/except
+  # (settings.py's "Configure Cloud Logging" block) that falls back silently
+  # if the Cloud Logging client fails to initialize, in which case the
+  # record still reaches stderr as plain text via the `console` handler —
+  # this is what the textPayload half of the filter is for, not uncertainty
+  # about the structured path.
   assistant_budget_pattern = "Assistant global budget at 80%"
 }
 

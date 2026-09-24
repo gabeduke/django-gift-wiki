@@ -99,6 +99,11 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
             'level': 'INFO',
             'propagate': False,
         }
+        LOGGING['loggers']['assistant'] = {  # App specific logger
+            'handlers': ['cloud', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        }
     except Exception as e:
         import sys
 
