@@ -94,3 +94,29 @@ class AssistantUsage(models.Model):
 
     def __str__(self):
         return f'{self.user} {self.period}: {self.message_count} messages'
+
+
+class EasterEggFind(models.Model):
+    """One person found one hidden egg, once.
+
+    The slug and the moment, and deliberately nothing else: recording what they
+    actually typed would be storing a transcript, which this feature does not
+    do anywhere else and does not get to do here either.
+    """
+
+    user = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='easter_eggs'
+    )
+    slug = models.CharField(max_length=40)
+    found_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['found_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'slug'], name='unique_egg_per_user')
+        ]
+        verbose_name = 'Easter Egg Find'
+        verbose_name_plural = 'Easter Egg Finds'
+
+    def __str__(self):
+        return f'{self.user} found {self.slug}'

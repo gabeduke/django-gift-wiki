@@ -889,6 +889,13 @@ def profile(request):
     
     new_managed_user_form = CreateManagedUserForm(user=request.user)
 
+    # The Easter egg shelf. Imported here rather than at module scope to keep
+    # gift's import graph free of assistant, which depends on gift.rules.
+    from assistant.easter_eggs import shelf_for
+    from giftwiki.feature_flags import get_assistant_enabled
+
+    easter_egg_shelf = shelf_for(request.user) if get_assistant_enabled() else None
+
     context = {
         'wishlists': wishlists,
         'profile_form': profile_form,
@@ -897,6 +904,7 @@ def profile(request):
         'PROFILE_PICTURE_ENABLED': PROFILE_PICTURE_ENABLED,
         'managed_users_data': managed_users_data,
         'new_managed_user_form': new_managed_user_form,
+        'easter_egg_shelf': easter_egg_shelf,
     }
 
     return render(request, 'gift/auth_profile.html', context)

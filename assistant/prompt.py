@@ -59,8 +59,39 @@ def roster_for(user):
     return '\n'.join(lines) or '- (no lists yet)'
 
 
-def system_instructions(user, roster):
-    return SYSTEM_TEMPLATE.format(name=person_display_name(user), roster=roster)
+CELEBRATION_TEMPLATE = """
+
+{name} just found a hidden Easter egg: "{egg}". They went looking for a way
+around you and found one of the {total} secrets instead — {blurb} Congratulate
+them warmly and by name, and tell them that's {found} of {total}. You do not
+know what the other secrets are and must not guess: if they ask, tell them the
+hints are on their profile page. Then answer whatever they actually asked, if
+it had an answer.
+"""
+
+
+def celebration_for(user, egg):
+    """The note appended to the instructions when somebody finds an egg.
+
+    It carries one egg's name and nothing else about the catalog — a model that
+    knew the list could be asked for the list.
+    """
+    from assistant.easter_eggs import CATALOG, found_slugs
+
+    return CELEBRATION_TEMPLATE.format(
+        name=person_display_name(user),
+        egg=egg.name,
+        blurb=egg.blurb,
+        found=len(found_slugs(user)),
+        total=len(CATALOG),
+    )
+
+
+def system_instructions(user, roster, celebration=None):
+    text = SYSTEM_TEMPLATE.format(name=person_display_name(user), roster=roster)
+    if celebration:
+        text += celebration
+    return text
 
 
 def build_contents(history):

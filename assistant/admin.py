@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from assistant.models import AssistantSettings, AssistantUsage
+from assistant.models import AssistantSettings, AssistantUsage, EasterEggFind
 
 
 @admin.register(AssistantSettings)
@@ -27,3 +27,10 @@ class AssistantUsageAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Usage rows are written by the turn loop, never by hand."""
         return False
+
+
+@admin.register(EasterEggFind)
+class EasterEggFindAdmin(admin.ModelAdmin):
+    list_display = ['user', 'slug', 'found_at']
+    list_filter = ['slug']
+    readonly_fields = ['user', 'slug', 'found_at']

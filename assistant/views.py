@@ -14,10 +14,11 @@ from django.db import connection
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
+from assistant.easter_eggs import detect, record_find
 from assistant.gating import CAP_MESSAGE, assistant_available_for
 from assistant.llm import ModelUnavailable, get_model_client
 from assistant.models import AssistantSettings
-from assistant.prompt import build_contents, roster_for, system_instructions
+from assistant.prompt import build_contents, celebration_for, roster_for, system_instructions
 from assistant.quota import global_messages_used, record_tokens, refund_message, reserve_message
 from assistant.tools import TOOL_DECLARATIONS, run_tool
 
@@ -87,7 +88,18 @@ def message(request):
         # same guarded region as the model call it precedes, or a failure
         # here leaks the reservation just as the loop's own failures would
         # without the handler below.
-        instructions = system_instructions(request.user, roster_for(request.user))
+        # Detection runs beside the turn, never inside it: finding an egg changes
+        # what the assistant *says*, and nothing at all about what the tools return.
+        latest = next((part for part in reversed(contents) if part['role'] == 'user'), None)
+        egg = detect(latest['parts'][0].get('text', '') if latest else '')
+        celebration = None
+        if egg is not None and record_find(request.user, egg):
+            celebration = celebration_for(request.user, egg)
+            logger.info(
+                'Easter egg found', extra={'user': request.user.email, 'egg': egg.slug}
+            )
+
+        instructions = system_instructions(request.user, roster_for(request.user), celebration)
         client = get_model_client()
 
         for iteration in range(MAX_TOOL_ITERATIONS):
