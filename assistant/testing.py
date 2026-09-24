@@ -4,6 +4,8 @@ It lives beside the protocol it implements so the two change together. Tests
 are deterministic and free: no network, no credentials, no token spend.
 """
 
+import copy
+
 from assistant.llm import ModelTurn
 
 
@@ -26,7 +28,13 @@ class FakeModelClient:
         self.calls.append(
             {
                 'system_instructions': system_instructions,
-                'contents': contents,
+                # Deep-copied: the caller mutates `contents` in place after
+                # this call returns (appending the tool call and its result),
+                # and a shallow reference here would make every recorded
+                # call's 'contents' alias the same, ever-changing list —
+                # silently turning "what call N was given" into "what the
+                # final state looked like".
+                'contents': copy.deepcopy(contents),
                 'tool_declarations': tool_declarations,
             }
         )

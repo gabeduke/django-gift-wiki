@@ -11,6 +11,7 @@ import pytest
 
 from assistant.llm import ModelTurn, ToolCall
 from assistant.models import AssistantSettings, AssistantUsage, current_period
+from assistant.prompt import MAX_MESSAGE_CHARS
 from assistant.quota import messages_used
 from assistant.testing import FailingModelClient, FakeModelClient
 from gift.models import FeatureFlag, Item
@@ -95,6 +96,19 @@ class TestAPlainTurn:
         assert len(fake.calls[0]['contents']) == 20
         assert fake.calls[0]['contents'][0]['parts'][0]['text'] == 'message 10'
 
+    def test_messages_are_truncated_to_the_character_cap(
+        self, authenticated_user, assistant_on, settings
+    ):
+        """The other half of 'a forged history cannot replay something
+        enormous': deleting the [:MAX_MESSAGE_CHARS] slice in build_contents
+        wouldn't break the twenty-turn test above, so it needs its own."""
+        fake = FakeModelClient([ModelTurn(text='ok')])
+        settings.ASSISTANT_MODEL_CLIENT = fake
+
+        say(authenticated_user, 'x' * (MAX_MESSAGE_CHARS + 500))
+
+        assert len(fake.calls[0]['contents'][0]['parts'][0]['text']) == MAX_MESSAGE_CHARS
+
     def test_the_roster_is_in_the_system_instructions(
         self, authenticated_user, assistant_on, wishlist, settings
     ):
@@ -178,10 +192,23 @@ class TestToolCycle:
 
     def test_the_iteration_cap_holds(self, authenticated_user, wishlist, assistant_on, settings):
         """Without a cap the cost of one 'message' is unbounded, which silently
-        defeats the metering."""
-        fake = FakeModelClient(
-            [ModelTurn(text='thinking', tool_calls=(ToolCall('list_wishlists', {}),)) for _ in range(9)]
+        defeats the metering. The capped-out iteration also must not execute
+        its tool call: there is no model call left to receive the result, so
+        for a write like add_item that would be a real, unreported side
+        effect — and asking again afterwards would risk a duplicate."""
+        turns = [
+            ModelTurn(text='thinking', tool_calls=(ToolCall('list_wishlists', {}),))
+            for _ in range(4)
+        ]
+        turns.append(
+            ModelTurn(
+                text='thinking',
+                tool_calls=(
+                    ToolCall('add_item', {'wishlist_id': wishlist.id, 'name': 'Cap Kite'}),
+                ),
+            )
         )
+        fake = FakeModelClient(turns)
         settings.ASSISTANT_MODEL_CLIENT = fake
 
         response = say(authenticated_user, 'loop forever')
@@ -189,6 +216,9 @@ class TestToolCycle:
         assert response.status_code == 200
         assert len(fake.calls) == 5
         assert response.json()['reply'] == 'thinking', 'return what it last said, not an error'
+        assert not Item.objects.filter(name='Cap Kite').exists(), (
+            'the call the cap cuts off must not run its tool'
+        )
 
     def test_a_tool_error_is_fed_back_rather_than_ending_the_turn(
         self, authenticated_user, assistant_on, settings
@@ -239,6 +269,27 @@ class TestFailureAndCaps:
         response = say(authenticated_user, 'hello')
 
         assert response.status_code == 503
+        assert messages_used(user) == 0
+
+    def test_a_non_model_unavailable_failure_still_refunds_the_message(
+        self, authenticated_user, user, assistant_on, settings
+    ):
+        """ModelUnavailable isn't the only way this can fail: VertexModelClient
+        builds its genai.Client() outside its own try, and a tool's DB
+        reconnect after connection.close() can raise OperationalError — this
+        repo's documented failure mode (#12, #95). Neither is caught by the
+        ModelUnavailable handler, so the refund can't depend on which
+        exception it was."""
+
+        class ExplodingModelClient:
+            def generate(self, **kwargs):
+                raise RuntimeError('credentials exploded')
+
+        settings.ASSISTANT_MODEL_CLIENT = ExplodingModelClient()
+
+        with pytest.raises(RuntimeError):
+            say(authenticated_user, 'hello')
+
         assert messages_used(user) == 0
 
     def test_the_personal_cap_closes_the_door(

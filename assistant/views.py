@@ -83,7 +83,7 @@ def message(request):
     reply = ''
 
     try:
-        for _ in range(MAX_TOOL_ITERATIONS):
+        for iteration in range(MAX_TOOL_ITERATIONS):
             # Never hold a Neon connection across the model call: this is the
             # longest thing the app ever does inside a request, and a held
             # connection across it is the shape that produces a mid-request SSL
@@ -100,6 +100,12 @@ def message(request):
             if turn.text:
                 reply = turn.text
             if not turn.tool_calls:
+                break
+            if iteration == MAX_TOOL_ITERATIONS - 1:
+                # This is the last call the cap allows, so there is no model
+                # call left to receive a tool result. Running the tool here
+                # anyway would be a side effect nobody is told about — for a
+                # write like add_item, a real, silent database change.
                 break
 
             contents.append(
@@ -135,6 +141,16 @@ def message(request):
     except ModelUnavailable:
         refund_message(request.user)
         return JsonResponse({'error': BUSY_MESSAGE}, status=503)
+    except Exception:
+        # Not every failure path raises ModelUnavailable: VertexModelClient
+        # builds its genai.Client() outside its own try, and a tool's DB
+        # reconnect after connection.close() above can raise OperationalError
+        # (this repo's documented failure mode, #12 and #95) — neither is
+        # caught by the handler above. The reservation must not survive any
+        # failure that keeps the user from getting an answer, whichever
+        # exception carries it.
+        refund_message(request.user)
+        raise
 
     record_tokens(request.user, input_tokens, output_tokens)
     return JsonResponse(
@@ -151,6 +167,11 @@ def _as_response_payload(result):
     The Vertex SDK types that field as a dict, but tools stay Pythonic for
     their Python callers — `list_wishlists` returns a bare list. This is the
     vendor boundary, so the wrapping happens here rather than in tools.py.
+
+    The wrap is visible on the wire: `list_wishlists` reaches the model as
+    `{'result': [...]}`, while every other tool's own dict — including the
+    `{'error': ...}` shape run_tool() returns on failure — passes through
+    unchanged. That asymmetry is deliberate, not an inconsistency to fix.
     """
     if not isinstance(result, dict):
         return {'result': result}

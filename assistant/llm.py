@@ -75,7 +75,13 @@ class VertexModelClient:
                 model=self.model_name, contents=contents, config=config
             )
         except Exception as exc:
-            logger.warning('Assistant model call failed', extra={'error': str(exc)})
+            # Log the exception's type only, never str(exc): a Vertex
+            # validation error can echo the request content back in its
+            # message, and that message is `contents` — conversation text,
+            # which must never reach a log line. The full exception still
+            # travels in ModelUnavailable's own argument, where nothing
+            # persists it.
+            logger.warning('Assistant model call failed', extra={'error_type': type(exc).__name__})
             raise ModelUnavailable(str(exc)) from exc
 
         return self._to_turn(response)
