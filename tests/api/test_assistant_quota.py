@@ -140,12 +140,15 @@ class TestTheGate:
         assert assistant_available_for(AnonymousUser()).reason == 'anonymous'
 
     def test_closed_when_the_flag_is_off(self, db, user):
+        _cache.clear()
         _clear_cache()
 
         assert assistant_available_for(user).reason == 'disabled'
 
     def test_open_when_the_flag_is_on(self, assistant_on, user):
-        assert assistant_available_for(user).available is True
+        result = assistant_available_for(user)
+        assert result.available is True
+        assert result.reason == ''
 
     def test_closed_after_enabled_until(self, assistant_on, user):
         from datetime import timedelta
