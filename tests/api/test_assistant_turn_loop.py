@@ -14,6 +14,7 @@ from assistant.models import AssistantSettings, AssistantUsage, current_period
 from assistant.prompt import MAX_MESSAGE_CHARS
 from assistant.quota import messages_used
 from assistant.testing import FailingModelClient, FakeModelClient
+from assistant.tools import TOOL_DECLARATIONS
 from gift.models import FeatureFlag, Item
 from giftwiki.feature_flags import _clear_cache
 
@@ -589,3 +590,47 @@ class TestNoTranscriptPersists:
                     assert sentinel not in value, (
                         f'{model.__name__}.{field_name} (pk={obj.pk}) contains the sentinel'
                     )
+
+
+@pytest.mark.unit
+class TestRequestConfig:
+    """The request config never reaches a test through the fake client, so it
+    gets pinned directly. Both of these were learned from the live API, and
+    both are silent when wrong: the wrong thinking level surfaces as a 504 on
+    tool-selection turns, and setting temperature on a 3.x model degrades it
+    without erroring."""
+
+    def _config(self):
+        from google.genai import types
+
+        from assistant.llm import VertexModelClient
+
+        client = VertexModelClient(
+            project='p', location='global', model_name='gemini-3.8-flash'
+        )
+        return client._config(types, 'be helpful', TOOL_DECLARATIONS)
+
+    def test_thinking_level_is_set(self):
+        """Left unspecified, gemini-3.8-flash thought past a 30s timeout and
+        returned 504 on a tool-selection turn; at LOW the same turn took two
+        seconds. MINIMAL is rejected by the model outright."""
+        from assistant.llm import THINKING_LEVEL
+
+        assert THINKING_LEVEL == 'LOW'
+        assert self._config().thinking_config.thinking_level == 'LOW'
+
+    def test_no_sampling_parameters_are_set(self):
+        """Google recommends against temperature, top_p and top_k on all 3.x
+        models. Pinning a low temperature for determinism is documented to
+        cause looping, and nothing errors if you do it."""
+        config = self._config()
+
+        assert config.temperature is None
+        assert config.top_p is None
+        assert config.top_k is None
+
+    def test_automatic_function_calling_stays_disabled(self):
+        """The turn loop runs the cycle itself, with `user` bound from the
+        session. If the SDK started calling tools on its own, that binding —
+        the whole permission boundary — would be bypassed."""
+        assert self._config().automatic_function_calling.disable is True

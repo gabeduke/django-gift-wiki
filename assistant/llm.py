@@ -25,6 +25,15 @@ logger = logging.getLogger(__name__)
 
 MODEL_TIMEOUT_SECONDS = 30
 
+# 3.x models think before answering, and left to their own devices they think
+# for a long time: a tool-selection turn on gemini-3.8-flash blew past the 30s
+# timeout above and came back 504 DEADLINE_EXCEEDED. At LOW the same turn takes
+# about two seconds. MINIMAL is rejected outright by this model ('Thinking level
+# is unsupported'), so LOW is the floor. Both measured against the live API on
+# 2026-09-25. This is the knob to reach for if turns feel slow or cost too much
+# — not temperature, which 3.x asks callers to leave alone entirely.
+THINKING_LEVEL = 'LOW'
+
 
 @dataclass(frozen=True)
 class ToolCall:
@@ -67,19 +76,31 @@ class VertexModelClient:
         self.model_name = model_name
         self.timeout_seconds = timeout_seconds
 
+    def _config(self, types, system_instructions, tool_declarations):
+        """The request config.
+
+        Deliberately sets no temperature, top_p or top_k: Google recommends
+        against all three on 3.x models, which manage their own sampling, and
+        pinning a low temperature for determinism is documented to cause
+        looping. The lever for determinism is a more explicit system
+        instruction, which prompt.py provides.
+        """
+        return types.GenerateContentConfig(
+            system_instruction=system_instructions,
+            tools=[types.Tool(function_declarations=tool_declarations)],
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            safety_settings=self._safety_settings(types),
+            http_options=types.HttpOptions(timeout=self.timeout_seconds * 1000),
+            thinking_config=types.ThinkingConfig(thinking_level=THINKING_LEVEL),
+        )
+
     def generate(self, *, system_instructions, contents, tool_declarations):
         try:
             from google import genai
             from google.genai import types
 
             client = genai.Client(vertexai=True, project=self.project, location=self.location)
-            config = types.GenerateContentConfig(
-                system_instruction=system_instructions,
-                tools=[types.Tool(function_declarations=tool_declarations)],
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-                safety_settings=self._safety_settings(types),
-                http_options=types.HttpOptions(timeout=self.timeout_seconds * 1000),
-            )
+            config = self._config(types, system_instructions, tool_declarations)
             response = client.models.generate_content(
                 model=self.model_name, contents=contents, config=config
             )

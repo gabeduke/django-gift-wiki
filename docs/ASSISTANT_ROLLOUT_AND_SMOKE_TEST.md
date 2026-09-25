@@ -30,17 +30,23 @@ The `x-goog-user-project` header is required — without it the call fails with
 `SERVICE_DISABLED` about a missing quota project, which looks like the API is
 off when it isn't.
 
-- **Region: `us-central1` confirmed.** That endpoint returned 133 models
-  including every GA Flash variant, so Flash serves from there. Cloud Run
-  itself runs in `us-east1`; the two don't need to match. If you ever do move
-  it, three places must stay in sync: `env.example`, all three
-  `--set-env-vars` sites in `cloudbuild.yaml`, and whatever you set locally.
-- **Model id: `gemini-3.8-flash`.** The GA text Flash models are 2.5, 3.5,
-  3.6, 3.7 and 3.8 (`gemini-3-flash-preview` is PUBLIC_PREVIEW; the
-  `-lite`, `-image`, `-tts` and `-omni` variants are for other jobs). The
-  default was `gemini-2.5-flash`, which is GA but two generations behind.
-  Any of the GA ids above will work if you'd rather run something that has
-  been out longer — it's one field in the admin.
+**The list is a catalogue, not an entitlement.** `gemini-3.8-flash` appears in
+it as GA and still returned `404 NOT_FOUND — "was not found or your project
+does not have access to it"` from `us-central1`. Only a real call settles what
+this project can reach, which is what the probe below is for.
+
+What real calls established on 2026-09-25, against project `wikileet`:
+
+| | |
+|---|---|
+| **Location: `global`** | Every 3.x Flash works on the `global` endpoint and 404s in `us-central1`, `us-east1` and `us-east4`. `gemini-2.5-flash` works everywhere. So 3.x is reachable only via `global` here. |
+| **Model: `gemini-3.8-flash`** | Confirmed working on `global`, as are 3.7, 3.6 and 3.5. Cloud Run still runs in `us-east1`; the two need not match. |
+| **`thinking_level` must be set** | Left unspecified, a tool-selection turn thought past the 30s client timeout and returned `504 DEADLINE_EXCEEDED`. At `LOW` the same turn took **2.0s**. `MINIMAL` is rejected outright (`Thinking level is unsupported`). `assistant/llm.py`'s `THINKING_LEVEL` holds this. |
+| **Thought signatures verified** | Replaying a tool result *without* the signature returned `400 — "Function call is missing a thought_signature in functionCall parts. This is required for tool use."` With the signature on the part, the second call succeeded. The code does this; the test pins the shape. |
+
+Location lives in three places that must stay in sync: `env.example`, all
+three `--set-env-vars` sites in `cloudbuild.yaml`, and whatever you set
+locally. The model id is one field in the admin.
 
 Step 6 of Part 1 is still the first test of whether Vertex accepts the id
 **with function calling**, which the model list cannot tell you.

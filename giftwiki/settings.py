@@ -204,7 +204,7 @@ GOOGLE_ANALYTICS_ID = os.environ.get('GOOGLE_ANALYTICS_ID')
 # Assistant — Vertex AI. Authenticated with ADC: the Cloud Run service account
 # in production, `gcloud auth application-default login` locally.
 ASSISTANT_VERTEX_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
-ASSISTANT_VERTEX_LOCATION = os.getenv('VERTEX_LOCATION', 'us-central1')
+ASSISTANT_VERTEX_LOCATION = os.getenv('VERTEX_LOCATION', 'global')
 
 TEMPLATES = [
     {
