@@ -99,6 +99,11 @@ if os.getenv('DJANGO_ENVIRONMENT') in ['prod', 'dev']:
             'level': 'INFO',
             'propagate': False,
         }
+        LOGGING['loggers']['assistant'] = {  # App specific logger
+            'handlers': ['cloud', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        }
     except Exception as e:
         import sys
 
@@ -147,6 +152,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'widget_tweaks',
     'gift.apps.GiftConfig',
+    'assistant.apps.AssistantConfig',
     'import_export',
 ]
 
@@ -194,6 +200,12 @@ FIREBASE_CLIENT_CONFIG = {
 
 # Google Analytics
 GOOGLE_ANALYTICS_ID = os.environ.get('GOOGLE_ANALYTICS_ID')
+
+# Assistant — Vertex AI. Authenticated with ADC: the Cloud Run service account
+# in production, `gcloud auth application-default login` locally.
+ASSISTANT_VERTEX_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '')
+ASSISTANT_VERTEX_LOCATION = os.getenv('VERTEX_LOCATION', 'global')
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -208,6 +220,7 @@ TEMPLATES = [
                 'gift.context_processors.google_analytics',
                 'gift.context_processors.unseen_changelog_count',
                 'giftwiki.feature_flags.get_context_processor',
+                'assistant.context_processors.assistant_availability',
             ],
         },
     },

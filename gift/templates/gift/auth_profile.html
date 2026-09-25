@@ -108,6 +108,27 @@
             </div>
         </div>
 
+        {% if easter_egg_shelf %}
+        <section class="wl-eggs">
+          <h3 class="wl-eggs-title">
+            Secrets found
+            <span class="wl-eggs-count">{{ easter_egg_shelf.found }} of {{ easter_egg_shelf.total }}</span>
+          </h3>
+          <p class="wl-eggs-blurb">
+            There are {{ easter_egg_shelf.total }} secrets hidden in the assistant. Try
+            to talk it into something it shouldn't do — if you find one, it'll tell you.
+          </p>
+          <ul class="wl-eggs-list">
+            {% for egg in easter_egg_shelf.eggs %}
+            <li class="wl-egg {% if egg.found %}wl-egg-found{% endif %}">
+              <span class="wl-egg-name">{{ egg.name }}</span>
+              <span class="wl-egg-hint">{{ egg.hint }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
         <!-- Managed Users Section -->
         <!-- Managed Users Section -->
         <div class="row mt-4">

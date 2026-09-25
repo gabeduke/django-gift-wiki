@@ -1,0 +1,155 @@
+{% comment %}
+The assistant bubble, included from the base template so it is present on every
+page for people who pass the gate. The conversation lives here in memory and is
+posted whole on each turn — nothing about it is stored on the server, so a gift
+secret never reaches the database or the nightly backups.
+{% endcomment %}
+
+<div id="wl-assistant" class="wl-assistant" data-message-url="{% url 'assistant:message' %}">
+  <button type="button" id="wl-assistant-toggle" class="wl-assistant-bubble"
+          aria-expanded="false" aria-controls="wl-assistant-panel" aria-label="Open the assistant">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/>
+    </svg>
+  </button>
+
+  <div id="wl-assistant-panel" class="wl-assistant-panel" hidden role="dialog"
+       aria-label="Assistant">
+    <div class="wl-assistant-header">
+      <span>Ask about lists</span>
+      <button type="button" id="wl-assistant-close" class="wl-assistant-close"
+              aria-label="Close the assistant">&times;</button>
+    </div>
+
+    <div id="wl-assistant-log" class="wl-assistant-log" aria-live="polite">
+      <p class="wl-assistant-msg wl-assistant-msg-bot">
+        Hi! Ask me what's on someone's list, or tell me something you'd like and
+        I'll add it to yours.
+      </p>
+    </div>
+
+    <form id="wl-assistant-form" class="wl-assistant-form" novalidate>
+      {% csrf_token %}
+      <input type="text" id="wl-assistant-input" class="wl-assistant-input"
+             placeholder="Type a message…" autocomplete="off" maxlength="2000">
+      <button type="submit" id="wl-assistant-send" class="btn btn-primary btn-sm">Send</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var root = document.getElementById('wl-assistant');
+  if (!root) { return; }
+
+  var toggle = document.getElementById('wl-assistant-toggle');
+  var panel = document.getElementById('wl-assistant-panel');
+  var close = document.getElementById('wl-assistant-close');
+  var form = document.getElementById('wl-assistant-form');
+  var input = document.getElementById('wl-assistant-input');
+  var send = document.getElementById('wl-assistant-send');
+  var log = document.getElementById('wl-assistant-log');
+
+  // The whole conversation, in memory only. Never sent anywhere but the turn
+  // endpoint, and never stored — closing the tab is the end of it.
+  var history = [];
+  var busy = false;
+
+  function csrfToken() {
+    var field = form.querySelector('[name=csrfmiddlewaretoken]');
+    return field ? field.value : '';
+  }
+
+  function append(text, who) {
+    var p = document.createElement('p');
+    p.className = 'wl-assistant-msg wl-assistant-msg-' + who;
+    p.textContent = text;
+    log.appendChild(p);
+    log.scrollTop = log.scrollHeight;
+    return p;
+  }
+
+  function openPanel() {
+    panel.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    input.focus();
+  }
+
+  function closePanel() {
+    panel.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+
+  toggle.addEventListener('click', function () {
+    if (panel.hidden) { openPanel(); } else { closePanel(); }
+  });
+  close.addEventListener('click', closePanel);
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !panel.hidden) { closePanel(); }
+  });
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+
+    var text = input.value.trim();
+    if (!text || busy) { return; }
+
+    append(text, 'you');
+    history.push({role: 'user', text: text});
+    input.value = '';
+    busy = true;
+    send.disabled = true;
+    var thinking = append('…', 'bot');
+
+    fetch(root.getAttribute('data-message-url'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken()},
+      body: JSON.stringify({messages: history})
+    })
+      .then(function (response) {
+        return response.json().then(function (data) {
+          return {status: response.status, data: data};
+        });
+      })
+      .then(function (result) {
+        if (result.status === 403 && result.data.available === false) {
+          // A cap or an end date is settled: the bubble goes away, after the
+          // message has had time to be read, rather than sitting there dead.
+          //
+          // 'disabled' is different, and removing the bubble for it was a bug.
+          // The flag cache is per process, so a request can land on a worker
+          // that hasn't picked up a toggle yet and answer 'disabled' while the
+          // page that rendered this bubble said otherwise. Deleting the icon
+          // over a disagreement that a refresh resolves is the worst of both
+          // worlds. The endpoint still refuses either way — the server is the
+          // control, not this element's existence.
+          var sticky = ['user_cap', 'global_cap', 'expired'];
+          thinking.textContent =
+            result.data.message || 'The assistant is not available right now.';
+          if (sticky.indexOf(result.data.reason) !== -1) {
+            window.setTimeout(function () { root.remove(); }, 4000);
+          }
+          return;
+        }
+        if (result.status !== 200) {
+          thinking.textContent = result.data.error || 'Something went wrong. Try again?';
+          return;
+        }
+        thinking.textContent = result.data.reply;
+        history.push({role: 'assistant', text: result.data.reply});
+      })
+      .catch(function () {
+        thinking.textContent = 'Something went wrong. Try again?';
+      })
+      .then(function () {
+        busy = false;
+        send.disabled = false;
+        input.focus();
+      });
+  });
+})();
+</script>

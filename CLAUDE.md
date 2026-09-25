@@ -44,6 +44,7 @@ make run     # start dev server
 - **Deployment** — Cloud Run (primary) via Terraform + GitHub Actions; Kubernetes manifests in `deploy/` are k3s reference/backup only
 - **Terraform state** — Remote backend in GCS bucket `wikileet-terraform-state`
 - **CI/CD** — GitHub Actions: `deploy.yml` (prod, triggers on push to `main`), `deploy-dev.yml` (dev, triggers on PRs)
+- **In-app assistant** — `assistant/` app; Vertex AI (Gemini Flash) via ADC, no API key. Read-and-add only: it can list, search, and add items, never edit, delete, or mark purchased. Metered by `AssistantUsage` (messages enforced, tokens recorded) with a per-user cap and a global ceiling in the admin-editable `AssistantSettings` singleton. Gated by the `ASSISTANT_ENABLED` feature flag via `get_assistant_enabled()`. Transcripts are never stored — the conversation lives in the browser. The permission boundary is `gift/rules.py`: tools take `user` from `request.user` and have no argument through which a model could name anyone else.
 
 ## Key Directories
 ```
@@ -59,6 +60,7 @@ terraform/               # Infrastructure as code (remote state: GCS wikileet-te
 firebase-functions/      # Legacy Cloud Functions (sessionLogin moved to Django)
 local-docs/              # Extensive internal documentation
 docs/superpowers/specs/  # Approved design specs for work not yet built
+assistant/               # In-app LLM assistant (tools, turn loop, metering)
 scripts/                 # Helper/utility scripts
 ```
 
@@ -89,9 +91,11 @@ starting work it covers — the decisions and their reasons are recorded there.
 - **Allowlist**: Firebase middleware enforces an email allowlist (env or hardcoded default)
 
 ## Feature Flags
-Checked at runtime via `get_steward_proxy_enabled()` / `get_profile_picture_enabled()`:
+Checked at runtime via `get_steward_proxy_enabled()` / `get_profile_picture_enabled()` /
+`get_assistant_enabled()`:
 - `STEWARD_PROXY_ENABLED` — Shows dependent/steward fields on wishlists
 - `PROFILE_PICTURE_ENABLED` — Enables profile picture upload/display
+- `ASSISTANT_ENABLED` — Shows the assistant bubble and opens its endpoint
 
 ## Testing
 ```bash
@@ -118,6 +122,7 @@ See `env.example` for full list. Critical ones:
 - `USE_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`
 - `DJANGO_ALLOWED_USERS` — comma-separated email allowlist override
 - `STEWARD_PROXY_ENABLED`, `PROFILE_PICTURE_ENABLED` — feature flag env overrides
+- `GOOGLE_CLOUD_PROJECT`, `VERTEX_LOCATION` — assistant's Vertex AI project/region; auth is ADC, no API key
 
 > **Note:** `deploy/dev/config.env` and `deploy/prod/config.env` are gitignored. `FIREBASE_API_KEY` must be set via `.env` or GH Actions secret — it is not committed.
 

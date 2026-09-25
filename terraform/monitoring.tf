@@ -140,3 +140,130 @@ output "db_alerting_enabled" {
   description = "Whether database connectivity alerting is configured"
   value       = local.alerting_enabled == 1 ? "enabled (${var.alert_email})" : "disabled (set alert_email)"
 }
+
+#############################################
+# Monitoring: assistant budget alerting
+#############################################
+#
+# Goal: know when the family is approaching the assistant's monthly message
+# ceiling before the cap actually closes the door on someone.
+#
+# Same passive shape as the database alert above, for the same reason: the
+# turn loop already logs a warning the moment a turn pushes global usage to
+# 80% of AssistantSettings.global_monthly_messages (assistant/views.py, just
+# before record_tokens()). This counts that log line. Nothing here calls the
+# app on a schedule — the alert only exists because a real user turn already
+# ran and logged it.
+
+locals {
+  # The exact string assistant/views.py logs — keep these in sync if either
+  # changes. giftwiki/settings.py wires the `assistant` logger to the same
+  # CloudLoggingHandler as `gift` (both go through ['cloud', 'console']), so
+  # in the normal case this arrives structured and the match is on
+  # jsonPayload.message. The filter also matches textPayload, same as
+  # db_error_pattern above: that handler setup lives inside a try/except
+  # (settings.py's "Configure Cloud Logging" block) that falls back silently
+  # if the Cloud Logging client fails to initialize, in which case the
+  # record still reaches stderr as plain text via the `console` handler —
+  # this is what the textPayload half of the filter is for, not uncertainty
+  # about the structured path.
+  assistant_budget_pattern = "Assistant global budget at 80%"
+}
+
+resource "google_logging_metric" "assistant_budget_warnings" {
+  name        = "${var.service_name}-assistant-budget-warnings"
+  description = "Assistant global budget crossed 80% of its monthly ceiling, logged by ${var.service_name}"
+  project     = var.project_id
+
+  filter = <<-EOT
+    resource.type="cloud_run_revision"
+    resource.labels.service_name="${var.service_name}"
+    severity>=WARNING
+    (textPayload=~"${local.assistant_budget_pattern}" OR jsonPayload.message=~"${local.assistant_budget_pattern}")
+  EOT
+
+  metric_descriptor {
+    metric_kind  = "DELTA"
+    value_type   = "INT64"
+    unit         = "1"
+    display_name = "Assistant budget warnings"
+  }
+}
+
+resource "google_monitoring_alert_policy" "assistant_budget_warning" {
+  count = local.alerting_enabled
+
+  project      = var.project_id
+  display_name = "${var.service_name}: assistant budget at 80%"
+  combiner     = "OR"
+  severity     = "WARNING"
+
+  notification_channels = [google_monitoring_notification_channel.alert_email[0].id]
+
+  conditions {
+    display_name = "Assistant global budget warning logged"
+
+    condition_threshold {
+      filter = join(" AND ", [
+        "metric.type=\"logging.googleapis.com/user/${google_logging_metric.assistant_budget_warnings.name}\"",
+        "resource.type=\"cloud_run_revision\"",
+      ])
+
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "60s"
+
+      aggregations {
+        # A day, not five minutes: this is a budget getting close, not an
+        # outage, and the same 80% line will keep logging on every turn for
+        # the rest of the month once crossed. One notification a day is
+        # plenty; nobody needs to be paged again for the tenth message after
+        # the cap was already close.
+        alignment_period   = "86400s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "86400s"
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = <<-EOT
+      **${var.service_name}'s in-app assistant is at 80% of its global monthly
+      message ceiling.**
+
+      This is informational, not an outage — the assistant still works. It
+      means the family is on track to hit `AssistantSettings.global_monthly_messages`
+      before the month resets, and the *next* person to reach the cap will be
+      told no.
+
+      What to do:
+
+      1. Check `/admin/assistant/assistantusage/` for the current month's
+         message and token totals per user.
+      2. Decide whether to raise `global_monthly_messages` at
+         `/admin/assistant/assistantsettings/`, or let the cap hold.
+      3. If this fires repeatedly early in the month, the caps set during the
+         staged rollout may need revisiting against real Vertex pricing — see
+         `docs/ASSISTANT_ROLLOUT_AND_SMOKE_TEST.md`.
+
+      This alert is driven by an application log line (`assistant/views.py`,
+      logged just before token usage is recorded on any turn that crosses the
+      threshold), not by polling anything — consistent with the standing rule
+      against scheduled hits on DB-backed endpoints (see the database alert
+      above). It reuses that alert's notification channel.
+    EOT
+  }
+}
+
+output "assistant_budget_alerting_enabled" {
+  description = "Whether assistant budget alerting is configured"
+  value       = local.alerting_enabled == 1 ? "enabled (${var.alert_email})" : "disabled (set alert_email)"
+}

@@ -23,6 +23,7 @@ from django.urls import include, path
 from gift import views as gift_views
 
 urlpatterns = [
+    path('assistant/', include('assistant.urls')),
     path('', include('gift.urls')),  # Include the gift app's URLs at the root
     path('admin/login/', gift_views.custom_admin_login, name='custom_admin_login'),
     path('admin/', admin.site.urls),

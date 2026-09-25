@@ -109,5 +109,9 @@
   {% include 'gift/partials/quick_add_modal.html' %}
   {% endif %}
 
+  {% if assistant_available %}
+  {% include 'assistant/bubble.html' %}
+  {% endif %}
+
 </body>
 </html>

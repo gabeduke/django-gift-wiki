@@ -12,7 +12,6 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
-from django.core.validators import URLValidator
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -43,6 +42,13 @@ from .models import (
     ScrapedWikiPage,
     Season,
     WishList,
+)
+from .rules import (
+    ItemValidationError,
+    can_add_openly,
+    create_item_for,
+    person_display_name,
+    visible_items,
 )
 
 logger = logging.getLogger(__name__)
@@ -233,18 +239,6 @@ def quick_add_prefill(request):
     }
 
 
-def can_add_openly(wishlist, user):
-    """Whether `user` may put an ordinary, visible item on `wishlist`.
-
-    Owner-side means the owner, the dependent the list is kept for, or a
-    manager. Everyone else is a gift-giver, and what they add has to stay
-    hidden from the recipient.
-    """
-    if user == wishlist.owner or user == wishlist.dependent:
-        return True
-    return wishlist.managers.filter(pk=user.pk).exists()
-
-
 @require_GET
 @login_required
 def wishlist_picker(request):
@@ -304,38 +298,12 @@ def item_quick_add(request):
         WishList.objects.select_related('owner', 'dependent'), id=wishlist_id
     )
 
-    name = (data.get('name') or '').strip()
-    if not name:
-        return JsonResponse({'status': 'error', 'message': 'Give the item a name.'}, status=400)
-    if len(name) > 255:
-        return JsonResponse(
-            {'status': 'error', 'message': 'That name is too long (255 characters max).'},
-            status=400,
-        )
+    try:
+        item = create_item_for(request.user, wishlist, data.get('name'), data.get('url'))
+    except ItemValidationError as exc:
+        return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
 
-    url = (data.get('url') or '').strip()
-    if url:
-        try:
-            URLValidator()(url)
-        except ValidationError:
-            return JsonResponse(
-                {'status': 'error', 'message': "That link doesn't look like a valid URL."},
-                status=400,
-            )
-
-    is_sneaky = not can_add_openly(wishlist, request.user)
-    item = Item(wishlist=wishlist, name=name, url=url or None, is_sneaky=is_sneaky)
-    item.save(current_user=request.user)
-
-    logger.info(
-        'Item quick-added',
-        extra={
-            'item_id': item.id,
-            'wishlist_id': wishlist.id,
-            'is_sneaky': is_sneaky,
-            'user': request.user.email,
-        },
-    )
+    is_sneaky = item.is_sneaky
 
     person = person_display_name(wishlist.dependent or wishlist.owner)
     if is_sneaky:
@@ -820,7 +788,7 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
 def profile(request):
     # Profile lists are the viewer's own lists, so items shown there must exclude
     # surprise items (and archived/deleted ones) to avoid spoiling them.
-    visible_items = models.Prefetch(
+    visible_items_prefetch = models.Prefetch(
         'items',
         queryset=Item.objects.filter(
             is_deleted=False, archived_at__isnull=True, is_sneaky=False
@@ -831,7 +799,7 @@ def profile(request):
     wishlists = (
         WishList.objects.filter(owner=request.user)
         .select_related('family_name', 'owner', 'dependent')
-        .prefetch_related(visible_items)
+        .prefetch_related(visible_items_prefetch)
     )
 
     # Optionally include wishlists where user is the steward (if feature enabled)
@@ -842,7 +810,7 @@ def profile(request):
         stewarded = (
             WishList.objects.filter(dependent=request.user)
             .select_related('family_name', 'owner', 'dependent')
-            .prefetch_related(visible_items)
+            .prefetch_related(visible_items_prefetch)
         )
         wishlists = wishlists | stewarded
 
@@ -921,6 +889,14 @@ def profile(request):
     
     new_managed_user_form = CreateManagedUserForm(user=request.user)
 
+    # The Easter egg shelf. Imported here to match this view's existing
+    # convention of importing feature-gated dependencies locally (see
+    # get_steward_proxy_enabled and get_profile_picture_enabled above).
+    from assistant.easter_eggs import shelf_for
+    from giftwiki.feature_flags import get_assistant_enabled
+
+    easter_egg_shelf = shelf_for(request.user) if get_assistant_enabled() else None
+
     context = {
         'wishlists': wishlists,
         'profile_form': profile_form,
@@ -929,6 +905,7 @@ def profile(request):
         'PROFILE_PICTURE_ENABLED': PROFILE_PICTURE_ENABLED,
         'managed_users_data': managed_users_data,
         'new_managed_user_form': new_managed_user_form,
+        'easter_egg_shelf': easter_egg_shelf,
     }
 
     return render(request, 'gift/auth_profile.html', context)
@@ -1202,17 +1179,6 @@ def get_upcoming_birthdays(limit=5):
     return upcoming
 
 
-def person_display_name(person):
-    """The name shown for a person in the UI: full name when set, else username.
-
-    Mirrors the `get_full_name|default:username` idiom the row templates use —
-    get_full_name() returns '' when neither name is set, which is falsy.
-    """
-    if not person:
-        return ''
-    return person.get_full_name() or person.username
-
-
 def wishlist_search_text(wishlist):
     """Lowercased haystack the home page's quick filter matches a row against.
 
@@ -1365,15 +1331,8 @@ def wishlist_detail(request, wishlist_id):
 
     # Priority items first; id keeps a stable order within each group.
     # Archived gifts live on the received-gifts page instead of the active list.
-    items = (
-        wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
-        .select_related('purchased_by', 'updated_by', 'added_by')
-        .prefetch_related('categories')
-        .order_by('-is_priority', 'id')
-    )
-    # Sneaky items never reach the owner/recipient's queryset at all
-    if is_owner:
-        items = items.exclude(is_sneaky=True)
+    # Surprise items never reach the recipient's queryset at all — see gift.rules.
+    items = visible_items(wishlist, request.user)
 
     # Sneaky items get their own labelled section rather than being folded into
     # the recipient's categories: they are other people's additions, not things

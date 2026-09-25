@@ -35,6 +35,16 @@ jobs:
         run: |
           pipenv run python manage.py makemigrations --check --dry-run
 
+      # CI installs with pipenv; the deployed image installs requirements.txt.
+      # A package can therefore be present in both and still be unresolvable —
+      # which is exactly how google-genai's anyio>=4.8.0 met a stale
+      # anyio==4.4.0 pin and broke the dev deploy after every test had passed.
+      # The parity test guards presence; this guards that pip can actually
+      # solve the set, and it fails here rather than in the build step.
+      - name: Check requirements.txt resolves
+        run: |
+          pip install --dry-run --ignore-installed --quiet -r requirements.txt
+
       - name: Run tests
         run: make test
 
