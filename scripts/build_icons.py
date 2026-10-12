@@ -61,7 +61,8 @@ def constellation(line_width, radii, sparkle, spread):
     c = CANVAS / 2
     stars = [(c + (x - c) * spread, c + (y - c) * spread) for x, y in STARS]
     shapes = [('stroke', stars, line_width, SAGE)]
-    for (x, y), r in zip(stars, radii):
+    # Every star but the last is a dot; the last is the sparkle
+    for (x, y), r in zip(stars[:-1], radii, strict=True):
         shapes.append(('ellipse', x, y, r, r, 0, GREEN))
     wx, wy = stars[-1]
     shapes.append(('star', wx, wy, sparkle[0], sparkle[1], EMBER))
