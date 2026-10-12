@@ -1,6 +1,6 @@
 {% load static gift_extras %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
   <meta charset="UTF-8">
   <title>{% block title %}Wikileet{% endblock %}</title>
@@ -8,7 +8,7 @@
 
   <!-- PWA: manifest, icons, and how the app looks when launched from the home screen -->
   <link rel="manifest" href="{% url 'manifest' %}">
-  <meta name="theme-color" content="#2d6a4f">
+  <meta name="theme-color" content="{{ theme_colour }}">
   <link rel="icon" type="image/svg+xml" href="{% vstatic 'brand/logo-small.svg' %}">
   <link rel="icon" type="image/png" sizes="32x32" href="{% vstatic 'brand/favicon-32.png' %}">
   <link rel="apple-touch-icon" href="{% vstatic 'brand/apple-touch-icon.png' %}">
@@ -46,7 +46,7 @@ it already picked, since "add something to this list" is why you'd tap + here.
     <div class="wl-nav-inner">
 
       <a class="wl-logo" href="{% url 'gift:home' %}">
-        <img class="wl-logo-mark" src="{% vstatic 'brand/logo-small.svg' %}" alt="" width="30" height="30">
+        {% include 'gift/partials/logo_mark.html' %}
         <span>Wikileet</span>
       </a>
 

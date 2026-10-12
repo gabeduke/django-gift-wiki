@@ -11,6 +11,7 @@ urlpatterns = [
     # Authentication
     # Signup removed - users are auto-created via Traefik forward auth
     path('profile/', views.profile, name='account'),
+    path('profile/theme/', views.set_theme, name='set_theme'),
     path('my-purchases/', views.my_purchases, name='my_purchases'),
     path('received-gifts/', views.received_gifts, name='received_gifts'),
     path('changelog/', views.changelog, name='changelog'),

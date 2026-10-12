@@ -90,7 +90,9 @@ class TestMyListsPage:
         assert f'/wishlist/{wishlist.id}/delete/' in content
 
     def test_surprises_never_reach_the_preview(self, authenticated_user, wishlist, other_user):
-        Item.objects.create(wishlist=wishlist, name='Shh Secret', is_sneaky=True, added_by=other_user)
+        Item.objects.create(
+            wishlist=wishlist, name='Shh Secret', is_sneaky=True, added_by=other_user
+        )
 
         content = authenticated_user.get('/profile/').content.decode()
 
@@ -109,7 +111,9 @@ class TestMyListsPage:
 
 class TestPickerKnowsWhichListsAreYours:
     def picker(self, client):
-        return {entry['title']: entry for entry in client.get('/wishlist/picker/').json()['wishlists']}
+        return {
+            entry['title']: entry for entry in client.get('/wishlist/picker/').json()['wishlists']
+        }
 
     def test_your_own_list_is_mine(self, authenticated_user, wishlist):
         assert self.picker(authenticated_user)[wishlist.title]['is_mine'] is True

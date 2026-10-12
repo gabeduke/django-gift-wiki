@@ -122,6 +122,46 @@
     });
   });
 
+  // ---- Colour theme --------------------------------------------------------
+  // The picker on My Lists switches colour the moment a swatch is tapped,
+  // then saves in the background; the theme lives on <html data-theme>.
+  var picker = document.querySelector('[data-theme-picker]');
+  function applyTheme(key, colour) {
+    if (key === 'forest') {
+      delete document.documentElement.dataset.theme;
+    } else {
+      document.documentElement.dataset.theme = key;
+    }
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta && colour) { meta.setAttribute('content', colour); }
+  }
+  if (picker) {
+    var saved = picker.querySelector('input[name="theme"]:checked');
+    picker.addEventListener('change', function (event) {
+      var input = event.target;
+      if (input.name !== 'theme') { return; }
+      applyTheme(input.value, input.getAttribute('data-colour'));
+      fetch(picker.action, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        body: new FormData(picker)
+      })
+        .then(function (response) {
+          if (!response.ok) { throw new Error('theme save failed'); }
+          saved = input;
+        })
+        .catch(function () {
+          // Put back what's actually saved, so the page doesn't lie.
+          if (saved) {
+            saved.checked = true;
+            applyTheme(saved.value, saved.getAttribute('data-colour'));
+          }
+          window.wlToast("Couldn't save your colour. Try again?");
+        });
+    });
+  }
+
   // ---- Install prompt ----------------------------------------------------
   var DISMISS_KEY = 'wikileet:install-dismissed';
   var DISMISS_DAYS = 45;

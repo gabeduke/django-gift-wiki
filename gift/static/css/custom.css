@@ -23,11 +23,18 @@
   --stone-500: #6b6560;
   --stone-800: #2a2622;
 
-  /* Brand — Forest green */
-  --brand:       #2d6a4f;
-  --brand-hover: #245840;
-  --brand-light: #d8f3dc;
-  --brand-text:  #2d6a4f;
+  /* Brand — Forest green by default; a theme only changes --brand (see THEMES).
+     These are the static values for browsers without relative colour syntax;
+     the @supports block below derives them from --brand instead. */
+  --brand:        #2d6a4f;
+  --brand-hover:  #245840;
+  --brand-light:  #d8f3dc;   /* tinted backgrounds: active nav, chips, selections */
+  --brand-border: #9dd4b4;   /* borders on those tinted backgrounds */
+  --brand-line:   #8fb6a1;   /* quiet strokes, e.g. the logo's constellation lines */
+  --brand-glow:   #9ee0b8;   /* brand text on dark surfaces (toasts) */
+  --brand-a20:    rgba(45,106,79,.20);
+  --brand-a35:    rgba(45,106,79,.35);
+  --brand-text:   var(--brand);
 
   /* Semantic */
   --bg-page:        var(--stone-25);
@@ -39,7 +46,7 @@
   --text-secondary: var(--stone-500);
   --text-muted:     var(--stone-400);
 
-  /* Status */
+  /* Status — success stays green whatever the theme: ✓ means done */
   --success:    #2d6a4f;
   --success-bg: #d8f3dc;
   --danger:     #c0392b;
@@ -51,7 +58,7 @@
   --shadow-1: 0 1px 2px rgba(42,38,34,.05), 0 1px 3px rgba(42,38,34,.05);
   --shadow-2: 0 4px 14px rgba(42,38,34,.08), 0 1px 3px rgba(42,38,34,.05);
   --shadow-3: 0 14px 36px rgba(42,38,34,.16), 0 2px 6px rgba(42,38,34,.06);
-  --shadow-brand: 0 1px 2px rgba(45,106,79,.20), 0 3px 10px rgba(45,106,79,.22);
+  --shadow-brand: 0 1px 2px var(--brand-a20), 0 3px 10px var(--brand-a20);
 
   /* Shape */
   --radius-sm: 8px;
@@ -65,6 +72,31 @@
   --dur-fast: 140ms;
   --dur: 220ms;
 }
+
+/* Derive every brand shade from --brand, so a theme is one line. Lightness is
+   fixed and chroma scaled, which keeps each theme's tints in the same family
+   as its base colour (mixing with white in sRGB greys them out). */
+@supports (color: oklch(from red l c h)) {
+  :root, [data-theme] {
+    --brand-hover:  oklch(from var(--brand) calc(l - 0.06) c h);
+    --brand-light:  oklch(from var(--brand) 0.95 calc(c * 0.55) h);
+    --brand-border: oklch(from var(--brand) 0.84 calc(c * 0.8) h);
+    --brand-line:   oklch(from var(--brand) 0.76 calc(c * 0.55) h);
+    --brand-glow:   oklch(from var(--brand) 0.86 calc(c * 0.9) h);
+    --brand-a20:    oklch(from var(--brand) l c h / 0.2);
+    --brand-a35:    oklch(from var(--brand) l c h / 0.35);
+  }
+}
+
+/* ── THEMES ─────────────────────────────────────────────── */
+/* Set on <html> (data-theme) from the user's colour choice; the list of
+   themes lives in gift/themes.py and tests keep the two in step. Every value
+   clears WCAG AA for white text on it and for it on the cream page. */
+[data-theme="lake"]      { --brand: #1e6079; }
+[data-theme="midnight"]  { --brand: #33497c; }
+[data-theme="plum"]      { --brand: #6e3f74; }
+[data-theme="cranberry"] { --brand: #9a2c3e; }
+[data-theme="slate"]     { --brand: #434c5c; }
 
 /* ── BASE ──────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -233,7 +265,7 @@ main > .wl-page, main > .wl-page-narrow, main > .container {
 }
 .btn-outline-primary {
   background: var(--bg-surface) !important; color: var(--brand) !important;
-  border-color: rgba(45,106,79,.35) !important; box-shadow: var(--shadow-1);
+  border-color: var(--brand-a35) !important; box-shadow: var(--shadow-1);
 }
 .btn-outline-primary:hover { background: var(--brand-light) !important; border-color: var(--brand) !important; }
 .btn-outline-danger {
@@ -341,7 +373,7 @@ main > .wl-page, main > .wl-page-narrow, main > .container {
 .alert-warning { background: var(--warning-bg) !important; color: #7a5518 !important; border-color: #e8c97a !important; }
 .alert-success  { background: var(--success-bg) !important; color: var(--success) !important; border-color: #a8d5be !important; }
 .alert-danger, .alert-error { background: var(--danger-bg) !important; color: var(--danger) !important; border-color: #f5a9a2 !important; }
-.alert-info     { background: var(--brand-light) !important; color: var(--brand) !important; border-color: #9dd4b4 !important; }
+.alert-info     { background: var(--brand-light) !important; color: var(--brand) !important; border-color: var(--brand-border) !important; }
 
 /* ── FORMS ──────────────────────────────────────────────── */
 .form-control, .custom-select {
@@ -658,7 +690,7 @@ a.wl-list-row:active { transform: scale(.985); }
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 9px 12px; font-size: 14px; font-weight: 600;
   background: var(--brand-light); color: var(--brand);
-  border: 1px solid #b7e0c3; border-radius: 10px;
+  border: 1px solid var(--brand-border); border-radius: 10px;
   animation: wl-pop-in 180ms var(--ease-out);
 }
 .wl-qa-hint { margin: 0 0 10px; font-size: 13px; color: var(--text-secondary); }
@@ -932,7 +964,7 @@ a.wl-list-row:active { transform: scale(.985); }
   transition: background-color var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
 }
 .wl-chip-check input { width: 16px; height: 16px; }
-.wl-chip-check:has(input:checked) { background: var(--brand-light); border-color: #9dd4b4; color: var(--brand); }
+.wl-chip-check:has(input:checked) { background: var(--brand-light); border-color: var(--brand-border); color: var(--brand); }
 
 /* ── EDIT LIST ──────────────────────────────────────────── */
 .wl-edit-item { padding: 12px 14px 12px; transition: opacity var(--dur), transform var(--dur) var(--ease-out), box-shadow var(--dur); }
@@ -1013,7 +1045,7 @@ a.wl-list-row:active { transform: scale(.985); }
   font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
   transition: border-color var(--dur-fast), color var(--dur-fast), background-color var(--dur-fast);
 }
-.wl-add-row:hover { border-color: var(--brand); color: var(--brand); background: rgba(216,243,220,.35); }
+.wl-add-row:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
 .wl-add-row span { font-size: 18px; line-height: 1; }
 
 /* Save bar: stays in reach at the bottom of the screen while you edit */
@@ -1106,6 +1138,35 @@ a.wl-list-row:active { transform: scale(.985); }
 .wl-settings-row span { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
 .wl-settings-row form { margin: 0; flex-shrink: 0; }
 
+/* ── COLOUR PICKER ──────────────────────────────────────── */
+.wl-swatches { display: flex; flex-wrap: wrap; gap: 10px 6px; }
+.wl-swatch {
+  display: flex !important; flex-direction: column; align-items: center; gap: 6px;
+  width: 72px; margin: 0; padding: 6px 0; border-radius: var(--radius);
+  cursor: pointer; font-weight: 500;
+}
+.wl-swatch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.wl-swatch-dot {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.35), var(--shadow-1);
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast);
+}
+.wl-swatch:hover .wl-swatch-dot { transform: scale(1.06); }
+.wl-swatch input:checked + .wl-swatch-dot {
+  box-shadow: 0 0 0 3px var(--bg-surface), 0 0 0 5px var(--swatch);
+  transform: scale(1.04);
+}
+.wl-swatch input:focus-visible + .wl-swatch-dot { box-shadow: 0 0 0 3px var(--bg-surface), 0 0 0 5px var(--text-primary); }
+.wl-swatch-label { font-size: 12px; color: var(--text-secondary); }
+.wl-swatch input:checked ~ .wl-swatch-label { color: var(--text-primary); font-weight: 700; }
+
+/* Theme changes glide instead of snapping */
+.wl-nav, .wl-tabbar, .btn-primary, .wl-tab-add-btn, .wl-avatar, .wl-list-avatar, .wl-logo-mark * {
+  transition-property: background-color, color, fill, stroke, border-color, box-shadow, transform;
+  transition-duration: var(--dur);
+}
+
 /* ── HOME TOUCHES ───────────────────────────────────────── */
 .wl-countdown {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1161,7 +1222,7 @@ a.wl-list-row:active { transform: scale(.985); }
 .wl-toast-action {
   background: none; border: 0; border-radius: 6px;
   padding: 6px 10px; white-space: nowrap;
-  color: #9ee0b8; font: inherit; font-weight: 600; cursor: pointer;
+  color: var(--brand-glow); font: inherit; font-weight: 600; cursor: pointer;
 }
 a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(255,255,255,.1); text-decoration: none; }
 .wl-toast.is-leaving { opacity: 0; transform: translateY(8px); transition: all 200ms ease; }
@@ -1210,7 +1271,7 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
     display: flex; align-items: center; justify-content: center;
     border-radius: 18px;
     background: var(--brand); color: #fff;
-    box-shadow: 0 6px 16px rgba(45,106,79,.38), 0 0 0 4px var(--bg-page);
+    box-shadow: 0 6px 16px var(--brand-a35), 0 0 0 4px var(--bg-page);
     transition: transform 150ms ease;
   }
   .wl-tab-add:active .wl-tab-add-btn { transform: scale(.94); }

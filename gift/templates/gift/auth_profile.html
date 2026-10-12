@@ -117,6 +117,24 @@
     {% endif %}
   </section>
 
+  <section class="wl-card">
+    <h2 class="wl-card-title">Your colour</h2>
+    <p class="wl-card-subtitle">Only you see it. The whole app follows along, logo included.</p>
+    <form method="post" action="{% url 'gift:set_theme' %}" data-theme-picker>
+      {% csrf_token %}
+      <div class="wl-swatches" role="radiogroup" aria-label="Colour theme">
+        {% for key, label, colour in theme_options %}
+        <label class="wl-swatch" style="--swatch: {{ colour }}">
+          <input type="radio" name="theme" value="{{ key }}" data-colour="{{ colour }}"{% if key == current_theme %} checked{% endif %}>
+          <span class="wl-swatch-dot" aria-hidden="true"></span>
+          <span class="wl-swatch-label">{{ label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <noscript><button type="submit" class="btn btn-outline-secondary btn-sm">Save colour</button></noscript>
+    </form>
+  </section>
+
   {% if PROFILE_PICTURE_ENABLED %}
   <section class="wl-card">
     <h2 class="wl-card-title">Profile picture</h2>

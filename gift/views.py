@@ -51,6 +51,7 @@ from .models import (
     Season,
     WishList,
 )
+from .themes import THEMES, theme_colour, theme_for
 
 logger = logging.getLogger(__name__)
 
@@ -1094,6 +1095,8 @@ def profile(request):
         'wishlists': wishlists,
         'my_lists': my_lists,
         'kept_lists': kept_lists,
+        'theme_options': [(key, label, colour) for key, (label, colour) in THEMES.items()],
+        'current_theme': theme_for(request.user),
         'profile_form': profile_form,
         'user_profile_form': user_profile_form,
         'show_scraped_page_prompt': show_scraped_page_prompt,
@@ -1103,6 +1106,31 @@ def profile(request):
     }
 
     return render(request, 'gift/auth_profile.html', context)
+
+@require_POST
+@login_required
+def set_theme(request):
+    """Save the signed-in user's colour theme (the picker on My Lists).
+
+    The page has already switched colour by the time this lands; it only
+    makes the choice stick. Without JavaScript the form posts here and
+    comes back to My Lists.
+    """
+    key = request.POST.get('theme', '')
+    if key not in THEMES:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'status': 'error', 'message': 'Unknown colour.'}, status=400)
+        messages.error(request, 'That colour isn’t available.')
+        return redirect('gift:account')
+
+    request.user.color_palette = key
+    request.user.save(update_fields=['color_palette'])
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'status': 'ok', 'theme': key, 'colour': theme_colour(key)})
+    messages.success(request, f'Colour set to {THEMES[key][0]}.')
+    return redirect('gift:account')
+
 
 def _get_managed_user_or_none(request_user, user_id):
     """The managed user `request_user` is allowed to act on, or None.
