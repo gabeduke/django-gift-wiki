@@ -207,6 +207,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'gift.context_processors.google_analytics',
                 'gift.context_processors.unseen_changelog_count',
+                'gift.context_processors.theme',
                 'giftwiki.feature_flags.get_context_processor',
             ],
         },
