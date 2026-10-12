@@ -619,6 +619,7 @@ a.wl-list-row:active { transform: scale(.985); }
   margin: 6px 0 0; min-height: 1em;
   font-size: 12px; color: var(--text-muted);
 }
+.wl-filter-status:empty { margin: 0; min-height: 0; }
 .wl-filter-empty { margin-top: 32px; color: var(--text-muted); }
 .wl-filter-empty[hidden] { display: none; }
 
@@ -1167,13 +1168,58 @@ a.wl-list-row:active { transform: scale(.985); }
   transition-duration: var(--dur);
 }
 
-/* ── HOME TOUCHES ───────────────────────────────────────── */
+/* ── HOME TOP ───────────────────────────────────────────── */
+/* Desktop: greeting and tools on the left, the family photo framed on the
+   right. Phones: the photo becomes a short banner carrying the countdown,
+   and the greeting, filter and one row of controls sit tight beneath it —
+   the lists should start above the fold. */
+.wl-home-top {
+  display: grid; grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-areas: "intro photo";
+  gap: 16px 32px; align-items: start;
+  margin-bottom: 28px;
+}
+.wl-home-intro { grid-area: intro; min-width: 0; }
+.wl-home-photo {
+  grid-area: photo; position: relative; margin: 0;
+  display: flex; flex-direction: column; align-items: center;
+}
+.wl-home-photo img {
+  display: block; width: 100%; height: auto;
+  padding: 6px; background: var(--bg-surface);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-3);
+}
 .wl-countdown {
   display: inline-flex; align-items: center; gap: 6px;
-  margin: 10px 0 0; padding: 4px 12px;
+  margin: 12px 0 0; padding: 4px 12px;
   background: var(--brand-light); color: var(--brand);
   border-radius: 999px; font-size: 13px; font-weight: 600;
+  white-space: nowrap;
 }
+
+.wl-home-controls {
+  display: flex; align-items: center; justify-content: flex-start;
+  gap: 8px; flex-wrap: wrap; margin-top: 12px; max-width: 420px;
+}
+.wl-group-by {
+  display: inline-flex; align-items: center; min-width: 0; flex: 0 1 auto;
+  height: 34px; margin: 0; padding-left: 12px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-1);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.wl-group-by:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-light); }
+.wl-group-by label { margin: 0 6px 0 0; font-size: 13px; color: var(--text-muted); }
+.wl-group-by select {
+  -webkit-appearance: none; appearance: none;
+  field-sizing: content;
+  min-width: 0; max-width: 190px; height: 32px;
+  padding: 0 28px 0 0; border: 0; outline: none;
+  background: transparent url('data:image/svg+xml;utf8,<svg fill="%236b6560" viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 8px center;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--text-primary);
+  text-overflow: ellipsis; cursor: pointer;
+}
+.wl-bulk-toggle { display: flex; gap: 6px; flex: none; }
 .wl-changelog-more { margin: 4px 0 0; font-size: 13px; }
 
 /* ── INSTALL BANNER ─────────────────────────────────────── */
@@ -1333,9 +1379,52 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
 /* ── RESPONSIVE ─────────────────────────────────────────── */
 @media (max-width: 767px) {
   .wl-nav-links { display: none; }
+
+  /* Home: banner photo, compact tools */
+  .wl-home-top {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "photo" "intro";
+    gap: 14px; margin-bottom: 20px;
+  }
+  .wl-home-photo { display: block; }
+  .wl-home-photo img {
+    height: 128px; padding: 0;
+    object-fit: cover; object-position: center 35%;
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
+  }
+  .wl-home-photo .wl-countdown {
+    position: absolute; left: 10px; bottom: 10px; margin: 0;
+    background: rgba(255,255,255,.92); box-shadow: var(--shadow-2);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  }
+  .wl-home-tagline { display: none; }
+  .wl-filter, .wl-home-controls { max-width: none; }
+  .wl-filter { margin-top: 12px; }
+  .wl-home-controls { justify-content: space-between; flex-wrap: nowrap; margin-top: 10px; }
+  .wl-group-by label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .wl-group-by select { max-width: 160px; }
+
+  /* Home lists: one grouped card per section, rows split by hairlines —
+     denser than a stack of cards and closer to a native list. */
+  .wl-family-section { margin-bottom: 20px; }
+  .wl-family-header.wl-collapse-toggle { border-bottom: 0; padding: 6px 4px; margin-bottom: 6px; }
+  .wl-section-body {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-1); overflow: hidden;
+  }
+  .wl-section-body .wl-list-row {
+    margin: 0; padding: 11px 14px;
+    border: 0; border-radius: 0; box-shadow: none;
+  }
+  .wl-section-body .wl-list-row:not([hidden]) ~ .wl-list-row { border-top: 1px solid var(--border); }
+  .wl-section-body a.wl-list-row:hover { transform: none; box-shadow: none; }
+  .wl-section-body a.wl-list-row:active { transform: none; background: var(--bg-subtle); }
   .wl-page, .wl-page-narrow { padding: 20px 16px 56px; }
-  .wl-item-row { flex-direction: column; }
-  .wl-item-actions { justify-content: flex-start; }
+  /* Items keep their action on the same line — stacking it under the name
+     doubled every row's height. */
+  .wl-item-row { align-items: center; padding: 11px 14px; margin-bottom: 6px; }
+  .wl-back { margin-bottom: 14px; }
+  .wl-page-header { margin-bottom: 20px; }
   .wl-page-header-row { flex-direction: column; gap: 12px; }
   .wl-changelog-dismiss { text-align: stretch; }
   .wl-changelog-dismiss .btn { width: 100%; }

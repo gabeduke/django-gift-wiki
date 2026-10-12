@@ -58,6 +58,15 @@ class TestHomePage:
     def test_greets_by_username_without_a_first_name(self, authenticated_user):
         assert 'Hi, testuser' in authenticated_user.get('/').content.decode()
 
+    def test_page_content_uses_no_header_element(self, authenticated_user):
+        """custom.css hides every <header> (a leftover from the old layout), so
+        the greeting and photo must not be wrapped in one."""
+        content = authenticated_user.get('/').content.decode()
+        main = content[content.index('<main'):content.index('</main>')]
+
+        assert 'class="wl-home-top"' in main
+        assert '<header' not in main
+
 
 class TestWhatsNewCard:
     def make_entries(self, count):
