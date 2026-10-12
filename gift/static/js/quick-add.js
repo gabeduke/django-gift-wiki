@@ -1,8 +1,8 @@
 /* Quick add: drop a gift idea on any list from anywhere.
  *
  * Opened by any [data-quick-add] element (the nav button, the tab bar's +),
- * the A key, or a URL carrying ?quick_add=1 (the home-screen shortcut and the
- * Android share target, which can also pass name= and url=).
+ * the A key, or a URL carrying ?quick_add=1 (the home-screen shortcuts and the
+ * Android share target, which can also pass name=, url= and for=me|others).
  *
  * The server decides whether an item is a surprise; nothing here can change
  * that. What this file adds on top is convenience: the list you're looking at
@@ -41,6 +41,9 @@
   var existing = document.getElementById('wl-qa-existing');
   var existingSummary = document.getElementById('wl-qa-existing-summary');
   var existingList = document.getElementById('wl-qa-existing-list');
+  var target = document.getElementById('wl-qa-target');
+  var targetButtons = target ? target.querySelectorAll('[data-target]') : [];
+  var noList = document.getElementById('wl-qa-no-list');
 
   var RECENT_KEY = 'wikileet:quick-add:recent';
   var RECENT_MAX = 4;
@@ -50,6 +53,8 @@
   var chosen = null;
   var highlighted = -1;
   var pendingListId = null;  // pick this list once options arrive
+  var mode = null;           // 'mine' | 'others' | null (everyone)
+  var pendingMode = null;    // apply this mode once options arrive
   var glanceItems = null;    // what's on the chosen list, once fetched
   var nameWasDerived = false;
 
@@ -295,8 +300,15 @@
     return li;
   }
 
+  function inMode(option) {
+    if (mode === 'mine') { return option.is_mine; }
+    if (mode === 'others') { return !option.is_mine; }
+    return true;
+  }
+
   function renderResults(query) {
     var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    var pool = (options || []).filter(inMode);
     results.innerHTML = '';
     highlighted = -1;
 
@@ -305,8 +317,10 @@
     } else if (terms.length === 0) {
       // Nothing typed: lists you've added to lately first, then everyone.
       var recentIds = readRecent();
-      var recent = recentIds.map(findOption).filter(Boolean);
-      var rest = options.filter(function (option) { return recent.indexOf(option) === -1; });
+      var recent = recentIds.map(findOption).filter(function (option) {
+        return option && inMode(option);
+      });
+      var rest = pool.filter(function (option) { return recent.indexOf(option) === -1; });
       var index = 0;
       if (recent.length) {
         results.appendChild(groupHeading('Recent'));
@@ -315,7 +329,7 @@
       }
       rest.forEach(function (option) { results.appendChild(resultOption(option, index++)); });
     } else {
-      var matched = options.filter(function (option) {
+      var matched = pool.filter(function (option) {
         var haystack = (option.title + ' ' + option.person).toLowerCase();
         return terms.every(function (term) { return haystack.indexOf(term) !== -1; });
       }).slice(0, 8);
@@ -323,6 +337,9 @@
         results.appendChild(el('li', 'wl-qa-result-empty', 'No lists match'));
       }
       matched.forEach(function (option, i) { results.appendChild(resultOption(option, i)); });
+    }
+    if (!results.firstChild) {
+      results.appendChild(el('li', 'wl-qa-result-empty', 'No lists here yet'));
     }
 
     results.hidden = false;
@@ -355,6 +372,9 @@
   function choose(option, keepFocus) {
     chosen = option;
     pendingListId = null;
+    pendingMode = null;
+    if (target) { target.hidden = true; }
+    noList.hidden = true;
     selectedLabel.textContent = label(option);
     selected.hidden = false;
     listInput.hidden = true;
@@ -380,10 +400,52 @@
     selected.hidden = true;
     selectedLabel.textContent = '';
     surprise.hidden = true;
+    if (target) { target.hidden = false; }
     listInput.hidden = false;
     listInput.value = '';
     listInput.focus();
   }
+
+  // ---- Mine / Someone else -----------------------------------------------
+
+  function showMode() {
+    Array.prototype.forEach.call(targetButtons, function (button) {
+      button.setAttribute('aria-checked', String(button.getAttribute('data-target') === mode));
+    });
+    listInput.placeholder = mode === 'others' ? 'Search everyone else…'
+      : mode === 'mine' ? 'Which of your lists?' : 'Type a name…';
+  }
+
+  function setMode(next) {
+    mode = next;
+    showMode();
+    noList.hidden = true;
+    if (options === null) {
+      pendingMode = next;  // decided once the lists arrive
+      return;
+    }
+    if (mode === 'mine') {
+      var mine = options.filter(function (option) { return option.is_mine; });
+      if (mine.length === 1) {
+        choose(mine[0]);
+        return;
+      }
+      if (mine.length === 0) {
+        noList.hidden = false;
+        closeResults();
+        return;
+      }
+    }
+    listInput.focus();
+    renderResults(listInput.value);
+  }
+
+  Array.prototype.forEach.call(targetButtons, function (button) {
+    button.addEventListener('click', function () {
+      var next = button.getAttribute('data-target');
+      setMode(mode === next ? null : next);
+    });
+  });
 
   // Refreshed on every open, not just the first: a list created since the last
   // open should be pickable without a reload. Cached options stay on screen
@@ -410,6 +472,10 @@
             choose(option, document.activeElement === nameInput);
             return;
           }
+        }
+        if (pendingMode && !chosen) {
+          setMode(pendingMode);
+          return;
         }
         if (!results.hidden || document.activeElement === listInput) {
           renderResults(listInput.value);
@@ -457,6 +523,11 @@
     chosen = null;
     glanceItems = null;
     pendingListId = null;
+    pendingMode = null;
+    mode = null;
+    showMode();
+    if (target) { target.hidden = false; }
+    noList.hidden = true;
     nameWasDerived = false;
     renderGlance();
     updateDuplicates();
@@ -471,7 +542,8 @@
     submitButton.textContent = 'Add';
   }
 
-  // open({listId, name, url}) — every field optional.
+  // open({listId, target, name, url}) — every field optional. target is
+  // 'mine' or 'others'.
   function open(prefill) {
     prefill = prefill || {};
     if (prefill.name) { nameInput.value = prefill.name; }
@@ -487,6 +559,8 @@
       } else {
         pendingListId = listId;
       }
+    } else if (prefill.target && !chosen) {
+      setMode(prefill.target);
     }
     loadOptions();
     $modal.modal('show');
@@ -500,7 +574,9 @@
     var trigger = event.target.closest('[data-quick-add]');
     if (trigger) {
       event.preventDefault();
-      open();
+      // A trigger can name its own list (each card on My Lists does);
+      // otherwise open() falls back to the list the page is about.
+      open({listId: trigger.getAttribute('data-quick-add-list') || null});
     }
   });
 
@@ -670,12 +746,16 @@
   });
 
   // ---- Deep links --------------------------------------------------------
-  // ?quick_add=1[&name=…][&url=…] from the home-screen shortcut or the share
+  // ?quick_add=1[&for=me|others][&name=…][&url=…] from a home-screen shortcut or the share
   // sheet. Strip the params afterwards so a reload doesn't reopen it.
   var params = new URLSearchParams(window.location.search);
   if (params.get('quick_add') === '1') {
-    var prefill = {name: params.get('name') || '', url: params.get('url') || ''};
-    ['quick_add', 'name', 'url'].forEach(function (key) { params.delete(key); });
+    var prefill = {
+      name: params.get('name') || '',
+      url: params.get('url') || '',
+      target: {me: 'mine', others: 'others'}[params.get('for')] || null
+    };
+    ['quick_add', 'name', 'url', 'for'].forEach(function (key) { params.delete(key); });
     var rest = params.toString();
     window.history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : ''));
     open(prefill);

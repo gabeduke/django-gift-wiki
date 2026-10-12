@@ -101,6 +101,27 @@
     }
   })();
 
+  // ---- Share a link ------------------------------------------------------
+  // [data-share-url]: the native share sheet where there is one (phones),
+  // otherwise copy the link. Family still has to be signed in to see it.
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-share-url]');
+    if (!button) { return; }
+    event.preventDefault();
+    var url = button.getAttribute('data-share-url');
+    var title = button.getAttribute('data-share-title') || 'Wikileet';
+    if (navigator.share) {
+      navigator.share({title: title, url: url}).catch(function () { /* cancelled */ });
+      return;
+    }
+    var copied = navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject();
+    copied.then(function () {
+      window.wlToast('Link copied — paste it anywhere.', {tone: 'success'});
+    }, function () {
+      window.prompt('Copy this link:', url);
+    });
+  });
+
   // ---- Install prompt ----------------------------------------------------
   var DISMISS_KEY = 'wikileet:install-dismissed';
   var DISMISS_DAYS = 45;

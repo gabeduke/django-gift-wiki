@@ -1,11 +1,21 @@
 {% extends "gift/base/base_generic.html" %}
 {% load widget_tweaks %}
 
+{% block title %}Edit {{ item.name }} · Wikileet{% endblock %}
+
 {% block content %}
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-6 offset-md-3">
-                <h2 class="mb-3">Edit Item</h2>
+    <div class="wl-page-narrow">
+                <a class="wl-back" href="{% url 'gift:wishlist_detail' wishlist.id %}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+                    </svg>
+                    {{ wishlist.title }}
+                </a>
+                <div class="wl-page-header">
+                    <h1 class="wl-page-title">Edit item</h1>
+                    <p class="wl-page-subtitle">On {{ wishlist.title }}</p>
+                </div>
                 {% if not wishlist.family_name %}
                     <div class="alert alert-warning">
                         <strong>Note:</strong> This wishlist doesn't have a family assigned. Categories are family-specific, so you'll need to assign a family to the wishlist first.
@@ -21,7 +31,7 @@
                     </div>
                 {% endif %}
                 
-                <form action="{% url 'gift:edit_item' item.id %}" method="post" class="card card-body">
+                <form action="{% url 'gift:edit_item' item.id %}" method="post" class="wl-card wl-form wl-form-card">
                     {% csrf_token %}
                     
                     {# Name #}
@@ -92,10 +102,11 @@
                         {% endfor %}
                     </div>
                     
-                    <button type="submit" class="btn btn-primary" id="submitBtn">Save</button>
+                    <div class="wl-form-actions">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">Save changes</button>
+                        <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
                 </form>
-            </div>
-        </div>
     </div>
 
 <!-- New Category Modal -->

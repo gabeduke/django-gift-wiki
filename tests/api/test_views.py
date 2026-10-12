@@ -210,8 +210,9 @@ class TestProfileView:
         response = authenticated_user.get('/profile/')
         assert response.status_code == 200
         content = response.content.decode()
-        assert 'Account Settings' in content
-        assert 'Managed Users' in content
+        assert 'My Lists' in content
+        assert 'People you manage' in content
+        assert 'Account' in content
 
     def test_profile_update(self, authenticated_user, user):
         """Profile details can be updated from the account page."""

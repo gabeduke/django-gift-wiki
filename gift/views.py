@@ -23,6 +23,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.timesince import timesince
 from django.views import generic
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
@@ -323,7 +324,9 @@ def can_add_openly(wishlist, user):
     """
     if user == wishlist.owner or user == wishlist.dependent:
         return True
-    return wishlist.managers.filter(pk=user.pk).exists()
+    # Iterating .all() rather than .filter().exists() lets the picker's
+    # prefetch_related('managers') answer this without a query per list.
+    return any(manager.pk == user.pk for manager in wishlist.managers.all())
 
 
 def active_items_visible_to(wishlist, user):
@@ -353,12 +356,16 @@ def wishlist_picker(request):
     entries = []
     for wishlist in wishlists:
         open_add = can_add_openly(wishlist, request.user)
+        person = wishlist.dependent or wishlist.owner
         entries.append(
             {
                 'id': wishlist.id,
                 'title': wishlist.title,
-                'person': person_display_name(wishlist.dependent or wishlist.owner),
+                'person': person_display_name(person),
                 'can_add_openly': open_add,
+                # The list is for the asker themselves — what "Mine" picks.
+                # A list kept for your kid is open to you but isn't yours.
+                'is_mine': person == request.user,
                 # Where 'More options…' goes for this list. Resolved here so the
                 # modal never has to build a URL, and so no page carries the
                 # surprise-form path just in case it might be needed.
@@ -953,35 +960,60 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
         return None
 
 
+# How many items each card on My Lists shows before "+ N more"
+MY_LIST_PREVIEW_ITEMS = 4
+
+
 @login_required
 def profile(request):
-    # Profile lists are the viewer's own lists, so items shown there must exclude
-    # surprise items (and archived/deleted ones) to avoid spoiling them.
+    """My Lists: the lists you curate first, then the people you manage, then
+    your account settings."""
+    # Previews here are the viewer's own lists, so they must exclude surprise
+    # items (and archived/deleted ones) to avoid spoiling them.
     visible_items = models.Prefetch(
         'items',
         queryset=Item.objects.filter(
             is_deleted=False, archived_at__isnull=True, is_sneaky=False
-        ),
+        ).order_by('-is_priority', 'id'),
         to_attr='visible_items',
     )
-    # Get all lists where the user is the owner - optimize with select_related
-    wishlists = (
-        WishList.objects.filter(owner=request.user)
-        .select_related('family_name', 'owner', 'dependent')
-        .prefetch_related(visible_items)
-    )
+    # Lists you own, plus lists you help manage (a co-parent's list for a kid)
+    curated = models.Q(owner=request.user) | models.Q(managers=request.user)
 
     # Optionally include wishlists where user is the steward (if feature enabled)
     from giftwiki.feature_flags import get_steward_proxy_enabled
 
     STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
     if STEWARD_PROXY_ENABLED:
-        stewarded = (
-            WishList.objects.filter(dependent=request.user)
-            .select_related('family_name', 'owner', 'dependent')
-            .prefetch_related(visible_items)
-        )
-        wishlists = wishlists | stewarded
+        curated |= models.Q(dependent=request.user)
+
+    wishlists = list(
+        WishList.objects.filter(curated)
+        .distinct()
+        .select_related('family_name', 'owner', 'dependent')
+        .prefetch_related(visible_items)
+        .order_by('-updated_at')
+    )
+
+    # Yours first; lists you keep for someone else (a kid) get their own group
+    my_lists, kept_lists = [], []
+    for wishlist in wishlists:
+        person = wishlist.dependent or wishlist.owner
+        entry = {
+            'wishlist': wishlist,
+            'person': person,
+            'is_mine': person == request.user,
+            'count': len(wishlist.visible_items),
+            'preview': wishlist.visible_items[:MY_LIST_PREVIEW_ITEMS],
+            'more': max(0, len(wishlist.visible_items) - MY_LIST_PREVIEW_ITEMS),
+            'can_delete': request.user in (wishlist.owner, wishlist.dependent),
+            # "3 days", not "3 days, 4 hours" — it's a glance, not a timestamp
+            'updated': timesince(wishlist.updated_at, depth=1),
+            'share_url': request.build_absolute_uri(
+                reverse('gift:wishlist_detail', args=[wishlist.id])
+            ),
+        }
+        (my_lists if entry['is_mine'] else kept_lists).append(entry)
 
     # Handle profile picture upload (only if feature enabled)
     from giftwiki.feature_flags import get_profile_picture_enabled
@@ -1060,6 +1092,8 @@ def profile(request):
 
     context = {
         'wishlists': wishlists,
+        'my_lists': my_lists,
+        'kept_lists': kept_lists,
         'profile_form': profile_form,
         'user_profile_form': user_profile_form,
         'show_scraped_page_prompt': show_scraped_page_prompt,

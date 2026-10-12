@@ -1,749 +1,181 @@
 {% extends 'gift/base/base_generic.html' %}
 {% load widget_tweaks %}
 
+{% block title %}Edit {{ wishlist.title }} · Wikileet{% endblock %}
+{% block quick_add_list %}{{ wishlist.id }}{% endblock %}
+
 {% block content %}
-<div class="wishlist-edit-page">
-    <div class="container mt-2">
-        <div class="row mb-2">
-            <div class="col d-flex justify-content-between align-items-center">
-                <div>
-                    <h2>Edit Wishlist</h2>
-                    <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </a>
-                </div>
-                <div>
-                    <form method="post" action="{% url 'gift:clear_purchased' wishlist.id %}" onsubmit="return confirm('Are you sure you want to remove all purchased items from your list?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-warning btn-sm">
-                            <i class="fas fa-broom"></i> Clear Purchased Items
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
+<div class="wl-page-medium">
 
-        {% if not wishlist.family_name %}
-        <div class="alert alert-warning mb-2">
-            <strong>Note:</strong> This wishlist doesn't have a family assigned. Categories are family-specific, so
-            you'll need to assign a family to the wishlist first.
-        </div>
-        {% endif %}
+  <a class="wl-back" href="{% url 'gift:wishlist_detail' wishlist.id %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    {{ wishlist.title }}
+  </a>
 
-        <form method="post" class="card" id="wishlist-form">
-            <div class="card-body">
-                {% csrf_token %}
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">Edit list</h1>
+    <p class="wl-page-subtitle">Change the details, tidy up items, or add a few at once.</p>
+  </div>
 
-                <!-- Formset-level validation errors (shown so users can report them) -->
-                {% if formset.non_form_errors %}
-                <div class="alert alert-danger mb-3">
-                    <strong>Form errors:</strong>
-                    <ul class="mb-0 mt-1">
-                        {% for error in formset.non_form_errors %}
-                        <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-                {% for form in formset %}
-                {% if form.errors %}
-                <div class="alert alert-danger mb-2 small">
-                    <strong>Item #{{ forloop.counter }} errors:</strong>
-                    <ul class="mb-0 mt-1">
-                        {% for field, errors in form.errors.items %}
-                        <li>{{ field }}: {{ errors|striptags }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-                {% endfor %}
+  {% if not wishlist.family_name %}
+  <div class="alert alert-warning">
+    This list has no family yet. Categories belong to a family, so pick one below to use them.
+  </div>
+  {% endif %}
 
-                <!-- Wishlist Details Section - Compact -->
-                <div class="mb-3">
-                    <div class="row">
-                        <div class="col-md-4 mb-2">
-                            <label for="{{ wishlist_form.title.id_for_label }}" class="form-label">
-                                List Name <span class="text-danger">*</span>
-                            </label>
-                            {{ wishlist_form.title|add_class:"form-control form-control-sm" }}
-                            {% if wishlist_form.title.errors %}
-                            <div class="text-danger small mt-1">{{ wishlist_form.title.errors }}</div>
-                            {% endif %}
+  <form method="post" id="wishlist-form" class="wl-form" novalidate>
+    {% csrf_token %}
 
-                            {% if wishlist_form.managers %}
-                            <div class="mt-3">
-                                <label class="form-label">
-                                    <i class="fas fa-users"></i> Additional Managers
-                                </label>
-                                <div class="dropdown-checkbox-wrapper">
-                                    <button type="button"
-                                        class="btn btn-outline-secondary btn-sm form-control form-control-sm text-left dropdown-toggle-managers"
-                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                                        id="managersDropdownBtnEdit">
-                                        <span class="selected-count">Select managers...</span>
-                                        <span class="float-right"><i class="fas fa-chevron-down"></i></span>
-                                    </button>
-                                    <div class="dropdown-menu managers-dropdown"
-                                        aria-labelledby="managersDropdownBtnEdit">
-                                        {% for checkbox in wishlist_form.managers %}
-                                        <div class="form-check dropdown-item-text">
-                                            {{ checkbox.tag }}
-                                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">
-                                                {{ checkbox.choice_label }}
-                                            </label>
-                                        </div>
-                                        {% empty %}
-                                        <div class="dropdown-item-text text-muted small">No other users available.</div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                {% if wishlist_form.managers.errors %}
-                                <div class="text-danger small mt-1">{{ wishlist_form.managers.errors }}</div>
-                                {% endif %}
-                            </div>
-                            {% endif %}
-                            
-                            {% if 'dependent' in wishlist_form.fields %}
-                            <div class="mt-3">
-                                <label for="{{ wishlist_form.dependent.id_for_label }}" class="form-label">
-                                    <i class="fas fa-user-tag"></i> {{ wishlist_form.dependent.label }}
-                                </label>
-                                {{ wishlist_form.dependent|add_class:"form-control form-control-sm" }}
-                                {% if wishlist_form.dependent.errors %}
-                                <div class="text-danger small mt-1">{{ wishlist_form.dependent.errors }}</div>
-                                {% endif %}
-                                {% if wishlist_form.dependent.help_text %}
-                                <small class="form-text text-muted">{{ wishlist_form.dependent.help_text }}</small>
-                                {% endif %}
-                            </div>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            {% if wishlist_form.family_name %}
-                            <label for="{{ wishlist_form.family_name.id_for_label }}" class="form-label">
-                                Family Group <span class="text-danger">*</span>
-                            </label>
-                            {{ wishlist_form.family_name|add_class:"form-control form-control-sm"|attr:"data-toggle-field:new_family_name" }}
-                            {% if wishlist_form.family_name.errors %}
-                            <div class="text-danger small mt-1">{{ wishlist_form.family_name.errors }}</div>
-                            {% endif %}
-                            <div id="new_family_name_wrapper" class="mt-2" style="display: none;">
-                                <div class="mb-2">
-                                    {{ wishlist_form.new_family_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new family name..." }}
-                                    {% if wishlist_form.new_family_name.errors %}
-                                    <div class="text-danger small mt-1">{{ wishlist_form.new_family_name.errors }}</div>
-                                    {% endif %}
-                                </div>
-                                {% if wishlist_form.new_family_poem %}
-                                <div>
-                                    <label for="{{ wishlist_form.new_family_poem.id_for_label }}"
-                                        class="form-label small">
-                                        {{ wishlist_form.new_family_poem.label }}
-                                    </label>
-                                    {{ wishlist_form.new_family_poem|add_class:"form-control form-control-sm"|attr:"placeholder:Write a poem, story, or memory that captures your family's spirit..." }}
-                                    {% if wishlist_form.new_family_poem.help_text %}
-                                    <small class="form-text text-muted">{{ wishlist_form.new_family_poem.help_text }}</small>
-                                    {% endif %}
-                                    {% if wishlist_form.new_family_poem.errors %}
-                                    <div class="text-danger small mt-1">{{ wishlist_form.new_family_poem.errors }}</div>
-                                    {% endif %}
-                                </div>
-                                {% endif %}
-                            </div>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <label for="{{ wishlist_form.description.id_for_label }}" class="form-label">
-                                {{ wishlist_form.description.label }}
-                            </label>
-                            {{ wishlist_form.description|add_class:"form-control form-control-sm" }}
-                            {% if wishlist_form.description.help_text %}
-                            <small class="form-text text-muted">{{ wishlist_form.description.help_text }}</small>
-                            {% endif %}
-                            {% if wishlist_form.description.errors %}
-                            <div class="text-danger small mt-1">{{ wishlist_form.description.errors }}</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Server-side fallback formset (visible when Vue/JS fails) -->
-                <div id="wishlist-edit-fallback">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;">Del</th>
-                                    <th style="min-width: 200px;">Name & URL</th>
-                                    <th>Description</th>
-                                    <th style="width: 140px;">Price</th>
-                                    <th style="width: 50px;">✓</th>
-                                    <th style="width: 50px;" title="Most wanted">⭐</th>
-                                    {% if wishlist.family_name %}
-                                    <th style="min-width: 150px;">Category</th>
-                                    {% endif %}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for form in formset %}
-                                <tr>
-                                    <td class="text-center">
-                                        {{ form.id.as_hidden }}
-                                        <div class="form-check">
-                                            {{ form.DELETE }}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {{ form.name|add_class:"form-control form-control-sm mb-1"|attr:"placeholder:Item name..." }}
-                                        <div class="input-group input-group-sm">
-                                            <span class="input-group-text"><i class="fas fa-link"></i></span>
-                                            {{ form.url|add_class:"form-control"|attr:"placeholder:https://..." }}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {{ form.description|add_class:"form-control form-control-sm"|attr:"rows:2"|attr:"placeholder:Description..." }}
-                                    </td>
-                                    <td>
-                                        {{ form.price_range|add_class:"form-select form-select-sm" }}
-                                    </td>
-                                    <td class="text-center">
-                                        {{ form.purchased }}
-                                    </td>
-                                    <td class="text-center" title="Most wanted">
-                                        {{ form.is_priority }}
-                                    </td>
-                                    {% if wishlist.family_name %}
-                                    <td>
-                                        {{ form.category|add_class:"form-select form-select-sm" }}
-                                    </td>
-                                    {% endif %}
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="text-muted small">Enable JavaScript or use a modern browser for the enhanced editing experience.</p>
-                </div>
-
-                <!-- Vue App Mount Point -->
-                <div id="wishlist-edit-app" style="display: none;">
-                    <div class="d-flex justify-content-center p-5">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="sr-only">Loading...</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Hidden Management Form (will be kept in sync by Vue) -->
-                {{ formset.management_form }}
-
-                <div class="mt-3">
-                    <button type="submit" name="save" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
-                    <button type="submit" name="save_and_continue" class="btn btn-outline-primary">
-                        <i class="fas fa-save"></i> Save & Continue Editing
-                    </button>
-                    <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-secondary">Cancel</a>
-                </div>
-            </div>
-        </form>
+    {% if formset.non_form_errors %}
+    <div class="alert alert-danger">
+      {% for error in formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
     </div>
-</div>
-
-<!-- Load Vue 3 -->
-<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-
-<script>
-    const { createApp, ref, computed, onMounted } = Vue;
-
-    const app = createApp({
-        setup() {
-            // Initial Data Injection from Django
-            // prettier-ignore
-            const initialForms = [
-                {% for form in formset %}
-                {
-            id: `{{ form.id.value|default_if_none:''|escapejs }}`,
-            name: `{{ form.name.value|default_if_none:''|escapejs }}`,
-            description: `{{ form.description.value|default_if_none:''|escapejs }}`,
-            price: `{{ form.price.value|default_if_none:'' }}`,
-            price_range: `{{ form.price_range.value|default_if_none:''|escapejs }}`,
-            url: `{{ form.url.value|default_if_none:''|escapejs }}`,
-            purchased: {{ form.purchased.value|yesno:"true,false" }},
-            is_priority: {{ form.is_priority.value|yesno:"true,false" }},
-        category: `{{ form.category.value|default_if_none:''|escapejs }}`,
-        DELETE: {{ form.DELETE.value|yesno:"true,false" }},
-        prefix: `{{ form.prefix }}`,
-        errors: {
-        name: `{{ form.name.errors|striptags }}`,
-        description: `{{ form.description.errors|striptags }}`,
-        url: `{{ form.url.errors|striptags }}`,
-        price_range: `{{ form.price_range.errors|striptags }}`
-    }
-                },
-        {% endfor %}
-            ];
-
-    const formPrefix = "{{ formset.prefix }}";
-    const priceOptions = [
-        { value: 'under_50', label: 'Under $50' },
-        { value: 'under_100', label: 'Under $100' },
-        { value: 'under_200', label: 'Under $200' },
-        { value: 'under_500', label: 'Under $500' },
-        { value: 'over_expectations', label: 'Over Expectations 😄' }
-    ];
-
-    // Category Options (parsed from the Django template context if available)
-    // We'll scrape them from a hidden select since they are dynamic
-    const categoryOptions = ref([]);
-
-    const items = ref(initialForms);
-    const isMobile = ref(window.innerWidth <= 768);
-    const pendingCategoryIndex = ref(null);
-
-    // Responsive check
-    window.addEventListener('resize', () => {
-        isMobile.value = window.innerWidth <= 768;
-    });
-
-    // Management Form Sync
-    // We need to update TOTAL_FORMS hidden input when items are added
-    const updateTotalForms = () => {
-        const totalFormsInput = document.querySelector(`#id_${formPrefix}-TOTAL_FORMS`);
-        if (totalFormsInput) {
-            totalFormsInput.value = items.value.length;
-        }
-    };
-
-    const addItem = () => {
-        const newIndex = items.value.length;
-        items.value.push({
-            id: '',
-            name: '',
-            description: '',
-            price: '',
-            price_range: '',
-            url: '',
-            purchased: false,
-            is_priority: false,
-            category: '',
-            DELETE: false,
-            prefix: `${formPrefix}-${newIndex}`,
-            errors: {}
-        });
-        updateTotalForms();
-    };
-
-    const removeItem = (index) => {
-        // If it's an existing item (has ID), mark for deletion
-        if (items.value[index].id) {
-            items.value[index].DELETE = true;
-        } else {
-            // New unsaved item, just remove from array? 
-            // No, Django formsets rely on index continuity or explicit management. 
-            // Safer to just mark DELETE=true and hide it even for new items if we want to preserve index order easily
-            // Or we can splice but that messes up the calculated prefixes if we aren't careful.
-            // Let's just mark DELETE=true for simplicity and consistency.
-            items.value[index].DELETE = true;
-        }
-    };
-
-    const openNewCategoryModal = (index) => {
-        pendingCategoryIndex.value = index;
-        document.getElementById('newCategoryName').value = '';
-        document.getElementById('newCategoryError').style.display = 'none';
-        document.getElementById('newCategoryError').textContent = '';
-        $('#newCategoryModal').modal('show');
-        setTimeout(() => document.getElementById('newCategoryName').focus(), 200);
-    };
-
-    const addCategoryAndSelect = (categoryId, categoryName) => {
-        const strId = String(categoryId);
-        const exists = categoryOptions.value.some(opt => opt.value === strId);
-        if (!exists) {
-            categoryOptions.value.push({ value: strId, label: categoryName });
-        }
-        if (pendingCategoryIndex.value !== null && items.value[pendingCategoryIndex.value]) {
-            items.value[pendingCategoryIndex.value].category = strId;
-        }
-        pendingCategoryIndex.value = null;
-    };
-
-    onMounted(() => {
-        // Swap the server-side fallback for the Vue app now that we know JS works.
-        const fallback = document.getElementById('wishlist-edit-fallback');
-        const appEl = document.getElementById('wishlist-edit-app');
-        if (fallback) fallback.style.display = 'none';
-        if (appEl) appEl.style.display = 'block';
-
-        // Scrape category options from the first form rendered by Django (if any) or a hidden template
-        // Since we are replacing the rendered formset, we need a source of truth for categories.
-        // We'll use a trick: the server rendered the formset initially, we can scrape options from one of them if it existed
-        // OR we can pass them in from context. Currently passing from context is hard without changing view.
-        // Let's rely on the fact that we can keep the original "Category" select hidden somewhere or define it.
-        // For now, let's look for a workaround or just assume user enters text if no categories?
-        // Actually, existing implementation had a select. We should probably simulate that.
-        // A robust way: scrape from the hidden DOM elements of the first form if available.
-
-        // NOTE: For this iteration, I'll extract categories from the provided context in a cleaner way if possible,
-        // but since I don't have direct access to 'categories' context variable here easily without modifying the view context, 
-        // I will use a placeholder approach: 
-        // We will render a hidden select with all options in the template outside Vue, and read it.
-
-        const hiddenSelect = document.getElementById('category-source');
-        if (hiddenSelect) {
-            Array.from(hiddenSelect.options).forEach(opt => {
-                categoryOptions.value.push({ value: opt.value, label: opt.text });
-            });
-        }
-    });
-
-    return {
-        items,
-        addItem,
-        removeItem,
-        openNewCategoryModal,
-        addCategoryAndSelect,
-        isMobile,
-        priceOptions,
-        categoryOptions
-    };
-        },
-    template: `
-            <div>
-                <!-- Desktop Table View -->
-                <div v-if="!isMobile" class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th style="width: 40px;">Del</th>
-                                <th style="min-width: 200px;">Name & URL</th>
-                                <th>Description</th>
-                                <th style="width: 140px;">Price</th>
-                                <th style="width: 50px;">✓</th>
-                                <th style="width: 50px;" title="Most wanted">⭐</th>
-                                {% if wishlist.family_name %}
-                                <th style="min-width: 150px;">Category</th>
-                                {% endif %}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="(item, index) in items" :key="index" v-show="!item.DELETE">
-                                <td class="text-center">
-                                    <button type="button" class="btn btn-outline-danger btn-sm border-0" @click="removeItem(index)" title="Remove item">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    
-                                    <!-- Hidden Inputs for Django FormSet -->
-                                    <input type="hidden" :name="item.prefix + '-id'" :value="item.id">
-                                    <input type="hidden" :name="item.prefix + '-DELETE'" :value="item.DELETE ? 'on' : ''">
-                                </td>
-                                <td>
-                                    <input type="text" class="form-control form-control-sm mb-1" 
-                                           v-model="item.name" :name="item.prefix + '-name'" 
-                                           placeholder="Item name..." required>
-                                    <div class="input-group input-group-sm">
-                                        <span class="input-group-text"><i class="fas fa-link"></i></span>
-                                        <input type="url" class="form-control" 
-                                               v-model="item.url" :name="item.prefix + '-url'" 
-                                               placeholder="https://...">
-                                    </div>
-                                    <div v-if="item.errors.name" class="text-danger small">{{ item.errors.name }}</div>
-                                    <div v-if="item.errors.url" class="text-danger small">{{ item.errors.url }}</div>
-                                </td>
-                                <td>
-                                    <textarea class="form-control form-control-sm" rows="2" 
-                                              v-model="item.description" :name="item.prefix + '-description'"
-                                              placeholder="Description..."></textarea>
-                                </td>
-                                <td>
-                                    <select class="form-select form-select-sm" v-model="item.price_range" :name="item.prefix + '-price_range'">
-                                        <option value="">Select Price</option>
-                                        <option v-for="opt in priceOptions" :value="opt.value">{{ opt.label }}</option>
-                                    </select>
-                                </td>
-                                <td class="text-center">
-                                    <input type="checkbox" class="form-check-input"
-                                           v-model="item.purchased" :name="item.prefix + '-purchased'">
-                                </td>
-                                <td class="text-center" title="Most wanted">
-                                    <input type="checkbox" class="form-check-input"
-                                           v-model="item.is_priority" :name="item.prefix + '-is_priority'">
-                                </td>
-                                {% if wishlist.family_name %}
-                                <td>
-                                    <div style="display:flex;gap:6px;">
-                                        <select class="form-select form-select-sm mb-1" v-model="item.category" :name="item.prefix + '-category'" style="flex:1;">
-                                            <option v-for="opt in categoryOptions" :value="opt.value">{{ opt.label }}</option>
-                                        </select>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="openNewCategoryModal(index)" title="New category" style="white-space:nowrap;">+ New</button>
-                                    </div>
-                                </td>
-                                {% endif %}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Mobile Card View -->
-                <div v-else>
-                    <div v-for="(item, index) in items" :key="index" v-show="!item.DELETE" class="card mb-3 shadow-sm item-card">
-                        <div class="card-body p-3">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div class="flex-grow-1 me-2">
-                                    <input type="text" class="form-control fw-bold" 
-                                           v-model="item.name" :name="item.prefix + '-name'" 
-                                           placeholder="Item Name (e.g. Nintendo Switch)">
-                                    <div v-if="item.errors.name" class="text-danger small">{{ item.errors.name }}</div>
-                                </div>
-                                <button type="button" class="btn btn-outline-danger btn-sm" @click="removeItem(index)">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                                
-                                <!-- Hidden Inputs -->
-                                <input type="hidden" :name="item.prefix + '-id'" :value="item.id">
-                                <input type="hidden" :name="item.prefix + '-DELETE'" :value="item.DELETE ? 'on' : ''">
-                            </div>
-
-                            <div class="mb-2">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text bg-light"><i class="fas fa-link"></i></span>
-                                    <input type="url" class="form-control" 
-                                           v-model="item.url" :name="item.prefix + '-url'" 
-                                           placeholder="Product URL (https://...)">
-                                </div>
-                                <div v-if="item.errors.url" class="text-danger small">{{ item.errors.url }}</div>
-                            </div>
-
-                            <div class="mb-2">
-                                <textarea class="form-control form-control-sm" rows="2" 
-                                          v-model="item.description" :name="item.prefix + '-description'"
-                                          placeholder="Description, notes, etc..."></textarea>
-                            </div>
-
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <select class="form-select form-select-sm" v-model="item.price_range" :name="item.prefix + '-price_range'">
-                                        <option value="">Price Range</option>
-                                        <option v-for="opt in priceOptions" :value="opt.value">{{ opt.label }}</option>
-                                    </select>
-                                </div>
-                                <div class="col-6 d-flex align-items-center">
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" :id="'purchased-'+index"
-                                               v-model="item.purchased" :name="item.prefix + '-purchased'">
-                                        <label class="form-check-label small" :for="'purchased-'+index">Purchased?</label>
-                                    </div>
-                                </div>
-                                <div class="col-6 d-flex align-items-center">
-                                    <div class="form-check">
-                                        <input type="checkbox" class="form-check-input" :id="'priority-'+index"
-                                               v-model="item.is_priority" :name="item.prefix + '-is_priority'">
-                                        <label class="form-check-label small" :for="'priority-'+index">⭐ Most wanted</label>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {% if wishlist.family_name %}
-                            <div class="mt-2 pt-2 border-top">
-                                <label class="form-label small text-muted mb-1">Category</label>
-                                <div style="display:flex;gap:6px;">
-                                    <select class="form-select form-select-sm mb-1" v-model="item.category" :name="item.prefix + '-category'" style="flex:1;">
-                                        <option v-for="opt in categoryOptions" :value="opt.value">{{ opt.label }}</option>
-                                    </select>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" @click="openNewCategoryModal(index)" title="New category" style="white-space:nowrap;">+ New</button>
-                                </div>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Add Item Button -->
-                <div class="text-center py-2 border-top border-bottom mb-3 bg-light">
-                    <button type="button" class="btn btn-success btn-sm" @click="addItem">
-                        <i class="fas fa-plus-circle"></i> Add Another Item
-                    </button>
-                </div>
-            </div>
-        `
-    const vm = app.mount('#wishlist-edit-app');
-    window.wlEditApp = vm;
-</script>
-
-<!-- Hidden source for categories -->
-<select id="category-source" style="display:none;">
-    <option value="">---------</option>
-    {% if formset.empty_form.fields.category.queryset %}
-    {% for category in formset.empty_form.fields.category.queryset %}
-    <option value="{{ category.id }}">{{ category.name }}</option>
-    {% endfor %}
     {% endif %}
-</select>
+
+    <!-- List details -->
+    <section class="wl-card">
+      <h2 class="wl-card-title">List details</h2>
+      <p class="wl-card-subtitle">What it's called and who it belongs with.</p>
+
+      <div class="wl-field">
+        <label for="{{ wishlist_form.title.id_for_label }}">Name</label>
+        {{ wishlist_form.title }}
+        {% for error in wishlist_form.title.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+
+      {% if wishlist_form.family_name %}
+      <div class="wl-field">
+        <label for="{{ wishlist_form.family_name.id_for_label }}">Family</label>
+        {{ wishlist_form.family_name }}
+        {% for error in wishlist_form.family_name.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        <div id="new_family_name_wrapper" class="wl-subfields" hidden>
+          <div class="wl-field">
+            <label for="{{ wishlist_form.new_family_name.id_for_label }}">New family name</label>
+            {{ wishlist_form.new_family_name }}
+            {% for error in wishlist_form.new_family_name.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+          </div>
+          {% if wishlist_form.new_family_poem %}
+          <div class="wl-field">
+            <label for="{{ wishlist_form.new_family_poem.id_for_label }}">{{ wishlist_form.new_family_poem.label }}</label>
+            {{ wishlist_form.new_family_poem|attr:"rows:3"|attr:"placeholder:A poem, story or memory that captures your family's spirit…" }}
+            {% if wishlist_form.new_family_poem.help_text %}<div class="form-text">{{ wishlist_form.new_family_poem.help_text }}</div>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="wl-field">
+        <label for="{{ wishlist_form.description.id_for_label }}">{{ wishlist_form.description.label }}</label>
+        {{ wishlist_form.description|attr:"rows:3" }}
+        {% if wishlist_form.description.help_text %}<div class="form-text">{{ wishlist_form.description.help_text }}</div>{% endif %}
+        {% for error in wishlist_form.description.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+
+      {% if wishlist_form.managers %}
+      <div class="wl-field">
+        <span class="wl-label">Who else can edit</span>
+        <div class="wl-chip-checks">
+          {% for checkbox in wishlist_form.managers %}
+          <label class="wl-chip-check">{{ checkbox.tag }}<span>{{ checkbox.choice_label }}</span></label>
+          {% empty %}
+          <span class="form-text">No one else to add yet.</span>
+          {% endfor %}
+        </div>
+        {% for error in wishlist_form.managers.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+      {% endif %}
+
+      {% if 'dependent' in wishlist_form.fields %}
+      <div class="wl-field">
+        <label for="{{ wishlist_form.dependent.id_for_label }}">{{ wishlist_form.dependent.label }}</label>
+        {{ wishlist_form.dependent }}
+        {% if wishlist_form.dependent.help_text %}<div class="form-text">{{ wishlist_form.dependent.help_text }}</div>{% endif %}
+        {% for error in wishlist_form.dependent.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
+    <!-- Items -->
+    <div class="wl-section-head">
+      <h2 class="wl-section-title">Items · <span id="wl-item-count">{{ formset.total_form_count }}</span></h2>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-add-item>+ Add item</button>
+    </div>
+
+    <div id="wl-edit-items" class="wl-stagger">
+      {% for form in formset %}
+        {% include 'gift/partials/edit_item_card.html' %}
+      {% empty %}
+      <div class="wl-card wl-quiet-card" data-empty-items>
+        <p>No items yet. Add a few here, or use the + button anytime.</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <button type="button" class="wl-add-row" data-add-item>
+      <span aria-hidden="true">+</span> Add another item
+    </button>
+
+    {% comment %}
+    Blank item card for js/edit-list.js to clone. A <template> is inert, so
+    its inputs aren't submitted until a copy is added to the form.
+    {% endcomment %}
+    <template id="wl-empty-item">
+      {% with form=formset.empty_form %}{% include 'gift/partials/edit_item_card.html' %}{% endwith %}
+    </template>
+
+    {{ formset.management_form }}
+
+    <div class="wl-savebar">
+      <a href="{% url 'gift:wishlist_detail' wishlist.id %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" name="save_and_continue" class="btn btn-outline-primary">Save &amp; keep editing</button>
+      <button type="submit" name="save" class="btn btn-primary">Save changes</button>
+    </div>
+  </form>
+
+  <section class="wl-card wl-settings wl-tidy">
+    <div class="wl-settings-row">
+      <div>
+        <strong>Tidy up</strong>
+        <span>Remove everything that's been bought from the list, without peeking at what it was.</span>
+      </div>
+      <form method="post" action="{% url 'gift:clear_purchased' wishlist.id %}"
+            onsubmit="return confirm('Remove all purchased items from your list?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning btn-sm">Clear purchased</button>
+      </form>
+    </div>
+  </section>
+
+</div>
 
 <!-- New Category Modal -->
 <div class="modal fade" id="newCategoryModal" tabindex="-1" role="dialog" aria-labelledby="newCategoryModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
+  <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="newCategoryModalLabel">Create New Category</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
+        <h5 class="modal-title" id="newCategoryModalLabel">New category</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label for="newCategoryName">Category Name</label>
+        <div class="wl-field">
+          <label for="newCategoryName">Name</label>
           <input type="text" class="form-control" id="newCategoryName" placeholder="e.g. Tech, Books, Clothing…">
-          <div class="text-danger" id="newCategoryError" style="display:none;margin-top:4px;"></div>
+          <div class="text-danger" id="newCategoryError" hidden></div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveNewCategoryBtn">Create Category</button>
+        <button type="button" class="btn btn-primary" id="saveNewCategoryBtn">Create category</button>
       </div>
     </div>
   </div>
 </div>
 
-<script>
-(function () {
-    var saveBtn = document.getElementById('saveNewCategoryBtn');
-    var nameInput = document.getElementById('newCategoryName');
-    var errorDiv = document.getElementById('newCategoryError');
-
-    function getCsrfToken() {
-        var input = document.querySelector('#wishlist-form [name=csrfmiddlewaretoken]');
-        return input ? input.value : '';
-    }
-
-    if (saveBtn) {
-        saveBtn.addEventListener('click', function () {
-            var name = nameInput.value.trim();
-            if (!name) {
-                errorDiv.textContent = 'Please enter a category name.';
-                errorDiv.style.display = 'block';
-                return;
-            }
-
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Creating…';
-            errorDiv.style.display = 'none';
-
-            fetch('{% url "gift:create_category_ajax" wishlist.id %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify({name: name})
-            })
-            .then(function (response) { return response.json(); })
-            .then(function (data) {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Create Category';
-
-                if (data.status === 'success') {
-                    if (window.wlEditApp && window.wlEditApp.addCategoryAndSelect) {
-                        window.wlEditApp.addCategoryAndSelect(data.category_id, data.category_name);
-                    }
-                    $('#newCategoryModal').modal('hide');
-                } else {
-                    errorDiv.textContent = data.message || 'Error creating category.';
-                    errorDiv.style.display = 'block';
-                }
-            })
-            .catch(function () {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Create Category';
-                errorDiv.textContent = 'An unexpected error occurred. Please try again.';
-                errorDiv.style.display = 'block';
-            });
-        });
-    }
-})();
-</script>
-
-<style>
-    /* Styling Tweaks for Vue Components */
-    .item-card {
-        border-left: 4px solid var(--primary-color);
-        transition: transform 0.1s ease-in-out;
-    }
-
-    .item-card:focus-within {
-        border-color: var(--secondary-color);
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-    }
-
-    .input-group-text {
-        color: var(--text-secondary);
-    }
-
-    /* Hide the original table styles that conflict */
-    [v-cloak] {
-        display: none;
-    }
-</style>
-
-<!-- Maintain existing managers dropdown script -->
-<script>
-    (function () {
-        // ... (Keep existing manager dropdown logic)
-        function updateManagersButton(buttonId) {
-            const button = document.getElementById(buttonId);
-            if (!button) return;
-
-            const dropdown = button.nextElementSibling;
-            if (!dropdown) return;
-
-            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
-            const checked = Array.from(checkboxes).filter(cb => cb.checked);
-            const countSpan = button.querySelector('.selected-count');
-
-            if (checked.length === 0) {
-                countSpan.textContent = 'Select managers...';
-            } else if (checked.length === 1) {
-                const label = checked[0].nextElementSibling.textContent.trim();
-                countSpan.textContent = label;
-            } else {
-                countSpan.textContent = `${checked.length} managers selected`;
-            }
-        }
-
-        document.querySelectorAll('.dropdown-toggle-managers').forEach(function (button) {
-            const buttonId = button.id;
-            const dropdown = button.nextElementSibling;
-            if (dropdown) {
-                dropdown.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
-                    checkbox.addEventListener('change', function () {
-                        updateManagersButton(buttonId);
-                    });
-                });
-                updateManagersButton(buttonId);
-                dropdown.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                });
-            }
-        });
-    })();
-</script>
-
-<script>
-    // Family dropdown toggle (Keep existing logic)
-    const familySelect = document.querySelector('#id_family_name');
-    const newFamilyWrapper = document.getElementById('new_family_name_wrapper');
-    if (familySelect && newFamilyWrapper) {
-        function toggleNewFamily() {
-            if (familySelect.value === '__CREATE_NEW__') {
-                newFamilyWrapper.style.display = 'block';
-            } else {
-                newFamilyWrapper.style.display = 'none';
-            }
-        }
-        familySelect.addEventListener('change', toggleNewFamily);
-        toggleNewFamily();
-    }
-</script>
+{% load gift_extras %}
+<script src="{% vstatic 'js/edit-list.js' %}"
+        data-create-category-url="{% url 'gift:create_category_ajax' wishlist.id %}"></script>
 {% endblock %}

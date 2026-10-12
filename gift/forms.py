@@ -172,12 +172,13 @@ def get_item_modelformset(wishlist):
 
         pass
 
-    # Include all editable fields from Item model
-    # Note: category is not a model field, it's a form field handled in ItemForm
+    # Note: category is not a model field, it's a form field handled in ItemForm.
+    # `purchased` is deliberately absent: only owners and managers reach this
+    # form, and they must never see — or reset — what's been bought.
     ItemModelFormSet = modelformset_factory(
         Item,
         form=ItemEditForm,
-        fields=['name', 'description', 'price', 'price_range', 'url', 'purchased', 'is_priority'],
+        fields=['name', 'description', 'price', 'price_range', 'url', 'is_priority'],
         extra=0,  # Don't show empty forms
         can_delete=True,  # Allow deleting items
     )
