@@ -1584,13 +1584,17 @@ def wishlist_detail(request, wishlist_id):
     # Only other users can see and mark items as purchased
 
     # Priority items first; id keeps a stable order within each group.
+    # Shoppers also get what's still available ahead of what's been bought, so
+    # the top of the list is what they can act on. Never for the list's own
+    # people: an order that depends on `purchased` would give the game away.
     # Archived gifts live on the received-gifts page instead of the active list.
     # Sneaky items never reach the owner/recipient's queryset at all
+    ordering = ('-is_priority', 'id') if is_list_manager else ('purchased', '-is_priority', 'id')
     items = (
         active_items_visible_to(wishlist, request.user)
         .select_related('purchased_by', 'updated_by', 'added_by')
         .prefetch_related('categories')
-        .order_by('-is_priority', 'id')
+        .order_by(*ordering)
     )
 
     # Sneaky items get their own labelled section rather than being folded into

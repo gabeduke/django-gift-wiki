@@ -6,13 +6,11 @@
 <div class="wl-page wl-page-medium">
 
   <div class="wl-page-header">
-    <div class="wl-page-header-row">
-      <div>
-        <h1 class="wl-page-title">My Lists</h1>
-        <p class="wl-page-subtitle">Keep it fresh all year, and the family always knows what you'd love.</p>
-      </div>
-      <a href="{% url 'gift:create_wishlist' %}" class="btn btn-primary">+ New list</a>
+    <div class="wl-title-row">
+      <h1 class="wl-page-title">My Lists</h1>
+      <a href="{% url 'gift:create_wishlist' %}" class="btn btn-primary btn-sm">+ New list</a>
     </div>
+    <p class="wl-page-subtitle">Keep it fresh all year, and the family always knows what you'd love.</p>
   </div>
 
   <!-- Your lists -->

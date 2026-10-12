@@ -89,8 +89,8 @@
                         <div style="display:flex;gap:8px;">
                             {{ form.category|add_class:"form-control" }}
                             {% if wishlist.family_name %}
-                            <button type="button" class="btn btn-outline-secondary" id="newCategoryBtn" style="white-space:nowrap;">
-                                + New Category
+                            <button type="button" class="btn btn-outline-secondary" id="newCategoryBtn" style="white-space:nowrap;" aria-label="New category">
+                  + New
                             </button>
                             {% endif %}
                         </div>

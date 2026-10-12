@@ -79,8 +79,8 @@
               <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
               <div style="display:flex;gap:8px;">
                 {{ form.category|add_class:"form-control" }}
-                <button type="button" class="btn btn-outline-secondary" id="newCategoryBtn" style="white-space:nowrap;">
-                  + New Category
+                <button type="button" class="btn btn-outline-secondary" id="newCategoryBtn" style="white-space:nowrap;" aria-label="New category">
+                  + New
                 </button>
               </div>
               {% if form.category.help_text %}

@@ -856,6 +856,18 @@ a.wl-list-row:active { transform: scale(.985); }
   font-size: 12px; color: var(--text-muted);
 }
 
+/* A page title with its one action alongside, on every screen size */
+.wl-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.wl-title-row .wl-page-title { margin: 0; }
+
+/* Long-form text pages (privacy, data deletion) on the app's type scale */
+.wl-prose { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+.wl-prose h1 { font-size: 22px; font-weight: 600; color: var(--text-primary); margin: 0 0 4px; letter-spacing: -0.01em; }
+.wl-prose h2 { font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 28px 0 8px; }
+.wl-prose ul, .wl-prose ol { padding-left: 20px; }
+.wl-prose li { margin-bottom: 6px; }
+.wl-prose strong { color: var(--text-primary); }
+
 /* Utility */
 .wl-mono { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
 .text-muted { color: var(--text-muted) !important; }
@@ -921,7 +933,12 @@ a.wl-list-row:active { transform: scale(.985); }
   flex-shrink: 0;
 }
 .wl-changelog-body { margin: 2px 0 0; font-size: 13px; color: var(--text-secondary); }
-.wl-changelog-dismiss { margin: 10px 0 0; text-align: right; }
+.wl-item-name .wl-changelog-date { margin-left: auto; }
+.wl-changelog-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 10px;
+}
+.wl-changelog-dismiss { margin: 0; }
 
 /* ── FORMS WITHOUT WIDGET CLASSES ───────────────────────── */
 /* Plenty of Django widgets render without class="form-control". Inside
@@ -947,6 +964,7 @@ a.wl-list-row:active { transform: scale(.985); }
 }
 .wl-form label { display: block; }
 .wl-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.wl-optional { margin-left: 4px; font-size: 12px; font-weight: 400; color: var(--text-muted); }
 .wl-inline-field { display: flex; gap: 8px; }
 .wl-inline-field > select, .wl-inline-field > input { flex: 1; min-width: 0; }
 .wl-subfields {
@@ -1059,9 +1077,10 @@ a.wl-list-row:active { transform: scale(.985); }
   border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-3);
 }
 @media (max-width: 767px) {
-  .wl-savebar { bottom: calc(72px + env(safe-area-inset-bottom)); flex-wrap: wrap; }
-  .wl-savebar .btn-primary { flex: 1 1 100%; order: -1; min-height: 44px; }
-  .wl-savebar .btn-outline-secondary, .wl-savebar .btn-outline-primary { flex: 1; }
+  /* One row above the tab bar: the back link and tabs already cover Cancel */
+  .wl-savebar { bottom: calc(72px + env(safe-area-inset-bottom)); padding: 8px; }
+  .wl-savebar .btn-outline-secondary { display: none; }
+  .wl-savebar .btn { flex: 1; min-height: 44px; }
 }
 .wl-tidy { margin-top: 8px; }
 .wl-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
@@ -1220,7 +1239,7 @@ a.wl-list-row:active { transform: scale(.985); }
   text-overflow: ellipsis; cursor: pointer;
 }
 .wl-bulk-toggle { display: flex; gap: 6px; flex: none; }
-.wl-changelog-more { margin: 4px 0 0; font-size: 13px; }
+.wl-changelog-more { font-size: 13px; font-weight: 600; }
 
 /* ── INSTALL BANNER ─────────────────────────────────────── */
 .wl-install {
@@ -1426,6 +1445,9 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
   .wl-back { margin-bottom: 14px; }
   .wl-page-header { margin-bottom: 20px; }
   .wl-page-header-row { flex-direction: column; gap: 12px; }
-  .wl-changelog-dismiss { text-align: stretch; }
-  .wl-changelog-dismiss .btn { width: 100%; }
+  /* What's new: headlines only on a phone — the details are a tap away, and
+     the lists shouldn't start a screen down. */
+  .wl-changelog-card { padding: 12px 14px; margin-bottom: 18px; }
+  .wl-changelog-entry { padding: 5px 0; }
+  .wl-changelog-card .wl-changelog-body, .wl-changelog-card .wl-changelog-date { display: none; }
 }

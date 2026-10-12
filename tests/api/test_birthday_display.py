@@ -19,8 +19,7 @@ class TestBirthdayDisplay:
         response = authenticated_user.get('/')
         assert response.status_code == 200
         content = response.content.decode()
-        assert '3/15' in content
-        assert '(age' in content
+        assert 'Mar 15 · turns' in content
 
     def test_home_page_shows_dependent_birthday(self, authenticated_user, user):
         """The home page shows the dependent's birthday when present."""
@@ -35,8 +34,7 @@ class TestBirthdayDisplay:
         response = authenticated_user.get('/')
         assert response.status_code == 200
         content = response.content.decode()
-        assert '7/20' in content
-        assert '(age' in content
+        assert 'Jul 20 · turns' in content
 
     def test_wishlist_detail_shows_birthday(self, authenticated_user, user):
         """The wishlist detail page shows the person's birthday."""
@@ -50,5 +48,4 @@ class TestBirthdayDisplay:
         response = authenticated_user.get(f'/wishlist/{wishlist.id}/')
         assert response.status_code == 200
         content = response.content.decode()
-        assert '12/25' in content
-        assert '(age' in content
+        assert 'Dec 25 · turns' in content

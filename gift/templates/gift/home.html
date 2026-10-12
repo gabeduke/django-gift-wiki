@@ -23,15 +23,13 @@
         <p class="wl-changelog-body">{{ entry.body }}</p>
       </div>
       {% endfor %}
-      {% if unseen_changelog_more %}
-      <p class="wl-changelog-more">
-        <a href="{% url 'gift:changelog' %}">…and {{ unseen_changelog_more }} more</a>
-      </p>
-      {% endif %}
-      <form method="post" action="{% url 'gift:changelog_dismiss' %}" class="wl-changelog-dismiss">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-primary btn-sm">Got it, thanks!</button>
-      </form>
+      <div class="wl-changelog-foot">
+        <a class="wl-changelog-more" href="{% url 'gift:changelog' %}">{% if unseen_changelog_more %}…and {{ unseen_changelog_more }} more{% else %}See details{% endif %}</a>
+        <form method="post" action="{% url 'gift:changelog_dismiss' %}" class="wl-changelog-dismiss">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-sm">Got it, thanks!</button>
+        </form>
+      </div>
     </div>
     {% endif %}
 
