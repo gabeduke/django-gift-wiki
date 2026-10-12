@@ -274,6 +274,10 @@ class FirebaseAuthMiddleware:
             '/sessionLogin',
             '/privacy/',
             '/data-deletion/',
+            # PWA plumbing the browser fetches on its own; none of it is per-user
+            '/manifest.webmanifest',
+            '/sw.js',
+            '/offline/',
         ] or request.path.startswith('/auth.html'):
             return self.get_response(request)
 

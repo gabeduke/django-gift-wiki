@@ -1,0 +1,24 @@
+{% load gift_extras %}
+{% comment %}
+"Put Wikileet on your home screen" — hidden until js/app.js decides it applies:
+not already installed, not dismissed recently, and a browser that can do it.
+Android/desktop Chrome get a real Install button (beforeinstallprompt); iOS
+Safari can't be prompted, so it gets the two taps spelled out instead.
+{% endcomment %}
+<div id="wl-install-banner" class="wl-install" hidden>
+  <img src="{% vstatic 'brand/icon-192.png' %}" alt="" width="44" height="44" class="wl-install-icon">
+  <div class="wl-install-copy">
+    <strong>Put Wikileet on your home screen</strong>
+    <span data-install-pitch>Opens full-screen, and adding an idea is one tap away.</span>
+    <span data-install-ios hidden>
+      Tap
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-label="Share" role="img">
+        <path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>
+      </svg>
+      <b>Share</b>, then <b>Add to Home Screen</b>.
+    </span>
+  </div>
+  <button type="button" class="btn btn-primary btn-sm" data-install-app hidden>Install</button>
+  <button type="button" class="wl-install-close" data-install-dismiss aria-label="Not now">&times;</button>
+</div>

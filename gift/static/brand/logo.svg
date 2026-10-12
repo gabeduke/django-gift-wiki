@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Wikileet">
+  <rect width="512" height="512" rx="112" fill="#2d6a4f"/>
+  <g>
+    <ellipse cx="206" cy="170" rx="58" ry="30" transform="rotate(28 206 170)" fill="#e9b44c"/>
+    <ellipse cx="306" cy="170" rx="58" ry="30" transform="rotate(-28 306 170)" fill="#e9b44c"/>
+    <ellipse cx="214" cy="174" rx="26" ry="11" transform="rotate(28 214 174)" fill="#c98f2a"/>
+    <ellipse cx="298" cy="174" rx="26" ry="11" transform="rotate(-28 298 174)" fill="#c98f2a"/>
+    <rect x="140" y="238" width="232" height="166" rx="16" fill="#f7f4ef"/>
+    <rect x="140" y="238" width="232" height="24" fill="#e4ddd4"/>
+    <rect x="120" y="196" width="272" height="54" rx="14" fill="#ffffff"/>
+    <rect x="236" y="196" width="40" height="208" fill="#e9b44c"/>
+    <ellipse cx="256" cy="192" rx="24" ry="20" fill="#c98f2a"/>
+    <polygon points="398,92 404.36,115.64 428,122 404.36,128.36 398,152 391.64,128.36 368,122 391.64,115.64" fill="#d8f3dc"/>
+    <polygon points="112,130 115.54,142.46 128,146 115.54,149.54 112,162 108.46,149.54 96,146 108.46,142.46" fill="#d8f3dc"/>
+  </g>
+</svg>

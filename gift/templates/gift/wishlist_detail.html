@@ -1,6 +1,9 @@
 {% extends 'gift/base/base_generic.html' %}
 {% load gift_extras %}
 
+{% block title %}{{ wishlist.title }} · Wikileet{% endblock %}
+{% block quick_add_list %}{{ wishlist.id }}{% endblock %}
+
 {% block content %}
 <div class="wl-page">
 
@@ -52,10 +55,10 @@
           <span id="viewToggleText">View as Guest</span>
         </button>
         <a href="{% url 'gift:edit_wishlist' wishlist.id %}" class="btn btn-outline-secondary btn-sm">Edit List</a>
-        <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm">+ Add Item</a>
+        <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm" data-quick-add>+ Add Item</a>
         {% endif %}
         {% if not is_owner %}
-        <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm">🤫 Add something sneaky</a>
+        <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm" data-quick-add>🤫 Add something sneaky</a>
         {% endif %}
       </div>
     </div>
@@ -267,7 +270,7 @@
       <p style="font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">No items yet</p>
       <p style="font-size:13px;margin-bottom:20px;">Add the first item to this list.</p>
       {% if is_list_manager %}
-      <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary">+ Add Item</a>
+      <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary" data-quick-add>+ Add Item</a>
       {% endif %}
     </div>
 
@@ -333,7 +336,7 @@
 
     </div>
 
-    <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm">
+    <a href="{% url 'gift:add_sneaky_item' wishlist.id %}" class="btn btn-outline-secondary btn-sm" data-quick-add>
       🤫 Add something sneaky
     </a>
   </div>

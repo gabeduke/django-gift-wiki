@@ -1,5 +1,5 @@
 # Development Commands
-.PHONY: install setup build run migrate shell createsuperuser test clean
+.PHONY: install setup build run migrate shell createsuperuser test clean icons
 .PHONY: test-cov test-unit test-api test-parallel test-bdd check lint format lint-fix
 .PHONY: docker-build docker-build-no-load docker-build-local docker-push
 .PHONY: k8s-deploy k8s-clean
@@ -50,6 +50,11 @@ db-restore:
 # Collect static files
 collectstatic:
 	$(MANAGE) collectstatic --noinput
+
+# Rebuild the logo and every PWA/favicon icon from scripts/build_icons.py.
+# tests/test_brand_icons.py fails if these drift from that definition.
+icons:
+	$(PYTHON) scripts/build_icons.py
 
 # Build the project (migrations + collect static)
 build: migrate collectstatic

@@ -3,6 +3,8 @@ from datetime import date
 
 from django import template
 
+from gift.pwa import versioned_static
+
 register = template.Library()
 
 
@@ -17,3 +19,10 @@ def birthday_label(user):
         (today.month, today.day) < (birthday.month, birthday.day)
     )
     return f"{birthday.month}/{birthday.day} (age {age})"
+
+
+@register.simple_tag
+def vstatic(path):
+    """Like {% static %}, plus a content hash so browsers and the service worker
+    notice when the file changes. See gift/pwa.py for why that's needed here."""
+    return versioned_static(path)
