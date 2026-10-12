@@ -367,6 +367,8 @@ def wishlist_picker(request):
                 # The list is for the asker themselves — what "Mine" picks.
                 # A list kept for your kid is open to you but isn't yours.
                 'is_mine': person == request.user,
+                # Quick add's "Mine" goes straight here when you have several
+                'is_pinned': wishlist.id == request.user.pinned_wishlist_id,
                 # Where 'More options…' goes for this list. Resolved here so the
                 # modal never has to build a URL, and so no page carries the
                 # surprise-form path just in case it might be needed.
@@ -965,6 +967,17 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
 MY_LIST_PREVIEW_ITEMS = 4
 
 
+def curated_lists_q(user):
+    """Lists `user` curates: their own, ones they help manage (a co-parent's
+    list for a kid), and — with steward proxy on — ones they're the dependent of."""
+    from giftwiki.feature_flags import get_steward_proxy_enabled
+
+    curated = models.Q(owner=user) | models.Q(managers=user)
+    if get_steward_proxy_enabled():
+        curated |= models.Q(dependent=user)
+    return curated
+
+
 @login_required
 def profile(request):
     """My Lists: the lists you curate first, then the people you manage, then
@@ -978,18 +991,8 @@ def profile(request):
         ).order_by('-is_priority', 'id'),
         to_attr='visible_items',
     )
-    # Lists you own, plus lists you help manage (a co-parent's list for a kid)
-    curated = models.Q(owner=request.user) | models.Q(managers=request.user)
-
-    # Optionally include wishlists where user is the steward (if feature enabled)
-    from giftwiki.feature_flags import get_steward_proxy_enabled
-
-    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
-    if STEWARD_PROXY_ENABLED:
-        curated |= models.Q(dependent=request.user)
-
     wishlists = list(
-        WishList.objects.filter(curated)
+        WishList.objects.filter(curated_lists_q(request.user))
         .distinct()
         .select_related('family_name', 'owner', 'dependent')
         .prefetch_related(visible_items)
@@ -1015,6 +1018,20 @@ def profile(request):
             ),
         }
         (my_lists if entry['is_mine'] else kept_lists).append(entry)
+
+    # One list opens expanded at the top: the pinned one, or failing that your
+    # most recently updated. Everything else is a compact row, so the page
+    # shows all your lists without scrolling past big cards.
+    featured = next(
+        (e for e in my_lists + kept_lists if e['wishlist'].id == request.user.pinned_wishlist_id),
+        None,
+    )
+    if featured:
+        featured['pinned'] = True
+    elif my_lists:
+        featured = my_lists[0]
+    if featured:
+        (my_lists if featured in my_lists else kept_lists).remove(featured)
 
     # Handle profile picture upload (only if feature enabled)
     from giftwiki.feature_flags import get_profile_picture_enabled
@@ -1093,6 +1110,7 @@ def profile(request):
 
     context = {
         'wishlists': wishlists,
+        'featured': featured,
         'my_lists': my_lists,
         'kept_lists': kept_lists,
         'theme_options': [(key, label, colour) for key, (label, colour) in THEMES.items()],
@@ -1129,6 +1147,23 @@ def set_theme(request):
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'status': 'ok', 'theme': key, 'colour': theme_colour(key)})
     messages.success(request, f'Colour set to {THEMES[key][0]}.')
+    return redirect('gift:account')
+
+
+@require_POST
+@login_required
+def pin_wishlist(request, wishlist_id):
+    """Pin a list to the top of My Lists, or unpin it if it already is."""
+    wishlist = get_object_or_404(
+        WishList.objects.filter(curated_lists_q(request.user)).distinct(), id=wishlist_id
+    )
+    unpinning = request.user.pinned_wishlist_id == wishlist.id
+    request.user.pinned_wishlist = None if unpinning else wishlist
+    request.user.save(update_fields=['pinned_wishlist'])
+    if unpinning:
+        messages.success(request, f'Unpinned “{wishlist.title}”.')
+    else:
+        messages.success(request, f'Pinned “{wishlist.title}” to the top.')
     return redirect('gift:account')
 
 

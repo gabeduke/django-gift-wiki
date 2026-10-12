@@ -1121,10 +1121,40 @@ a.wl-list-row:active { transform: scale(.985); }
   background: var(--bg-subtle); color: var(--text-secondary); font-size: 14px; text-align: center;
 }
 .wl-mylist-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+/* Phones: one row of actions. The title already opens the list. */
 @media (max-width: 480px) {
-  .wl-mylist-actions .btn { flex: 1; }
-  .wl-mylist-actions .btn-primary { flex: 1 1 100%; min-height: 40px; }
+  .wl-mylist-actions { flex-wrap: nowrap; }
+  .wl-mylist-actions .btn-primary { flex: 1; min-height: 40px; }
+  .wl-mylist-open { display: none !important; }
 }
+.wl-pin-badge {
+  display: inline-block; vertical-align: 2px; margin-left: 4px;
+  padding: 1px 7px; border-radius: var(--radius-pill);
+  background: var(--brand-light); color: var(--brand);
+  font-size: 11px; font-weight: 600; letter-spacing: 0;
+}
+
+/* Every other list: compact rows in one card, so they all fit on landing */
+.wl-mylist-rows {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-1);
+}
+.wl-mylist-row { display: flex; align-items: center; gap: 2px; padding: 8px 8px 8px 14px; }
+.wl-mylist-row + .wl-mylist-row { border-top: 1px solid var(--border); }
+.wl-mylist-row-main {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 12px;
+  color: var(--text-primary); text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.wl-mylist-row-main:hover { color: var(--text-primary); text-decoration: none; }
+.wl-mylist-row-main:hover strong { color: var(--brand); }
+.wl-mylist-row .wl-mylist-name strong { font-size: 15px; font-weight: 600; }
+.wl-mylist-row .wl-mylist-name strong, .wl-mylist-row .wl-mylist-meta {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wl-mylist-add { color: var(--brand); }
+.wl-mylist-add:hover { background: var(--brand-light); color: var(--brand); }
 
 .wl-empty-card { text-align: center; padding: 32px 24px; }
 .wl-empty-emoji { font-size: 36px; margin-bottom: 8px; }
@@ -1398,6 +1428,8 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
 /* ── RESPONSIVE ─────────────────────────────────────────── */
 @media (max-width: 767px) {
   .wl-nav-links { display: none; }
+
+  .wl-hide-phone { display: none !important; }
 
   /* Home: banner photo, compact tools */
   .wl-home-top {

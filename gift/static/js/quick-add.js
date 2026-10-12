@@ -426,8 +426,10 @@
     }
     if (mode === 'mine') {
       var mine = options.filter(function (option) { return option.is_mine; });
-      if (mine.length === 1) {
-        choose(mine[0]);
+      // Several lists of your own: the one pinned on My Lists is the one you mean
+      var pinned = mine.filter(function (option) { return option.is_pinned; });
+      if (mine.length === 1 || pinned.length === 1) {
+        choose(pinned[0] || mine[0]);
         return;
       }
       if (mine.length === 0) {

@@ -154,3 +154,73 @@ class TestShortcutsPutYourListFirst:
         assert urls[0].endswith('?quick_add=1&for=me')
         assert urls[1].endswith('?quick_add=1&for=others')
         assert '/my-purchases/' not in urls
+
+
+class TestPinnedList:
+    """One list opens expanded at the top of My Lists; the rest are rows."""
+
+    @pytest.fixture
+    def second(self, user, family):
+        return WishList.objects.create(owner=user, title='Birthday List', family_name=family)
+
+    def featured(self, client):
+        return client.get('/profile/').context['featured']
+
+    def test_most_recent_list_leads_when_nothing_is_pinned(self, authenticated_user, wishlist, second):
+        response = authenticated_user.get('/profile/')
+
+        assert response.context['featured']['wishlist'] == second  # created last
+        assert [e['wishlist'] for e in response.context['my_lists']] == [wishlist]
+        assert 'class="wl-mylist-row"' in response.content.decode()
+
+    def test_pinning_puts_a_list_on_top(self, authenticated_user, user, wishlist, second):
+        response = authenticated_user.post(f'/profile/pin/{wishlist.id}/')
+
+        assert response.status_code == 302
+        user.refresh_from_db()
+        assert user.pinned_wishlist == wishlist
+        featured = self.featured(authenticated_user)
+        assert featured['wishlist'] == wishlist and featured['pinned']
+        assert '📌 Pinned' in authenticated_user.get('/profile/').content.decode()
+
+    def test_pinning_again_unpins(self, authenticated_user, user, wishlist, second):
+        authenticated_user.post(f'/profile/pin/{wishlist.id}/')
+        authenticated_user.post(f'/profile/pin/{wishlist.id}/')
+
+        user.refresh_from_db()
+        assert user.pinned_wishlist is None
+        assert self.featured(authenticated_user)['wishlist'] == second
+
+    def test_a_list_you_look_after_can_be_pinned(self, authenticated_user, user, kid, family, wishlist):
+        kids = WishList.objects.create(owner=user, dependent=kid, title='Arlo List', family_name=family)
+
+        authenticated_user.post(f'/profile/pin/{kids.id}/')
+
+        response = authenticated_user.get('/profile/')
+        assert response.context['featured']['wishlist'] == kids
+        assert response.context['kept_lists'] == []
+        assert 'Your lists' in response.content.decode()
+
+    def test_cannot_pin_someone_elses_list(self, authenticated_other_user, other_user, wishlist):
+        response = authenticated_other_user.post(f'/profile/pin/{wishlist.id}/')
+
+        assert response.status_code == 404
+        other_user.refresh_from_db()
+        assert other_user.pinned_wishlist is None
+
+    def test_pin_needs_post(self, authenticated_user, wishlist):
+        assert authenticated_user.get(f'/profile/pin/{wishlist.id}/').status_code == 405
+
+    def test_deleting_the_pinned_list_just_unpins(self, authenticated_user, user, wishlist):
+        authenticated_user.post(f'/profile/pin/{wishlist.id}/')
+        wishlist.delete()
+
+        user.refresh_from_db()
+        assert user.pinned_wishlist is None
+
+    def test_quick_add_knows_which_list_is_pinned(self, authenticated_user, wishlist, second):
+        authenticated_user.post(f'/profile/pin/{wishlist.id}/')
+
+        lists = authenticated_user.get(reverse('gift:wishlist_picker')).json()['wishlists']
+        pinned = {entry['id']: entry['is_pinned'] for entry in lists}
+        assert pinned == {wishlist.id: True, second.id: False}
