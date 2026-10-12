@@ -1,0 +1,25 @@
+{% comment %}
+A list on My Lists that isn't the one at the top: one line you can tap to
+open, with add-an-idea and the ⋯ menu alongside. Expects `entry`.
+{% endcomment %}
+{% with wishlist=entry.wishlist person=entry.person %}
+<div class="wl-mylist-row">
+  <a class="wl-mylist-row-main" href="{% url 'gift:wishlist_detail' wishlist.id %}">
+    <span class="wl-list-avatar" aria-hidden="true">
+      {% if person.first_name %}{{ person.first_name|slice:":1"|upper }}{{ person.last_name|slice:":1"|upper }}{% else %}{{ person.username|slice:":2"|upper }}{% endif %}
+    </span>
+    <span class="wl-mylist-name">
+      <strong>{{ wishlist.title }}</strong>
+      <span class="wl-mylist-meta">
+        {% if not entry.is_mine %}For {{ person.first_name|default:person.username }} · {% endif %}{{ entry.count }} idea{{ entry.count|pluralize }} · {{ entry.updated }} ago
+      </span>
+    </span>
+  </a>
+  <button type="button" class="wl-icon-btn wl-mylist-add" data-quick-add data-quick-add-list="{{ wishlist.id }}"
+          aria-label="Add an idea to {{ wishlist.title }}">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+         stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+  {% include 'gift/partials/my_list_menu.html' %}
+</div>
+{% endwith %}

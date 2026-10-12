@@ -4,375 +4,166 @@
 {% block title %}New list · Wikileet{% endblock %}
 
 {% block content %}
-    <div class="wl-page-medium">
-                <a class="wl-back" href="{% url 'gift:account' %}">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
-                    </svg>
-                    My Lists
-                </a>
-                <div class="wl-page-header">
-                    <h1 class="wl-page-title">Start a new list</h1>
-                    <p class="wl-page-subtitle">Somewhere to keep what you'd love — the family sees it when it's time to shop.</p>
-                </div>
+<div class="wl-page-medium">
 
-                <form method="post" enctype="multipart/form-data" class="card wl-form">
-                    <div class="card-body">
-                        {% csrf_token %}
-                        
-                        <!-- Basic Information - Compact Row -->
-                        <div class="form-section">
-                            <h5 class="mb-2">Basic Information</h5>
-                            <div class="row">
-                                <div class="col-md-6 mb-2">
-                                    <label for="{{ form.title.id_for_label }}" class="form-label">
-                                        List Name <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.title|add_class:"form-control form-control-sm" }}
-                                    {% for error in form.title.errors %}
-                                        <div class="text-danger small mt-1">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                                <div class="col-md-6 mb-2">
-                                    <label for="{{ form.family_name.id_for_label }}" class="form-label">
-                                        Family Group <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.family_name|add_class:"form-control form-control-sm" }}
-                                    {% for error in form.family_name.errors %}
-                                        <div class="text-danger small mt-1">{{ error }}</div>
-                                    {% endfor %}
-                                    <div id="new_family_name_wrapper" class="mt-2" style="display: none;">
-                                        <div class="mb-2">
-                                            {{ form.new_family_name|add_class:"form-control form-control-sm"|attr:"placeholder:Enter new family name..." }}
-                                            {% for error in form.new_family_name.errors %}
-                                                <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-                                        <div>
-                                            <label for="{{ form.new_family_poem.id_for_label }}" class="form-label small">
-                                                {{ form.new_family_poem.label }}
-                                            </label>
-                                            {{ form.new_family_poem|add_class:"form-control form-control-sm"|attr:"placeholder:Write a poem, story, or memory that captures your family's spirit..." }}
-                                            {% if form.new_family_poem.help_text %}
-                                                <small class="form-text text-muted">{{ form.new_family_poem.help_text }}</small>
-                                            {% endif %}
-                                            {% for error in form.new_family_poem.errors %}
-                                                <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-2">
-                                    <label for="{{ form.description.id_for_label }}" class="form-label">
-                                        {{ form.description.label }}
-                                    </label>
-                                    {{ form.description|add_class:"form-control form-control-sm" }}
-                                    {% if form.description.help_text %}
-                                        <small class="form-text text-muted">{{ form.description.help_text }}</small>
-                                    {% endif %}
-                                    {% for error in form.description.errors %}
-                                        <div class="text-danger small mt-1">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Optional Sections - Side by Side -->
-                        {% if form.scraped_page or form.managers or 'dependent' in form.fields %}
-                        <div class="row">
-                            {% if form.scraped_page %}
-                            <div class="col-md-6 mb-2">
-                                <div class="form-section">
-                                    <h5 class="mb-2">Import Items</h5>
-                                    <label for="{{ form.scraped_page.id_for_label }}" class="form-label">
-                                        {{ form.scraped_page.label }}
-                                    </label>
-                                    {{ form.scraped_page|add_class:"form-control form-control-sm" }}
-                                    {% for error in form.scraped_page.errors %}
-                                        <div class="text-danger small mt-1">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            {% endif %}
-                            
-                            {% if form.managers or 'dependent' in form.fields %}
-                            <div class="col-md-6 mb-2">
-                                <div class="form-section">
-                                    <h5 class="mb-2">Management</h5>
-                                    {% if 'dependent' in form.fields %}
-                                    <div class="mb-2">
-                                        <label for="{{ form.dependent.id_for_label }}" class="form-label">
-                                            {{ form.dependent.label }}
-                                        </label>
-                                        {{ form.dependent|add_class:"form-control form-control-sm" }}
-                                        {% for error in form.dependent.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                    
-                                    {% if form.managers %}
-                                    <div>
-                                        <label class="form-label">
-                                            Additional Managers
-                                        </label>
-                                        <div class="dropdown-checkbox-wrapper">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm form-control form-control-sm text-left dropdown-toggle-managers" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="managersDropdownBtn">
-                                                <span class="selected-count">Select managers...</span>
-                                                <span class="float-right"></span>
-                                            </button>
-                                            <div class="dropdown-menu managers-dropdown" aria-labelledby="managersDropdownBtn">
-                                                {% for checkbox in form.managers %}
-                                                    <div class="form-check dropdown-item-text">
-                                                        {{ checkbox.tag }}
-                                                        <label class="form-check-label" for="{{ checkbox.id_for_label }}">
-                                                            {{ checkbox.choice_label }}
-                                                        </label>
-                                                    </div>
-                                                {% empty %}
-                                                    <div class="dropdown-item-text text-muted small">No other users available.</div>
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                        {% for error in form.managers.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                        {% endfor %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                        
-                        <!-- Managed Account Creation -->
-                        <div class="form-section mb-4">
-                            <h5 class="mb-3">Managed Account (Optional)</h5>
-                            <div class="form-check mb-3">
-                                {{ form.is_managed|add_class:"form-check-input" }}
-                                <label class="form-check-label font-weight-bold" for="{{ form.is_managed.id_for_label }}">
-                                    {{ form.is_managed.label }}
-                                </label>
-                                {% if form.is_managed.help_text %}
-                                    <div class="text-muted small">{{ form.is_managed.help_text }}</div>
-                                {% endif %}
-                                {% for error in form.is_managed.errors %}
-                                    <div class="text-danger small mt-1">{{ error }}</div>
-                                {% endfor %}
-                            </div>
-                            
-                            <div id="managed_fields_wrapper" style="display: none; background-color: var(--bg-subtle); padding: 16px; border-radius: var(--radius); border-left: 3px solid var(--brand);">
-                                <div class="row">
-                                    <div class="col-md-4 mb-2">
-                                        <label for="{{ form.managed_username.id_for_label }}" class="form-label">
-                                            {{ form.managed_username.label }} <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.managed_username|add_class:"form-control form-control-sm" }}
-                                        {% if form.managed_username.help_text %}
-                                            <small class="form-text text-muted">{{ form.managed_username.help_text }}</small>
-                                        {% endif %}
-                                        {% for error in form.managed_username.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                        {% endfor %}
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <label for="{{ form.managed_birthday.id_for_label }}" class="form-label">
-                                            {{ form.managed_birthday.label }} <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.managed_birthday|add_class:"form-control form-control-sm" }}
-                                        {% if form.managed_birthday.help_text %}
-                                            <small class="form-text text-muted">{{ form.managed_birthday.help_text }}</small>
-                                        {% endif %}
-                                        {% for error in form.managed_birthday.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                        {% endfor %}
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <label for="{{ form.managed_email.id_for_label }}" class="form-label">
-                                            {{ form.managed_email.label }}
-                                        </label>
-                                        {{ form.managed_email|add_class:"form-control form-control-sm"|attr:"placeholder:user@example.com" }}
-                                        {% if form.managed_email.help_text %}
-                                            <small class="form-text text-muted">{{ form.managed_email.help_text }}</small>
-                                        {% endif %}
-                                        {% for error in form.managed_email.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        {# Hidden fields #}
-                        {% for field in form.hidden_fields %}
-                            {{ field }}
-                        {% endfor %}
-                        
-                        <div class="wl-form-actions">
-                            <button type="submit" class="btn btn-primary">Create list</button>
-                            <a href="{% url 'gift:account' %}" class="btn btn-outline-secondary">Cancel</a>
-                        </div>
-                    </div>
-                </form>
+  <a class="wl-back" href="{% url 'gift:account' %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    My Lists
+  </a>
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">Start a new list</h1>
+    <p class="wl-page-subtitle">Somewhere to keep what you'd love — the family sees it when it's time to shop.</p>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="wl-form">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">
+      {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
     </div>
-    
-    <script>
-    (function() {
-        // Handle family dropdown toggle
-        const familySelect = document.querySelector('#id_family_name');
-        const newFamilyWrapper = document.getElementById('new_family_name_wrapper');
-        
-        if (familySelect && newFamilyWrapper) {
-            function toggleNewFamily() {
-                if (familySelect.value === '__CREATE_NEW__') {
-                    newFamilyWrapper.style.display = 'block';
-                    const input = newFamilyWrapper.querySelector('input');
-                    if (input) input.focus();
-                } else {
-                    newFamilyWrapper.style.display = 'none';
-                    const input = newFamilyWrapper.querySelector('input');
-                    if (input) input.value = '';
-                }
-            }
-            
-            familySelect.addEventListener('change', toggleNewFamily);
-            // Check initial state
-            toggleNewFamily();
-        }
-        
-        // Handle managed account fields toggle
-        const isManagedCheckbox = document.querySelector('#id_is_managed');
-        const managedFieldsWrapper = document.getElementById('managed_fields_wrapper');
-        
-        if (isManagedCheckbox && managedFieldsWrapper) {
-            function toggleManagedFields() {
-                if (isManagedCheckbox.checked) {
-                    managedFieldsWrapper.style.display = 'block';
-                } else {
-                    managedFieldsWrapper.style.display = 'none';
-                }
-            }
-            
-            isManagedCheckbox.addEventListener('change', toggleManagedFields);
-            // Check initial state
-            toggleManagedFields();
-        }
-        
-        // Update managers dropdown button text based on selected checkboxes
-        function updateManagersButton(buttonId) {
-            const button = document.getElementById(buttonId);
-            if (!button) return;
-            
-            const dropdown = button.nextElementSibling;
-            if (!dropdown) return;
-            
-            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
-            const checked = Array.from(checkboxes).filter(cb => cb.checked);
-            const countSpan = button.querySelector('.selected-count');
-            
-            if (checked.length === 0) {
-                countSpan.textContent = 'Select managers...';
-            } else if (checked.length === 1) {
-                const label = checked[0].nextElementSibling.textContent.trim();
-                countSpan.textContent = label;
-            } else {
-                countSpan.textContent = `${checked.length} managers selected`;
-            }
-        }
-        
-        // Setup managers dropdown
-        const managersBtn = document.getElementById('managersDropdownBtn');
-        if (managersBtn) {
-            const dropdown = managersBtn.nextElementSibling;
-            if (dropdown) {
-                // Update on checkbox change
-                dropdown.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
-                    checkbox.addEventListener('change', function() {
-                        updateManagersButton('managersDropdownBtn');
-                    });
-                });
-                
-                // Initial update
-                updateManagersButton('managersDropdownBtn');
-                
-                // Prevent dropdown from closing when clicking inside
-                dropdown.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                });
-            }
-        }
-    })();
-    </script>
-    <style>
-    /* Managers dropdown with checkboxes */
-    .dropdown-checkbox-wrapper {
-        position: relative;
-    }
-    .dropdown-toggle-managers {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        cursor: pointer;
-    }
-    .dropdown-toggle-managers:after {
-        display: none; /* Hide Bootstrap's default arrow */
-    }
-    .managers-dropdown {
-        max-height: 250px;
-        overflow-y: auto;
-        min-width: 100%;
-        padding: var(--spacing-sm);
-    }
-    .managers-dropdown .dropdown-item-text {
-        padding: var(--spacing-xs) var(--spacing-sm);
-        white-space: nowrap;
-        cursor: pointer;
-        display: block;
-        position: relative;
-        overflow: visible;
-    }
-    .managers-dropdown .dropdown-item-text:hover {
-        background-color: var(--bg-secondary);
-    }
-    .managers-dropdown .form-check {
-        margin: 0;
-        padding: 0;
-        display: flex !important;
-        align-items: center;
-        width: 100%;
-        position: relative;
-    }
-    .managers-dropdown .form-check-label {
-        cursor: pointer;
-        margin-left: var(--spacing-sm);
-        font-size: 0.875rem;
-        flex: 1;
-        display: inline-block;
-    }
-    .managers-dropdown input[type="checkbox"],
-    .managers-dropdown .form-check-input {
-        margin: 0 !important;
-        margin-right: var(--spacing-sm) !important;
-        cursor: pointer;
-        position: relative !important;
-        z-index: 10;
-        flex-shrink: 0;
-        width: 1rem !important;
-        height: 1rem !important;
-        min-width: 1rem !important;
-        min-height: 1rem !important;
-        display: inline-block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        appearance: checkbox !important;
-        -webkit-appearance: checkbox !important;
-        -moz-appearance: checkbox !important;
-        clip: unset !important;
-        clip-path: none !important;
-        overflow: visible !important;
-    }
-    </style>
+    {% endif %}
+
+    <section class="wl-card">
+      <h2 class="wl-card-title">The basics</h2>
+      <p class="wl-card-subtitle">A name the family will recognise, and who it belongs with.</p>
+
+      <div class="wl-field">
+        <label for="{{ form.title.id_for_label }}">Name</label>
+        {% with suggestion=request.user.first_name|default:request.user.username|add:"'s wishlist" %}
+        {% render_field form.title placeholder=suggestion %}
+        {% endwith %}
+        {% for error in form.title.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+
+      <div class="wl-field">
+        <label for="{{ form.family_name.id_for_label }}">Family</label>
+        {{ form.family_name }}
+        {% for error in form.family_name.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        <div id="new_family_name_wrapper" class="wl-subfields" hidden>
+          <div class="wl-field">
+            <label for="{{ form.new_family_name.id_for_label }}">New family name</label>
+            {{ form.new_family_name|attr:"placeholder:e.g. Duke House" }}
+            {% for error in form.new_family_name.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+          </div>
+          <div class="wl-field">
+            <label for="{{ form.new_family_poem.id_for_label }}">{{ form.new_family_poem.label }}</label>
+            {{ form.new_family_poem|attr:"placeholder:A poem, story or memory that captures your family's spirit…" }}
+            {% if form.new_family_poem.help_text %}<div class="form-text">{{ form.new_family_poem.help_text }}</div>{% endif %}
+            {% for error in form.new_family_poem.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="wl-field">
+        <label for="{{ form.description.id_for_label }}">A note <span class="wl-optional">optional</span></label>
+        {{ form.description }}
+        {% for error in form.description.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+    </section>
+
+    {% if form.scraped_page and not form.scraped_page.is_hidden %}
+    <section class="wl-card">
+      <h2 class="wl-card-title">Bring over an old list</h2>
+      <p class="wl-card-subtitle">Copy the items from a page on the old gift wiki.</p>
+      <div class="wl-field">
+        <label for="{{ form.scraped_page.id_for_label }}">Old wiki page</label>
+        {{ form.scraped_page }}
+        {% for error in form.scraped_page.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if form.managers or 'dependent' in form.fields %}
+    <section class="wl-card">
+      <h2 class="wl-card-title">Sharing</h2>
+      <p class="wl-card-subtitle">People who can add and edit items alongside you.</p>
+
+      {% if form.managers %}
+      <div class="wl-field">
+        <span class="wl-label">Who else can edit</span>
+        <div class="wl-chip-checks">
+          {% for checkbox in form.managers %}
+          <label class="wl-chip-check">{{ checkbox.tag }}<span>{{ checkbox.choice_label }}</span></label>
+          {% empty %}
+          <span class="form-text">No one else to add yet.</span>
+          {% endfor %}
+        </div>
+        {% for error in form.managers.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+      {% endif %}
+
+      {% if 'dependent' in form.fields %}
+      <div class="wl-field">
+        <label for="{{ form.dependent.id_for_label }}">{{ form.dependent.label }}</label>
+        {{ form.dependent }}
+        {% for error in form.dependent.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="wl-card">
+      <h2 class="wl-card-title">For someone else?</h2>
+      <p class="wl-card-subtitle">Making a list for a child or grandparent who won't sign in themselves.</p>
+
+      <label class="wl-check" for="{{ form.is_managed.id_for_label }}">
+        {{ form.is_managed }}
+        <span>
+          <strong>Create a profile for them</strong>
+          <span class="form-text d-block">{{ form.is_managed.help_text }}</span>
+        </span>
+      </label>
+      {% for error in form.is_managed.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+
+      <div id="managed_fields_wrapper" class="wl-subfields" hidden>
+        <div class="wl-field">
+          <label for="{{ form.managed_username.id_for_label }}">Username</label>
+          {{ form.managed_username|attr:"placeholder:e.g. timmy_2015"|attr:"autocapitalize:none" }}
+          {% for error in form.managed_username.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="wl-field">
+          <label for="{{ form.managed_birthday.id_for_label }}">Birthday</label>
+          {{ form.managed_birthday }}
+          {% if form.managed_birthday.help_text %}<div class="form-text">{{ form.managed_birthday.help_text }}</div>{% endif %}
+          {% for error in form.managed_birthday.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="wl-field">
+          <label for="{{ form.managed_email.id_for_label }}">Email <span class="wl-optional">optional</span></label>
+          {{ form.managed_email|attr:"placeholder:name@example.com" }}
+          {% if form.managed_email.help_text %}<div class="form-text">{{ form.managed_email.help_text }}</div>{% endif %}
+          {% for error in form.managed_email.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        </div>
+      </div>
+    </section>
+
+    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+
+    <div class="wl-form-actions">
+      <button type="submit" class="btn btn-primary">Create list</button>
+      <a href="{% url 'gift:account' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // Reveal the extra fields only when they apply.
+  function reveal(control, wrapper, shouldShow) {
+    if (!control || !wrapper) { return; }
+    var sync = function () { wrapper.hidden = !shouldShow(control); };
+    control.addEventListener('change', sync);
+    sync();
+  }
+  reveal(document.getElementById('id_family_name'), document.getElementById('new_family_name_wrapper'),
+         function (select) { return select.value === '__CREATE_NEW__'; });
+  reveal(document.getElementById('id_is_managed'), document.getElementById('managed_fields_wrapper'),
+         function (box) { return box.checked; });
+})();
+</script>
 {% endblock %}

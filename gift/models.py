@@ -68,6 +68,16 @@ class WikiUser(AbstractUser):
         default=DEFAULT_THEME,
         help_text='Colour theme for the interface',
     )
+    # The list My Lists opens with, expanded at the top — and the one quick
+    # add's "Mine" goes to when you have several.
+    pinned_wishlist = models.ForeignKey(
+        'WishList',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text='The list pinned to the top of My Lists',
+    )
 
     def __str__(self):
         return self.username

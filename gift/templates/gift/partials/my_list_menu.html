@@ -1,0 +1,30 @@
+{% comment %}
+The ⋯ menu for a list on My Lists, shared by the pinned card and the rows.
+Expects `entry` from views.profile.
+{% endcomment %}
+{% with wishlist=entry.wishlist %}
+<div class="dropdown">
+  <button type="button" class="wl-icon-btn" data-toggle="dropdown" aria-haspopup="true"
+          aria-expanded="false" aria-label="More for {{ wishlist.title }}">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>
+    </svg>
+  </button>
+  <div class="dropdown-menu dropdown-menu-right">
+    <form action="{% url 'gift:pin_wishlist' wishlist.id %}" method="post">
+      {% csrf_token %}
+      <button type="submit" class="dropdown-item">{% if entry.pinned %}📌 Unpin{% else %}📌 Pin to top{% endif %}</button>
+    </form>
+    <a class="dropdown-item" href="{% url 'gift:edit_wishlist' wishlist.id %}">✏️ Edit list</a>
+    <button type="button" class="dropdown-item" data-share-url="{{ entry.share_url }}" data-share-title="{{ wishlist.title }}">🔗 Share link</button>
+    {% if entry.can_delete %}
+    <div class="dropdown-divider"></div>
+    <form action="{% url 'gift:delete_wishlist' wishlist.id %}" method="post">
+      {% csrf_token %}
+      <button type="submit" class="dropdown-item text-danger"
+              onclick="return confirm('Delete “{{ wishlist.title|escapejs }}”? This can’t be undone.');">🗑 Delete list</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endwith %}
