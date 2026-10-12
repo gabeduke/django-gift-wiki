@@ -68,7 +68,7 @@
   {% if sorted_category_items or uncategorized_items %}
 
     {% for category, category_items in sorted_category_items %}
-    <div class="wl-cat-section">
+    <div class="wl-cat-section wl-stagger">
       <div class="wl-cat-header">
         <span class="wl-cat-label">{{ category.name }}</span>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -171,7 +171,7 @@
 
     {# Uncategorized #}
     {% if uncategorized_items %}
-    <div class="wl-cat-section">
+    <div class="wl-cat-section wl-stagger">
       <div class="wl-cat-header">
         <span class="wl-cat-label">Uncategorized</span>
         <span class="wl-count-badge">{{ uncategorized_items|length }}</span>
@@ -284,7 +284,7 @@
   {% endcomment %}
   {% if not is_owner %}
   <div class="sneaky-section" style="margin-top:40px;padding-top:20px;border-top:1px solid var(--border);">
-    <div class="wl-cat-section">
+    <div class="wl-cat-section wl-stagger">
       <div class="wl-cat-header">
         <span class="wl-cat-label">🤫 Sneaky things added by others</span>
         <span class="wl-count-badge">{{ sneaky_items|length }}</span>

@@ -122,7 +122,7 @@
         </span>
       </button>
 
-      <div class="wl-section-body" id="wl-group-body-birthdays">
+      <div class="wl-section-body wl-stagger" id="wl-group-body-birthdays">
         {% for entry in upcoming_birthdays %}
           {% if entry.wishlist_id %}
           <a class="wl-list-row" data-search="{{ entry.search_text }}" href="{% url 'gift:wishlist_detail' entry.wishlist_id %}">
@@ -182,7 +182,7 @@
         </span>
       </button>
 
-      <div class="wl-section-body" id="wl-group-body-{{ forloop.counter }}">
+      <div class="wl-section-body wl-stagger" id="wl-group-body-{{ forloop.counter }}">
         {% for wishlist in wishlists %}
         <a class="wl-list-row" data-search="{{ wishlist.search_text }}" href="{% url 'gift:wishlist_detail' wishlist.id %}">
 

@@ -13,7 +13,15 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from scripts.build_icons import ICONS, LOGOS, OUT_DIR, build_svg, source_hash
+from scripts.build_icons import (
+    ICONS,
+    INLINE_MARK,
+    LOGOS,
+    OUT_DIR,
+    build_inline_mark,
+    build_svg,
+    source_hash,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -28,6 +36,12 @@ def sha(path):
 def test_logo_matches_its_definition(name):
     assert (OUT_DIR / name).read_text() == build_svg(LOGOS[name]), (
         f'gift/static/brand/{name} differs from scripts/build_icons.py — run `make icons`'
+    )
+
+
+def test_inline_nav_logo_matches_its_definition():
+    assert INLINE_MARK.read_text() == build_inline_mark(), (
+        'gift/templates/gift/partials/logo_mark.html is out of date — run `make icons`'
     )
 
 

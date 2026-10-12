@@ -103,19 +103,22 @@ def build_manifest():
                 'purpose': 'maskable',
             },
         ],
-        # Long-press the home-screen icon (Android, desktop Chrome)
+        # Long-press the home-screen icon (Android, desktop Chrome). Your own
+        # list first: it's what people curate all year.
         'shortcuts': [
             {
-                'name': 'Add a gift idea',
-                'short_name': 'Add idea',
-                'description': "Drop an item on someone's list",
-                'url': f'{home}?quick_add=1',
+                'name': 'Add to my list',
+                'short_name': 'My list',
+                'description': 'Put something you want on your own list',
+                'url': f'{home}?quick_add=1&for=me',
                 'icons': [{'src': versioned_static('brand/icon-192.png'), 'sizes': '192x192'}],
             },
             {
-                'name': 'My Purchases',
-                'short_name': 'Purchases',
-                'url': reverse('gift:my_purchases'),
+                'name': 'Gift idea for someone',
+                'short_name': 'For someone',
+                'description': "Drop an idea on someone else's list",
+                'url': f'{home}?quick_add=1&for=others',
+                'icons': [{'src': versioned_static('brand/icon-192.png'), 'sizes': '192x192'}],
             },
             {
                 'name': 'My Lists',
@@ -123,7 +126,8 @@ def build_manifest():
                 'url': reverse('gift:account'),
             },
         ],
-        # Android: "Share" from a shopping app or the browser lands in quick add
+        # Android: "Share" from a shopping app or the browser lands in quick
+        # add, which asks whether it's for your list or someone else's
         'share_target': {
             'action': reverse('gift:share_target'),
             'method': 'GET',

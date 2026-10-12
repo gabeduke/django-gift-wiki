@@ -26,6 +26,23 @@ aren't in a context processor. Behaviour lives in js/quick-add.js.
           <div class="wl-qa-field">
             <label for="wl-qa-list">For whose list?</label>
 
+            {% comment %}
+            The first question is nearly always "mine or someone else's?", so
+            it's one tap. Mine picks your list outright when you have just one;
+            Someone else narrows the search to everyone else's.
+            {% endcomment %}
+            <div id="wl-qa-target" class="wl-segmented" role="radiogroup" aria-label="Whose list">
+              <button type="button" role="radio" aria-checked="false" data-target="mine">
+                <span aria-hidden="true">🙋</span> Mine
+              </button>
+              <button type="button" role="radio" aria-checked="false" data-target="others">
+                <span aria-hidden="true">🎁</span> Someone else
+              </button>
+            </div>
+            <p id="wl-qa-no-list" class="wl-qa-hint" hidden>
+              You don’t have a list yet — <a href="{% url 'gift:create_wishlist' %}">start one</a>.
+            </p>
+
             <div class="wl-qa-combo">
               <input type="text" id="wl-qa-list" class="wl-qa-input"
                      placeholder="Type a name…" autocomplete="off"

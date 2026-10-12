@@ -47,7 +47,7 @@ class TestCollapsibleGroups:
             '<button type="button" class="wl-family-header wl-collapse-toggle" '
             'aria-expanded="true" aria-controls="wl-group-body-1">' in content
         )
-        assert '<div class="wl-section-body" id="wl-group-body-1">' in content
+        assert '<div class="wl-section-body wl-stagger" id="wl-group-body-1">' in content
         assert 'wl-count-badge' in content
         assert 'wl-chevron' in content
 
@@ -86,7 +86,7 @@ class TestCollapsibleGroups:
         content = response.content.decode()
         assert 'data-group-label="Upcoming Birthdays"' in content
         assert 'aria-controls="wl-group-body-birthdays"' in content
-        assert '<div class="wl-section-body" id="wl-group-body-birthdays">' in content
+        assert '<div class="wl-section-body wl-stagger" id="wl-group-body-birthdays">' in content
 
     def test_no_toggle_markup_for_anonymous_visitors(self, client, db):
         """Anonymous visitors get the sign-in page — no collapse controls/JS."""

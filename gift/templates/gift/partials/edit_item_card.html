@@ -1,0 +1,74 @@
+{% load widget_tweaks %}
+{% comment %}
+One item in the Edit List formset. Also rendered from formset.empty_form into
+a <template>, which js/edit-list.js clones (with __prefix__ swapped for the
+next index) when "Add item" is pressed.
+
+Name and link up front; notes, price and category tucked into a disclosure so
+a long list stays scannable. Removing is a toggle, not an instant delete:
+the card fades with an Undo until the form is saved.
+{% endcomment %}
+<article class="wl-card wl-edit-item{% if form.DELETE.value %} is-removed{% endif %}">
+  {{ form.id }}
+
+  <div class="wl-edit-item-head">
+    {{ form.name|add_class:"wl-edit-item-name"|attr:"placeholder:What is it?"|attr:"aria-label:Item name" }}
+    <label class="wl-toggle-chip" title="Most wanted">
+      {{ form.is_priority }}
+      <span aria-hidden="true">⭐</span><span class="wl-toggle-chip-label">Most wanted</span>
+    </label>
+    <label class="wl-remove-toggle" title="Remove this item">
+      {{ form.DELETE }}
+      <svg class="wl-remove-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>
+      </svg>
+      <span class="wl-remove-undo">Undo</span>
+      <span class="sr-only">Remove</span>
+    </label>
+  </div>
+
+  <div class="wl-edit-item-link">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    </svg>
+    {{ form.url|attr:"placeholder:Link (optional)"|attr:"aria-label:Link" }}
+  </div>
+
+  <details class="wl-edit-more"{% if form.description.value or form.price_range.value or form.price.value or form.errors %} open{% endif %}>
+    <summary>Notes, price &amp; category</summary>
+    <div class="wl-field">
+      <label for="{{ form.description.id_for_label }}">Notes</label>
+      {{ form.description|attr:"rows:3"|attr:"placeholder:Size, colour, model number…" }}
+    </div>
+    <div class="wl-field-row">
+      <div class="wl-field">
+        <label for="{{ form.price_range.id_for_label }}">Price range</label>
+        {{ form.price_range }}
+      </div>
+      <div class="wl-field">
+        <label for="{{ form.price.id_for_label }}">Price</label>
+        {{ form.price|attr:"placeholder:0.00"|attr:"inputmode:decimal" }}
+      </div>
+    </div>
+    {% if form.category %}
+    <div class="wl-field">
+      <label for="{{ form.category.id_for_label }}">Category</label>
+      <div class="wl-inline-field">
+        {{ form.category|attr:"data-category-select" }}
+        {% if wishlist.family_name %}
+        <button type="button" class="btn btn-outline-secondary" data-new-category>+ New</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </details>
+
+  {% if form.errors %}
+  <div class="wl-edit-item-errors" role="alert">
+    {% for field, errors in form.errors.items %}<div>{{ errors|striptags }}</div>{% endfor %}
+  </div>
+  {% endif %}
+</article>
