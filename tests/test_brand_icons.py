@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from scripts.build_icons import ICONS, OUT_DIR, build_svg
+from scripts.build_icons import ICONS, LOGOS, OUT_DIR, build_svg, source_hash
 
 pytestmark = pytest.mark.unit
 
@@ -24,15 +24,16 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def test_logo_matches_its_definition():
-    assert (OUT_DIR / 'logo.svg').read_text() == build_svg(), (
-        'gift/static/brand/logo.svg differs from scripts/build_icons.py — run `make icons`'
+@pytest.mark.parametrize('name', sorted(LOGOS))
+def test_logo_matches_its_definition(name):
+    assert (OUT_DIR / name).read_text() == build_svg(LOGOS[name]), (
+        f'gift/static/brand/{name} differs from scripts/build_icons.py — run `make icons`'
     )
 
 
 def test_icons_were_rendered_from_the_current_logo():
     stamp = json.loads(STAMP.read_text())
-    assert stamp['source_sha256'] == sha(OUT_DIR / 'logo.svg'), (
+    assert stamp['source_sha256'] == source_hash(), (
         'The logo changed since the icons were rendered — run `make icons`'
     )
 
@@ -47,7 +48,7 @@ def test_each_icon_is_the_one_that_was_rendered(name):
 
 @pytest.mark.parametrize('name', sorted(ICONS))
 def test_each_icon_has_its_declared_size(name):
-    size, _radius, _scale, opaque = ICONS[name]
+    size, _cut, _radius, _scale, opaque = ICONS[name]
     with Image.open(OUT_DIR / name) as image:
         assert image.size == (size, size)
         # Maskable and Apple icons are full-bleed: any transparency would show

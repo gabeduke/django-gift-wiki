@@ -1,13 +1,21 @@
 """Build Wikileet's logo and every app icon from one definition.
 
-The mark is declared once below as a list of simple shapes, and this script
-writes both the vector logo (used in the nav and as the favicon) and the PNG
-icons the PWA manifest and iOS need. Nothing is hand-drawn per size, so the
-icons can't drift from the logo.
+The mark is Cassiopeia, the W-shaped constellation: four stars and a wishing
+star, joined by faint lines into a W. It's declared once below as simple
+shapes, and this script writes both the vector logos and the PNG icons the PWA
+manifest and iOS need. Nothing is hand-drawn per size, so the icons can't
+drift from the logo.
 
     make icons
 
-It also writes `icons.json`, which records the hash of the SVG the PNGs were
+There are two drawings of the same constellation. Fine lines and small stars
+look right on a home screen and vanish at favicon size, so tiny renderings use
+a bolder cut, the way type is redrawn for small sizes:
+
+    logo.svg        full detail, for anything shown large
+    logo-small.svg  bold cut, for the nav and the browser tab
+
+It also writes `icons.json`, which records the hashes of the SVGs the PNGs were
 rendered from. tests/test_brand_icons.py fails if the logo changes without the
 icons being rebuilt, and the hashes double as cache-busting versions for the
 manifest, so an installed app picks up a new icon when the logo changes.
@@ -28,29 +36,42 @@ OUT_DIR = Path(__file__).resolve().parent.parent / 'gift' / 'static' / 'brand'
 CANVAS = 512
 SUPERSAMPLE = 4
 
-BRAND = '#2d6a4f'
+CREAM = '#f7f4ef'  # --bg-page
+GREEN = '#2d6a4f'  # --brand
+SAGE = '#8fb6a1'  # the constellation lines: present, but quieter than the stars
+EMBER = '#c4631e'  # the wishing star
 
-# The mark, on a 512x512 canvas. Painted in order, so later shapes sit on top.
+TILE = CREAM  # the background the mark sits on
+
+# Cassiopeia's five stars, left to right, centred on the canvas. The last is
+# the one you wish on.
+STARS = [(90, 214), (168, 348), (236, 262), (310, 356), (382, 200)]
+
+# Shapes on a 512x512 canvas, painted in order (later shapes sit on top):
 #   ('rect', x0, y0, x1, y1, corner_radius, fill)
 #   ('ellipse', cx, cy, rx, ry, rotation_degrees, fill)
-#   ('star', cx, cy, outer_radius, inner_radius, fill)
-MARK = [
-    # Bow loops, behind the lid so they look tied on
-    ('ellipse', 206, 170, 58, 30, 28, '#e9b44c'),
-    ('ellipse', 306, 170, 58, 30, -28, '#e9b44c'),
-    ('ellipse', 214, 174, 26, 11, 28, '#c98f2a'),
-    ('ellipse', 298, 174, 26, 11, -28, '#c98f2a'),
-    # Box body, the shadow the lid casts, then the lid
-    ('rect', 140, 238, 372, 404, 16, '#f7f4ef'),
-    ('rect', 140, 238, 372, 262, 0, '#e4ddd4'),
-    ('rect', 120, 196, 392, 250, 14, '#ffffff'),
-    # Ribbon down the front, and the knot
-    ('rect', 236, 196, 276, 404, 0, '#e9b44c'),
-    ('ellipse', 256, 192, 24, 20, 0, '#c98f2a'),
-    # A little sparkle
-    ('star', 398, 122, 30, 9, '#d8f3dc'),
-    ('star', 112, 146, 16, 5, '#d8f3dc'),
-]
+#   ('poly', [(x, y), ...], fill)
+#   ('stroke', [(x, y), ...], width, colour)  -- round caps and joins
+#   ('star', cx, cy, outer_radius, inner_radius, fill)  -- four points
+
+
+def constellation(line_width, radii, sparkle, spread):
+    """The mark at one weight. `spread` pushes the stars apart from the centre,
+    so a bolder cut doesn't clump."""
+    c = CANVAS / 2
+    stars = [(c + (x - c) * spread, c + (y - c) * spread) for x, y in STARS]
+    shapes = [('stroke', stars, line_width, SAGE)]
+    for (x, y), r in zip(stars, radii):
+        shapes.append(('ellipse', x, y, r, r, 0, GREEN))
+    wx, wy = stars[-1]
+    shapes.append(('star', wx, wy, sparkle[0], sparkle[1], EMBER))
+    return shapes
+
+
+MARKS = {
+    'full': constellation(line_width=14, radii=(24, 19, 28, 21), sparkle=(66, 17), spread=1.15),
+    'small': constellation(line_width=36, radii=(46, 40, 50, 42), sparkle=(104, 34), spread=1.14),
+}
 
 
 def ellipse_points(cx, cy, rx, ry, rotation, steps=180):
@@ -77,11 +98,13 @@ def fmt(n):
     return f'{n:.2f}'.rstrip('0').rstrip('.')
 
 
-def mark_svg_elements(scale=1.0):
-    """SVG elements for the mark, scaled about the canvas centre."""
-    c = CANVAS / 2
+def svg_points(points):
+    return ' '.join(f'{fmt(x)},{fmt(y)}' for x, y in points)
+
+
+def mark_svg_elements(mark):
     elements = []
-    for shape in MARK:
+    for shape in mark:
         kind = shape[0]
         if kind == 'rect':
             _, x0, y0, x1, y1, r, fill = shape
@@ -92,40 +115,50 @@ def mark_svg_elements(scale=1.0):
             )
         elif kind == 'ellipse':
             _, cx, cy, rx, ry, rot, fill = shape
-            transform = f' transform="rotate({fmt(rot)} {fmt(cx)} {fmt(cy)})"' if rot else ''
-            elements.append(
-                f'<ellipse cx="{fmt(cx)}" cy="{fmt(cy)}" rx="{fmt(rx)}" ry="{fmt(ry)}"'
-                f'{transform} fill="{fill}"/>'
-            )
+            if rx == ry and not rot:
+                elements.append(
+                    f'<circle cx="{fmt(cx)}" cy="{fmt(cy)}" r="{fmt(rx)}" fill="{fill}"/>'
+                )
+            else:
+                transform = f' transform="rotate({fmt(rot)} {fmt(cx)} {fmt(cy)})"' if rot else ''
+                elements.append(
+                    f'<ellipse cx="{fmt(cx)}" cy="{fmt(cy)}" rx="{fmt(rx)}" ry="{fmt(ry)}"'
+                    f'{transform} fill="{fill}"/>'
+                )
         elif kind == 'star':
             _, cx, cy, outer, inner, fill = shape
-            points = ' '.join(f'{fmt(x)},{fmt(y)}' for x, y in star_points(cx, cy, outer, inner))
-            elements.append(f'<polygon points="{points}" fill="{fill}"/>')
-    body = '\n    '.join(elements)
-    if scale == 1.0:
-        return f'<g>\n    {body}\n  </g>'
-    offset = c * (1 - scale)
-    return f'<g transform="translate({fmt(offset)} {fmt(offset)}) scale({fmt(scale)})">\n    {body}\n  </g>'
+            elements.append(
+                f'<polygon points="{svg_points(star_points(cx, cy, outer, inner))}" fill="{fill}"/>'
+            )
+        elif kind == 'poly':
+            _, points, fill = shape
+            elements.append(f'<polygon points="{svg_points(points)}" fill="{fill}"/>')
+        elif kind == 'stroke':
+            _, points, width, colour = shape
+            elements.append(
+                f'<polyline points="{svg_points(points)}" fill="none" stroke="{colour}" '
+                f'stroke-width="{fmt(width)}" stroke-linecap="round" stroke-linejoin="round"/>'
+            )
+    return '\n    '.join(elements)
 
 
-def build_svg():
-    """The logo: the mark on a rounded brand-green tile."""
+def build_svg(variant='full'):
+    """A logo: one cut of the mark on a rounded tile."""
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" '
         'role="img" aria-label="Wikileet">\n'
-        f'  <rect width="512" height="512" rx="112" fill="{BRAND}"/>\n'
-        f'  {mark_svg_elements()}\n'
+        f'  <rect width="512" height="512" rx="112" fill="{TILE}"/>\n'
+        f'  <g>\n    {mark_svg_elements(MARKS[variant])}\n  </g>\n'
         '</svg>\n'
     )
 
 
-def render_png(size, *, corner_radius, scale, sparkles=True):
-    """Rasterise the mark at `size` px.
+def render_png(size, *, variant, corner_radius, scale):
+    """Rasterise one cut of the mark at `size` px.
 
     corner_radius is in canvas units (0 for a full-bleed square, which is what
     maskable and Apple icons want — the OS applies its own mask). scale shrinks
     the mark about the centre to keep it inside a maskable icon's safe zone.
-    The sparkles are dropped at favicon sizes, where they'd only be specks.
     """
     px = CANVAS * SUPERSAMPLE
     k = SUPERSAMPLE
@@ -137,11 +170,11 @@ def render_png(size, *, corner_radius, scale, sparkles=True):
     image = Image.new('RGBA', (px, px), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     if corner_radius:
-        draw.rounded_rectangle((0, 0, px - 1, px - 1), radius=corner_radius * k, fill=BRAND)
+        draw.rounded_rectangle((0, 0, px - 1, px - 1), radius=corner_radius * k, fill=TILE)
     else:
-        draw.rectangle((0, 0, px, px), fill=BRAND)
+        draw.rectangle((0, 0, px, px), fill=TILE)
 
-    for shape in MARK:
+    for shape in MARKS[variant]:
         kind = shape[0]
         if kind == 'rect':
             _, x0, y0, x1, y1, r, fill = shape
@@ -153,23 +186,36 @@ def render_png(size, *, corner_radius, scale, sparkles=True):
         elif kind == 'ellipse':
             _, cx, cy, rx, ry, rot, fill = shape
             draw.polygon([tx(x, y) for x, y in ellipse_points(cx, cy, rx, ry, rot)], fill=fill)
-        elif kind == 'star' and sparkles:
+        elif kind == 'star':
             _, cx, cy, outer, inner, fill = shape
             draw.polygon([tx(x, y) for x, y in star_points(cx, cy, outer, inner)], fill=fill)
+        elif kind == 'poly':
+            _, points, fill = shape
+            draw.polygon([tx(x, y) for x, y in points], fill=fill)
+        elif kind == 'stroke':
+            _, points, width, colour = shape
+            w = width * scale * k
+            scaled = [tx(x, y) for x, y in points]
+            draw.line(scaled, fill=colour, width=round(w), joint='curve')
+            for x, y in (scaled[0], scaled[-1]):  # round caps
+                draw.ellipse((x - w / 2, y - w / 2, x + w / 2, y + w / 2), fill=colour)
 
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
 
-# filename -> (pixel size, corner radius in canvas units, mark scale, opaque)
+# The vector logos, by filename
+LOGOS = {'logo.svg': 'full', 'logo-small.svg': 'small'}
+
+# filename -> (pixel size, cut, corner radius in canvas units, mark scale, opaque)
 ICONS = {
-    'icon-192.png': (192, 112, 1.0, False),
-    'icon-512.png': (512, 112, 1.0, False),
+    'icon-192.png': (192, 'full', 112, 1.0, False),
+    'icon-512.png': (512, 'full', 112, 1.0, False),
     # Maskable: full bleed, mark kept inside the 80% safe-zone circle
-    'icon-maskable-512.png': (512, 0, 0.78, True),
-    'icon-maskable-192.png': (192, 0, 0.78, True),
+    'icon-maskable-512.png': (512, 'full', 0, 0.78, True),
+    'icon-maskable-192.png': (192, 'full', 0, 0.78, True),
     # iOS ignores transparency and rounds the corners itself
-    'apple-touch-icon.png': (180, 0, 0.86, True),
-    'favicon-32.png': (32, 112, 1.0, False),
+    'apple-touch-icon.png': (180, 'full', 0, 0.86, True),
+    'favicon-32.png': (32, 'small', 112, 1.0, False),
 }
 
 
@@ -177,15 +223,22 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def source_hash():
+    """One hash over every logo the PNGs are rendered from."""
+    return sha(''.join(build_svg(variant) for variant in LOGOS.values()).encode())
+
+
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    svg = build_svg()
-    (OUT_DIR / 'logo.svg').write_text(svg)
+    stamp = {'source_sha256': source_hash(), 'files': {}}
 
-    stamp = {'source_sha256': sha(svg.encode()), 'files': {}}
-    stamp['files']['logo.svg'] = sha(svg.encode())[:12]
-    for name, (size, radius, scale, opaque) in ICONS.items():
-        image = render_png(size, corner_radius=radius, scale=scale, sparkles=size > 48)
+    for name, variant in LOGOS.items():
+        svg = build_svg(variant)
+        (OUT_DIR / name).write_text(svg)
+        stamp['files'][name] = sha(svg.encode())[:12]
+
+    for name, (size, variant, radius, scale, opaque) in ICONS.items():
+        image = render_png(size, variant=variant, corner_radius=radius, scale=scale)
         if opaque:
             image = image.convert('RGB')
         path = OUT_DIR / name
@@ -193,7 +246,7 @@ def main():
         stamp['files'][name] = sha(path.read_bytes())[:12]
 
     (OUT_DIR / 'icons.json').write_text(json.dumps(stamp, indent=2, sort_keys=True) + '\n')
-    print(f'Wrote logo.svg and {len(ICONS)} icons to {OUT_DIR}')
+    print(f'Wrote {len(LOGOS)} logos and {len(ICONS)} icons to {OUT_DIR}')
     return 0
 
 

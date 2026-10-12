@@ -1,12 +1,13 @@
 {
   "files": {
-    "apple-touch-icon.png": "2d3cb875264f",
-    "favicon-32.png": "01e4119d41a2",
-    "icon-192.png": "11156a293fd1",
-    "icon-512.png": "56759013adf7",
-    "icon-maskable-192.png": "83e5528f4662",
-    "icon-maskable-512.png": "320ecd712a88",
-    "logo.svg": "1d2d4f0bd8dc"
+    "apple-touch-icon.png": "5c7304d18134",
+    "favicon-32.png": "38d2c2c4fa02",
+    "icon-192.png": "35a412627f9a",
+    "icon-512.png": "402f5c241349",
+    "icon-maskable-192.png": "9c2e52ab1165",
+    "icon-maskable-512.png": "6c057800d225",
+    "logo-small.svg": "e8a61500ce68",
+    "logo.svg": "330db3cf41e4"
   },
-  "source_sha256": "1d2d4f0bd8dc8f04484f120be36c1072d44450c4b72c16cce5fc02d56d7b9f53"
+  "source_sha256": "6c4674d2f2c4c21a1ce2ea1754fa3da8ecc394be32bfcf416b1c44eb2d4b72e3"
 }

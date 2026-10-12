@@ -1,16 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Wikileet">
-  <rect width="512" height="512" rx="112" fill="#2d6a4f"/>
+  <rect width="512" height="512" rx="112" fill="#f7f4ef"/>
   <g>
-    <ellipse cx="206" cy="170" rx="58" ry="30" transform="rotate(28 206 170)" fill="#e9b44c"/>
-    <ellipse cx="306" cy="170" rx="58" ry="30" transform="rotate(-28 306 170)" fill="#e9b44c"/>
-    <ellipse cx="214" cy="174" rx="26" ry="11" transform="rotate(28 214 174)" fill="#c98f2a"/>
-    <ellipse cx="298" cy="174" rx="26" ry="11" transform="rotate(-28 298 174)" fill="#c98f2a"/>
-    <rect x="140" y="238" width="232" height="166" rx="16" fill="#f7f4ef"/>
-    <rect x="140" y="238" width="232" height="24" fill="#e4ddd4"/>
-    <rect x="120" y="196" width="272" height="54" rx="14" fill="#ffffff"/>
-    <rect x="236" y="196" width="40" height="208" fill="#e9b44c"/>
-    <ellipse cx="256" cy="192" rx="24" ry="20" fill="#c98f2a"/>
-    <polygon points="398,92 404.36,115.64 428,122 404.36,128.36 398,152 391.64,128.36 368,122 391.64,115.64" fill="#d8f3dc"/>
-    <polygon points="112,130 115.54,142.46 128,146 115.54,149.54 112,162 108.46,149.54 96,146 108.46,142.46" fill="#d8f3dc"/>
+    <polyline points="65.1,207.7 154.8,361.8 233,262.9 318.1,371 400.9,191.6" fill="none" stroke="#8fb6a1" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="65.1" cy="207.7" r="24" fill="#2d6a4f"/>
+    <circle cx="154.8" cy="361.8" r="19" fill="#2d6a4f"/>
+    <circle cx="233" cy="262.9" r="28" fill="#2d6a4f"/>
+    <circle cx="318.1" cy="371" r="21" fill="#2d6a4f"/>
+    <polygon points="400.9,125.6 412.92,179.58 466.9,191.6 412.92,203.62 400.9,257.6 388.88,203.62 334.9,191.6 388.88,179.58" fill="#c4631e"/>
   </g>
 </svg>
