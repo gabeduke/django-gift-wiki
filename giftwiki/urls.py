@@ -31,6 +31,10 @@ urlpatterns = [
     path(
         'sessionLogin', gift_views.session_login_view, name='session_login'
     ),  # Firebase session cookie creation (replaces Cloud Function)
+    # PWA — at the root because a service worker's scope is its own path
+    path('manifest.webmanifest', gift_views.manifest_view, name='manifest'),
+    path('sw.js', gift_views.service_worker_view, name='service_worker'),
+    path('offline/', gift_views.offline_view, name='offline'),
 ]
 
 # Serve static files in development

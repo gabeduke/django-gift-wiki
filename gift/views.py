@@ -1,21 +1,26 @@
 import json
 import logging
+import re
 import secrets
 import string
 from collections import defaultdict
 from datetime import date
+from functools import lru_cache
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.staticfiles import finders
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.validators import URLValidator
 from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views import generic
@@ -23,6 +28,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
+from . import pwa
 from .forms import (
     AssignLoginEmailForm,
     CategoryForm,
@@ -98,6 +104,81 @@ def privacy_view(request):
 
 def data_deletion_view(request):
     return render(request, 'gift/data_deletion.html')
+
+
+# ---- PWA -------------------------------------------------------------------
+# These are fetched by the browser on its own, not by people, so they stay
+# public and never touch the database. See gift/pwa.py.
+
+
+def manifest_view(request):
+    response = JsonResponse(pwa.build_manifest(), json_dumps_params={'indent': 2})
+    response['Content-Type'] = 'application/manifest+json'
+    response['Cache-Control'] = 'no-cache'
+    return response
+
+
+def _build_service_worker():
+    with open(finders.find('js/sw.js'), encoding='utf-8') as handle:
+        source = handle.read()
+    config = (
+        f'var SW_VERSION = {json.dumps(pwa.service_worker_version())};\n'
+        f'var OFFLINE_URL = {json.dumps(reverse("offline"))};\n'
+        f'var PRECACHE_URLS = {json.dumps([pwa.versioned_static(p) for p in pwa.PRECACHE_STATIC])};\n'
+    )
+    return config + source
+
+
+_build_service_worker_cached = lru_cache(maxsize=1)(_build_service_worker)
+
+
+def service_worker_view(request):
+    """The service worker, served from the site root so its scope covers every page."""
+    body = _build_service_worker() if settings.DEBUG else _build_service_worker_cached()
+    response = HttpResponse(body, content_type='application/javascript')
+    # Browsers re-check the worker on navigation; never let an HTTP cache pin an old one.
+    response['Cache-Control'] = 'no-cache'
+    return response
+
+
+def offline_view(request):
+    """Shown by the service worker when a page can't load. Standalone on purpose:
+    it's cached once for everyone, so it can't carry anything user-specific.
+    Rendered without the request so no context processor resolves the session
+    or counts changelog entries — that would be a query on every worker install."""
+    return HttpResponse(render_to_string('gift/offline.html'))
+
+
+SHARED_URL_PATTERN = re.compile(r'https?://\S+')
+
+
+@require_GET
+@login_required
+def share_target(request):
+    """Where Android's share sheet lands (the manifest's share_target).
+
+    Shopping apps disagree about where they put things — some send `url`, some
+    bury the link in `text` with a sales pitch, some send only a title — so
+    pull out the first link and the best name, then open quick add with both.
+    """
+    title = request.GET.get('title', '').strip()
+    text = request.GET.get('text', '').strip()
+    url = request.GET.get('url', '').strip()
+
+    if not url:
+        match = SHARED_URL_PATTERN.search(text)
+        if match:
+            url = match.group(0)
+    if url:
+        text = text.replace(url, '').strip()
+
+    name = title or text
+    params = {'quick_add': '1'}
+    if name:
+        params['name'] = name[:255]
+    if url:
+        params['url'] = url
+    return redirect(f'{reverse("gift:home")}?{urlencode(params)}')
 
 
 @csrf_exempt
@@ -245,6 +326,19 @@ def can_add_openly(wishlist, user):
     return wishlist.managers.filter(pk=user.pk).exists()
 
 
+def active_items_visible_to(wishlist, user):
+    """Active items on `wishlist` that `user` may know exist.
+
+    Surprise items never reach the owner or the dependent the list is kept for
+    — not in a count, not in a duplicate check, not anywhere. Everything that
+    shows a list's items to someone starts here so that rule lives in one place.
+    """
+    items = wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
+    if user == wishlist.owner or user == wishlist.dependent:
+        items = items.exclude(is_sneaky=True)
+    return items
+
+
 @require_GET
 @login_required
 def wishlist_picker(request):
@@ -272,11 +366,54 @@ def wishlist_picker(request):
                     'gift:add_item' if open_add else 'gift:add_sneaky_item',
                     args=[wishlist.id],
                 ),
+                'glance_url': reverse('gift:wishlist_glance', args=[wishlist.id]),
             }
         )
     entries.sort(key=lambda entry: (entry['person'].lower(), entry['title'].lower()))
 
     return JsonResponse({'wishlists': entries})
+
+
+# Plenty for a duplicate check; a list longer than this has other problems.
+GLANCE_ITEM_LIMIT = 200
+
+
+@require_GET
+@login_required
+def wishlist_glance(request, wishlist_id):
+    """What's already on a list, for quick add's "is this already here?" check.
+
+    Fetched when a list is picked, then matched in the browser as the user
+    types, so typing costs no requests. Shows exactly what the wishlist page
+    would show this user: surprise items are withheld from the recipient, and
+    purchase status from anyone owner-side.
+    """
+    wishlist = get_object_or_404(
+        WishList.objects.select_related('owner', 'dependent'), id=wishlist_id
+    )
+    shows_purchases = not can_add_openly(wishlist, request.user)
+
+    items = (
+        active_items_visible_to(wishlist, request.user)
+        .select_related('added_by')
+        .order_by('-is_priority', 'id')[:GLANCE_ITEM_LIMIT]
+    )
+
+    entries = []
+    for item in items:
+        entry = {'name': item.name, 'url': item.url or '', 'is_sneaky': item.is_sneaky}
+        if item.is_sneaky and item.added_by:
+            entry['added_by'] = person_display_name(item.added_by)
+        if shows_purchases:
+            entry['purchased'] = item.purchased
+        entries.append(entry)
+
+    return JsonResponse(
+        {
+            'person': person_display_name(wishlist.dependent or wishlist.owner),
+            'items': entries,
+        }
+    )
 
 
 @require_POST
@@ -1225,6 +1362,22 @@ def wishlist_search_text(wishlist):
     return f'{wishlist.title} {person_display_name(person)}'.strip().lower()
 
 
+# How far ahead of Christmas the home page starts counting down.
+HOLIDAY_COUNTDOWN_DAYS = 100
+
+# The home page's "What's new" card shows this many entries; the rest are a
+# link away, so a returning user isn't met with a wall of text.
+CHANGELOG_CARD_LIMIT = 2
+
+
+def days_until_christmas(today):
+    """Days from `today` to Christmas, or None outside the run-up to it."""
+    days = (date(today.year, 12, 25) - today).days
+    if 0 <= days <= HOLIDAY_COUNTDOWN_DAYS:
+        return days
+    return None
+
+
 def home(request):
     # Only show wishlists if user is authenticated
     wishlists_grouped = {}
@@ -1232,8 +1385,11 @@ def home(request):
     grouping_options = []
     upcoming_birthdays = []
     unseen_changelog_entries = []
+    christmas_in_days = None
 
     if request.user.is_authenticated:
+        christmas_in_days = days_until_christmas(timezone.localdate())
+
         # Prompt user to add birthday if missing
         if not request.user.birthday:
             messages.info(request, "Please add your birthday to your profile so others can organize gifts for you! 🎁")
@@ -1321,7 +1477,9 @@ def home(request):
         'grouping_options': grouping_options,
         'show_scraped_page_prompt': show_scraped_page_prompt,
         'upcoming_birthdays': upcoming_birthdays,
-        'unseen_changelog_entries': unseen_changelog_entries,
+        'unseen_changelog_entries': unseen_changelog_entries[:CHANGELOG_CARD_LIMIT],
+        'unseen_changelog_more': max(0, len(unseen_changelog_entries) - CHANGELOG_CARD_LIMIT),
+        'christmas_in_days': christmas_in_days,
     }
     return render(request, 'gift/home.html', context)
 
@@ -1365,15 +1523,13 @@ def wishlist_detail(request, wishlist_id):
 
     # Priority items first; id keeps a stable order within each group.
     # Archived gifts live on the received-gifts page instead of the active list.
+    # Sneaky items never reach the owner/recipient's queryset at all
     items = (
-        wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
+        active_items_visible_to(wishlist, request.user)
         .select_related('purchased_by', 'updated_by', 'added_by')
         .prefetch_related('categories')
         .order_by('-is_priority', 'id')
     )
-    # Sneaky items never reach the owner/recipient's queryset at all
-    if is_owner:
-        items = items.exclude(is_sneaky=True)
 
     # Sneaky items get their own labelled section rather than being folded into
     # the recipient's categories: they are other people's additions, not things

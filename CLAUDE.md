@@ -27,13 +27,17 @@ make run     # start dev server
 | Back up the DB | `make db-backup` |
 | Verify a dump | `make db-verify DUMP=<file>` |
 | Restore runbook | `make db-restore` |
+| Rebuild logo + app icons | `make icons` |
 
 ## Architecture
 
 - **Django 5.1** with custom user model (`WikiUser` extends `AbstractUser`)
 - **Firebase Auth** — session cookie–based authentication via `FirebaseAuthMiddleware`; `sessionLogin` endpoint is a Django view (not a Firebase Function); no Django username/password login in production
 - **Database** — PostgreSQL (Neon) in prod, SQLite locally (auto-detected via `DJANGO_DB_HOST`)
-- **Static files** — WhiteNoise (not S3)
+- **Static files** — WhiteNoise (not S3). URLs are **not** fingerprinted: `STATICFILES_STORAGE` was removed in Django 5.1, so the setting is silently ignored. Use `{% vstatic %}` (content-hash `?v=`) for anything a browser or the service worker caches long-term.
+- **PWA** — `gift/pwa.py` builds the manifest; `/manifest.webmanifest`, `/sw.js` (logic in `gift/static/js/sw.js`) and `/offline/` are public and run **zero** DB queries (tests enforce it). The worker never caches pages — they show purchase state, and a stale copy could cause a double-bought gift. Android's share sheet lands on `/share/`, which opens quick add prefilled.
+- **Logo/icons** — defined once in `scripts/build_icons.py`; `make icons` writes `gift/static/brand/`. Never hand-edit those files; `tests/test_brand_icons.py` fails on drift.
+- **Item visibility** — anything that shows a list's items goes through `active_items_visible_to()` (surprise items never reach the owner/dependent). Purchase status is hidden from anyone `can_add_openly()`.
 - **Media/uploads** — S3 when `USE_S3=TRUE`, local filesystem otherwise
 - **Feature flags** — DB-first via `FeatureFlag` model (admin-togglable), env var fallback
 - **Monitoring** — Prometheus metrics middleware; database-error alerting via `terraform/monitoring.tf` (log-based, needs the `ALERT_EMAIL` GitHub secret)
@@ -59,7 +63,9 @@ terraform/               # Infrastructure as code (remote state: GCS wikileet-te
 firebase-functions/      # Legacy Cloud Functions (sessionLogin moved to Django)
 local-docs/              # Extensive internal documentation
 docs/superpowers/specs/  # Approved design specs for work not yet built
-scripts/                 # Helper/utility scripts
+scripts/                 # Helper/utility scripts (incl. build_icons.py)
+gift/static/js/          # app.js (SW, install prompt, toasts), quick-add.js, sw.js
+gift/static/brand/       # Generated logo + icons — `make icons`, don't edit
 ```
 
 ## Designs not yet built
