@@ -529,7 +529,8 @@ class Season(models.Model):
 class ChangelogEntry(models.Model):
     """
     A "What's new" announcement. Unseen active entries are shown on the home
-    page until the user dismisses them (which adds them to seen_by).
+    page until the user dismisses them or opens the What's New page (either
+    adds them to seen_by).
     """
 
     slug = models.SlugField(unique=True)

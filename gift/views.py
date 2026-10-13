@@ -1581,10 +1581,29 @@ def home(request):
     return render(request, 'gift/home.html', context)
 
 
+def mark_changelog_seen(user, entries):
+    """Record `entries` as seen by `user` in one query, however many there are."""
+    ChangelogEntry.seen_by.through.objects.bulk_create(
+        [ChangelogEntry.seen_by.through(changelogentry_id=entry.id, wikiuser_id=user.id) for entry in entries],
+        ignore_conflicts=True,
+    )
+
+
 @login_required
 def changelog(request):
-    """Full "What's new" history — every active entry, newest first."""
-    entries = ChangelogEntry.objects.filter(is_active=True)
+    """Full "What's new" history — every active entry, newest first.
+
+    Opening it counts as reading it: anything unseen is tagged "New" for this
+    visit and then marked seen, so the nav badge and the More tab's dot clear
+    without a trip back to the home card's "Got it".
+    """
+    entries = list(ChangelogEntry.objects.filter(is_active=True))
+    seen = set(request.user.seen_changelog_entries.values_list('id', flat=True))
+    unseen = [entry for entry in entries if entry.id not in seen]
+    for entry in unseen:
+        entry.is_new = True
+    # Before rendering, so this page's own badge already reads zero
+    mark_changelog_seen(request.user, unseen)
     return render(request, 'gift/changelog.html', {'entries': entries})
 
 
@@ -1592,9 +1611,10 @@ def changelog(request):
 @login_required
 def changelog_dismiss(request):
     """Mark every currently-unseen active entry as seen by the current user."""
-    unseen = ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user)
-    for entry in unseen:
-        entry.seen_by.add(request.user)
+    mark_changelog_seen(
+        request.user,
+        ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user),
+    )
     return redirect('gift:home')
 
 
