@@ -274,6 +274,7 @@ class FirebaseAuthMiddleware:
             '/sessionLogin',
             '/privacy/',
             '/data-deletion/',
+            '/robots.txt',
             # PWA plumbing the browser fetches on its own; none of it is per-user
             '/manifest.webmanifest',
             '/sw.js',

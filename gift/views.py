@@ -108,6 +108,21 @@ def data_deletion_view(request):
     return render(request, 'gift/data_deletion.html')
 
 
+# Gift lists are private, and every crawl wakes a scaled-to-zero container.
+# /privacy/ and /data-deletion/ stay open because Google's OAuth review reads them.
+ROBOTS_TXT = """User-agent: *
+Allow: /privacy/
+Allow: /data-deletion/
+Disallow: /
+"""
+
+
+def robots_view(request):
+    response = HttpResponse(ROBOTS_TXT, content_type='text/plain')
+    response['Cache-Control'] = 'public, max-age=86400'
+    return response
+
+
 # ---- PWA -------------------------------------------------------------------
 # These are fetched by the browser on its own, not by people, so they stay
 # public and never touch the database. See gift/pwa.py.
