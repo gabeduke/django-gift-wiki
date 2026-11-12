@@ -24,6 +24,8 @@ from gift import views as gift_views
 
 urlpatterns = [
     path('', include('gift.urls')),  # Include the gift app's URLs at the root
+    # MCP server + OAuth. At the root because /.well-known/ discovery can't take a prefix.
+    path('', include('gift_mcp.urls')),
     path('admin/login/', gift_views.custom_admin_login, name='custom_admin_login'),
     path('admin/', admin.site.urls),
     path('metrics/', gift_views.metrics_view, name='metrics'),  # Prometheus metrics endpoint
