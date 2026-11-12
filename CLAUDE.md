@@ -47,6 +47,7 @@ make run     # start dev server
 - **Backups** — nightly `pg_dump` to GCS via `.github/workflows/db-backup.yml`; bucket and 90-day retention in `terraform/backups.tf`. Neon's free-plan restore window is only **6 hours**, so these dumps are the real recovery path. Restore runbook: `make db-restore`. Dumps must use the **direct** endpoint, not the `-pooler` one — PgBouncer's transaction mode breaks pg_dump's snapshot.
 - **Neon quota** — Free plan allows **100 CU-hours/project/month**; exceeding it suspends the compute until the period resets (an outage, not a bill), and Free has no spending notifications. `.github/workflows/neon-quota.yml` polls consumption every 6h and opens an issue; it needs the `NEON_API_KEY` secret. Logic and thresholds live in `scripts/check_neon_quota.py`.
 - **Never poll a DB-backed endpoint on a schedule** — uptime checks or probes against `/health/db/` keep the Neon compute from suspending, which is what forced the paid plan (PR #93). Alerting here is passive/log-based for that reason.
+- **MCP server** — `gift_mcp/` lets an AI assistant (Claude on web/phone/Desktop/Code) read the lists and add items, acting as the person who connected it. Stateless JSON-RPC over `POST /mcp` — it runs on the existing gunicorn/WSGI setup, no ASGI. Auth is bearer-only: personal tokens (`gwt_`, made on `/connect-ai/`) and an OAuth 2.1 server with dynamic client registration (`gwa_`/`gwr_` tokens) so claude.ai connectors can sign in with the normal Google login. **Ships dark behind the `MCP_ENABLED` feature flag.** Tools are plain functions in `gift_mcp/tools.py` that take the acting `user` first — it comes from the token, never from an argument — and answer through `gift/services.py` (the spoiler rules, shared with the web views; never re-implement a visibility rule in a tool). Read + add only; nothing edits, deletes or marks purchased. Never log tool arguments or results (gift secrets). Runbook and design: `docs/mcp.md`.
 - **Health endpoints** — `/health/` is process liveness and does **no** DB query; `/health/db/` is the deep DB connectivity check. Probes and uptime monitors must use `/health/`. Polling `/health/db/` more often than Neon's autosuspend timeout keeps the compute awake and burns the compute-hour allowance.
 - **Deployment** — Cloud Run (primary) via Terraform + GitHub Actions; Kubernetes manifests in `deploy/` are k3s reference/backup only
 - **Terraform state** — Remote backend in GCS bucket `wikileet-terraform-state`
@@ -55,6 +56,8 @@ make run     # start dev server
 ## Key Directories
 ```
 gift/                    # Main Django app (models, views, forms, templates, middleware)
+gift/services.py         # Spoiler rules (who sees/adds what) shared by views and MCP
+gift_mcp/                # MCP server + OAuth sign-in (behind MCP_ENABLED)
 giftwiki/                # Project settings, feature flags, URL config
 tests/                   # pytest suite (api/)
 deploy/base/             # k3s Kubernetes base manifests (reference/backup only)

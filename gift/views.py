@@ -51,6 +51,17 @@ from .models import (
     Season,
     WishList,
 )
+
+# The access rules live in services.py so the MCP server shares them; the names
+# stay importable from here because the views (and their tests) use them freely.
+from .services import (  # noqa: F401
+    ItemProblem,
+    active_items_visible_to,
+    added_message,
+    can_add_openly,
+    create_item_for,
+    person_display_name,
+)
 from .themes import THEMES, theme_colour, theme_for
 
 logger = logging.getLogger(__name__)
@@ -331,33 +342,6 @@ def quick_add_prefill(request):
     }
 
 
-def can_add_openly(wishlist, user):
-    """Whether `user` may put an ordinary, visible item on `wishlist`.
-
-    Owner-side means the owner, the dependent the list is kept for, or a
-    manager. Everyone else is a gift-giver, and what they add has to stay
-    hidden from the recipient.
-    """
-    if user == wishlist.owner or user == wishlist.dependent:
-        return True
-    # Iterating .all() rather than .filter().exists() lets the picker's
-    # prefetch_related('managers') answer this without a query per list.
-    return any(manager.pk == user.pk for manager in wishlist.managers.all())
-
-
-def active_items_visible_to(wishlist, user):
-    """Active items on `wishlist` that `user` may know exist.
-
-    Surprise items never reach the owner or the dependent the list is kept for
-    — not in a count, not in a duplicate check, not anywhere. Everything that
-    shows a list's items to someone starts here so that rule lives in one place.
-    """
-    items = wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
-    if user == wishlist.owner or user == wishlist.dependent:
-        items = items.exclude(is_sneaky=True)
-    return items
-
-
 @require_GET
 @login_required
 def wishlist_picker(request):
@@ -466,50 +450,28 @@ def item_quick_add(request):
         WishList.objects.select_related('owner', 'dependent'), id=wishlist_id
     )
 
-    name = (data.get('name') or '').strip()
-    if not name:
-        return JsonResponse({'status': 'error', 'message': 'Give the item a name.'}, status=400)
-    if len(name) > 255:
-        return JsonResponse(
-            {'status': 'error', 'message': 'That name is too long (255 characters max).'},
-            status=400,
-        )
-
-    url = (data.get('url') or '').strip()
-    if url:
-        try:
-            URLValidator()(url)
-        except ValidationError:
-            return JsonResponse(
-                {'status': 'error', 'message': "That link doesn't look like a valid URL."},
-                status=400,
-            )
-
-    is_sneaky = not can_add_openly(wishlist, request.user)
-    item = Item(wishlist=wishlist, name=name, url=url or None, is_sneaky=is_sneaky)
-    item.save(current_user=request.user)
+    try:
+        item = create_item_for(request.user, wishlist, data.get('name'), data.get('url'))
+    except ItemProblem as problem:
+        return JsonResponse({'status': 'error', 'message': str(problem)}, status=400)
 
     logger.info(
         'Item quick-added',
         extra={
             'item_id': item.id,
             'wishlist_id': wishlist.id,
-            'is_sneaky': is_sneaky,
+            'is_sneaky': item.is_sneaky,
             'user': request.user.email,
         },
     )
 
-    person = person_display_name(wishlist.dependent or wishlist.owner)
-    if is_sneaky:
-        message = f'Surprise gift added to {wishlist.title} — {person} can’t see it. 🤫'
-    else:
-        message = f'Added “{item.name}” to {wishlist.title}.'
+    message = added_message(wishlist, item)
 
     return JsonResponse(
         {
             'status': 'ok',
             'item': {'id': item.id, 'name': item.name},
-            'is_sneaky': is_sneaky,
+            'is_sneaky': item.is_sneaky,
             'wishlist': {
                 'id': wishlist.id,
                 'title': wishlist.title,
@@ -1449,17 +1411,6 @@ def get_upcoming_birthdays(limit=5):
             entry['wishlist_id'] = wishlist_by_person.get(entry['user'].id)
 
     return upcoming
-
-
-def person_display_name(person):
-    """The name shown for a person in the UI: full name when set, else username.
-
-    Mirrors the `get_full_name|default:username` idiom the row templates use —
-    get_full_name() returns '' when neither name is set, which is falsy.
-    """
-    if not person:
-        return ''
-    return person.get_full_name() or person.username
 
 
 def wishlist_search_text(wishlist):

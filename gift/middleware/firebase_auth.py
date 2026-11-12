@@ -215,6 +215,37 @@ class FirebaseAuthBackend(ModelBackend):
             return None
 
 
+def env_allowed_users():
+    """Emails named in DJANGO_ALLOWED_USERS, lowercased."""
+    raw = os.getenv('DJANGO_ALLOWED_USERS', '').strip()
+    return {email.strip().lower() for email in raw.split(',') if email.strip()}
+
+
+def is_email_allowed(email, env_allowed=None):
+    """Whether `email` may use the app: on the database allowlist, or named in the env one.
+
+    The one place this is decided. The middleware calls it for browser sessions and
+    the MCP server calls it for every token request, so taking someone off the list
+    cuts off their connectors as well as their browser.
+    """
+    if not email:
+        return False
+
+    email = email.lower()
+
+    # Check database allowlist
+    try:
+        from gift.models import AllowedEmail
+
+        if AllowedEmail.objects.filter(email__iexact=email).exists():
+            return True
+    except Exception as e:
+        logger.error(f'Error checking database allowlist: {e}')
+
+    # Fallback to env allowlist
+    return email in (env_allowed if env_allowed is not None else env_allowed_users())
+
+
 class FirebaseAuthMiddleware:
     """
     Middleware that automatically authenticates users based on Firebase session cookies.
@@ -248,21 +279,7 @@ class FirebaseAuthMiddleware:
         Check if a user's email is in the allowlist.
         Returns True if email is in allowlist.
         """
-        if not email:
-            return False
-            
-        email = email.lower()
-
-        # Check database allowlist
-        try:
-            from gift.models import AllowedEmail
-            if AllowedEmail.objects.filter(email__iexact=email).exists():
-                return True
-        except Exception as e:
-            logger.error(f'Error checking database allowlist: {e}')
-
-        # Fallback to env allowlist
-        return email in self.allowed_users
+        return is_email_allowed(email, self.allowed_users)
 
     def __call__(self, request):
         # Skip authentication for health check, metrics, and auth pages

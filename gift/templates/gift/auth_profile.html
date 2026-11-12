@@ -183,6 +183,15 @@
       <a href="{% url 'gift:select_scraped_page' %}?reset=1" class="btn btn-outline-secondary btn-sm">Re-select</a>
     </div>
     {% endif %}
+    {% if feature_flags.MCP_ENABLED %}
+    <div class="wl-settings-row">
+      <div>
+        <strong>AI assistant</strong>
+        <span>Let Claude read the lists and add items for you.</span>
+      </div>
+      <a href="{% url 'gift_mcp:connect_ai' %}" class="btn btn-outline-secondary btn-sm">Connect</a>
+    </div>
+    {% endif %}
     <div class="wl-settings-row">
       <div>
         <strong>Sign out</strong>

@@ -97,6 +97,11 @@ def get_profile_picture_enabled():
     return get_flag('PROFILE_PICTURE_ENABLED', 'PROFILE_PICTURE_ENABLED', default=False)
 
 
+def get_mcp_enabled():
+    """Get MCP_ENABLED flag — the MCP server and its OAuth sign-in 404 while this is off."""
+    return get_flag('MCP_ENABLED', 'MCP_ENABLED', default=False)
+
+
 # Module-level accessors - use simple environment variables at import time
 # Database flags will be checked when needed via get_flag() functions
 STEWARD_PROXY_ENABLED = os.getenv('STEWARD_PROXY_ENABLED', 'FALSE').upper() == 'TRUE'
@@ -108,6 +113,7 @@ def _get_feature_flags_dict():
     return {
         'STEWARD_PROXY_ENABLED': get_steward_proxy_enabled(),
         'PROFILE_PICTURE_ENABLED': get_profile_picture_enabled(),
+        'MCP_ENABLED': get_mcp_enabled(),
     }
 
 

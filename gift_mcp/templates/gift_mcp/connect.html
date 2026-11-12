@@ -1,0 +1,86 @@
+{% extends 'gift/base/base_generic.html' %}
+
+{% block title %}Connect an AI assistant · Gift Wiki{% endblock %}
+
+{% block content %}
+<div class="wl-page wl-page-medium">
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">Connect an AI assistant</h1>
+    <p class="wl-page-subtitle">
+      Let Claude (or another assistant) read the family's lists and add items for you. It acts
+      as you, and follows the same surprise rules as this site.
+    </p>
+  </div>
+
+  {% if new_token %}
+  <section class="wl-card" style="border:2px solid var(--brand, #4a7c59);">
+    <h2 class="wl-card-title">Copy your new token now</h2>
+    <p class="wl-card-subtitle">It's shown only this once. Anyone with it can act as you here, so keep it private.</p>
+    <input type="text" readonly value="{{ new_token }}" class="form-control" onclick="this.select()" aria-label="New token">
+  </section>
+  {% endif %}
+
+  <section class="wl-card">
+    <h2 class="wl-card-title">Server address</h2>
+    <input type="text" readonly value="{{ mcp_url }}" class="form-control" onclick="this.select()" aria-label="MCP server address">
+    <p class="form-text">
+      <strong>Claude on the web or phone:</strong> Settings → Connectors → Add custom connector, and
+      paste the address. You'll sign in here and approve.<br>
+      <strong>Claude Code:</strong> make a token below, then run
+      <code>claude mcp add --transport http gift-wiki {{ mcp_url }} --header "Authorization: Bearer YOUR_TOKEN"</code>
+    </p>
+  </section>
+
+  <section class="wl-card">
+    <h2 class="wl-card-title">Apps you've approved</h2>
+    {% if connections %}
+      {% for client in connections %}
+      <form method="post" class="wl-field" style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="revoke_connection">
+        <input type="hidden" name="id" value="{{ client.pk }}">
+        <span>{{ client.client_name }}</span>
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Disconnect</button>
+      </form>
+      {% endfor %}
+    {% else %}
+      <p class="wl-card-subtitle">None yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="wl-card">
+    <h2 class="wl-card-title">Personal tokens</h2>
+    {% for token in tokens %}
+    <form method="post" class="wl-field" style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="revoke_token">
+      <input type="hidden" name="id" value="{{ token.pk }}">
+      <span>
+        {{ token.name }} <code>{{ token.token_prefix }}…</code><br>
+        <small class="form-text">
+          Made {{ token.created_at|date:"M j, Y" }} ·
+          {% if token.last_used_at %}last used {{ token.last_used_at|date:"M j, Y" }}{% else %}never used{% endif %}
+        </small>
+      </span>
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Revoke</button>
+    </form>
+    {% empty %}
+      <p class="wl-card-subtitle">No tokens yet.</p>
+    {% endfor %}
+
+    <form method="post" class="wl-form" style="margin-top:16px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_token">
+      <div class="wl-field">
+        <label class="wl-label" for="token-name">What's it for?</label>
+        <input type="text" id="token-name" name="name" maxlength="80" class="form-control" placeholder="Claude Code on my laptop">
+      </div>
+      <div class="wl-form-actions">
+        <button type="submit" class="btn btn-primary">Make a token</button>
+      </div>
+    </form>
+  </section>
+
+</div>
+{% endblock %}

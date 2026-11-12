@@ -1,0 +1,45 @@
+{% extends 'gift/base/base_generic.html' %}
+
+{% block title %}Connect {{ client_name }} · Gift Wiki{% endblock %}
+
+{% block content %}
+<div class="wl-page wl-page-medium">
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">Connect {{ client_name }}?</h1>
+    <p class="wl-page-subtitle">
+      It will use the Gift Wiki as you ({{ request.user.first_name|default:request.user.username }}).
+    </p>
+  </div>
+
+  <form method="post" class="wl-form">
+    {% csrf_token %}
+    {% for name, value in fields.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+
+    <section class="wl-card">
+      <h2 class="wl-card-title">What it can do</h2>
+      <ul>
+        <li>See the family's lists, exactly as you see them. On your own lists that never includes surprises or what has been bought.</li>
+        <li>Add items as you. On someone else's list an item is automatically a surprise that person can't see.</li>
+      </ul>
+
+      <h2 class="wl-card-title">What it can't do</h2>
+      <ul>
+        <li>Edit or delete anything, or mark gifts as bought.</li>
+        <li>Act as anyone but you.</li>
+      </ul>
+
+      <p class="form-text">
+        Choosing will take you back to <strong>{{ return_host }}</strong>. You can disconnect any
+        time from <a href="{% url 'gift_mcp:connect_ai' %}">Connect an AI assistant</a>.
+      </p>
+    </section>
+
+    <div class="wl-form-actions">
+      <button type="submit" name="decision" value="approve" class="btn btn-primary">Connect</button>
+      <button type="submit" name="decision" value="deny" class="btn btn-outline-secondary">Not now</button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

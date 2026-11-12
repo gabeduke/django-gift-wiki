@@ -147,7 +147,19 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'widget_tweaks',
     'gift.apps.GiftConfig',
+    'gift_mcp.apps.GiftMcpConfig',
     'import_export',
+]
+
+# MCP server (gift_mcp). Off until the MCP_ENABLED feature flag is switched on.
+# The public origin the OAuth documents advertise; blank = read off each request.
+MCP_PUBLIC_ORIGIN = os.getenv('MCP_PUBLIC_ORIGIN', '')
+# Hosts an AI app may register a redirect URI on (besides localhost). A client
+# can't ask a family member for access and send the result anywhere else.
+MCP_REDIRECT_HOSTS = [
+    host.strip()
+    for host in os.getenv('MCP_REDIRECT_HOSTS', 'claude.ai,claude.com,chatgpt.com').split(',')
+    if host.strip()
 ]
 
 # Only enable debug toolbar in development

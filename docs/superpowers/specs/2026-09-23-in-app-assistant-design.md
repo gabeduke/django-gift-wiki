@@ -340,8 +340,12 @@ deliberate choice rather than an emergency one.
 ## Deferred
 
 - **Voice input** — project 2.
-- **MCP transport** — project 3. Reuses this tool layer; additionally needs the
-  WSGI→ASGI switch and an OAuth 2.1 authorization server. `grow-buddy` has both
-  worked out: `growbuddy/tracker/mcp.py`, `growbuddy/tracker/oauth/`, and
-  `docs/mcp-oauth-plan.md`, which explains why Claude.ai's connector flow
-  requires dynamic client registration rather than a bearer token.
+- **MCP transport** — project 3. **Built, independently of this assistant:** see
+  `docs/mcp.md` and the `gift_mcp/` app. Two things this spec assumed turned
+  out differently. It did **not** need the WSGI→ASGI switch: tools-only MCP is
+  stateless JSON over `POST`, which runs on the existing gunicorn setup (as FWP's
+  board server does). And it has its own tool layer (`gift_mcp/tools.py`, read +
+  add, over `gift/services.py`) — the assistant should reuse that rather than
+  write a second one. The OAuth 2.1 server follows `grow-buddy`'s plan:
+  `docs/mcp-oauth-plan.md` explains why Claude.ai's connector flow requires
+  dynamic client registration rather than a bearer token.
