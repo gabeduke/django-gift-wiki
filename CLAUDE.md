@@ -43,11 +43,12 @@ make run     # start dev server
 - **Item visibility** — rules live in `gift/visibility.py`; views ask `access_for()` / `request_access()` and list items through `active_items_visible_to(wishlist, access)`, never re-deriving them. The **recipient** (the `dependent` of a list kept for someone, else the owner) never sees surprise items or purchase state. **Keepers** (owner + managers of a list kept for a kid) see both and can mark purchased; a manager of someone's own list sees surprises but not purchases. **Over the shoulder** (session flag, POST `/over-the-shoulder/`) shows that session every list as its recipient sees it, with a `wl-shoulder` banner on every page.
 - **Media/uploads** — S3 when `USE_S3=TRUE`, local filesystem otherwise
 - **Feature flags** — DB-first via `FeatureFlag` model (admin-togglable), env var fallback
-- **Monitoring** — Prometheus metrics middleware; database-error alerting via `terraform/monitoring.tf` (log-based, needs the `ALERT_EMAIL` GitHub secret)
+- **Monitoring** — Prometheus metrics middleware (`/metrics`, operator-only, nothing scrapes it on Cloud Run); database-error alerting via `terraform/monitoring.tf` (log-based, needs the `ALERT_EMAIL` GitHub secret)
 - **Backups** — nightly `pg_dump` to GCS via `.github/workflows/db-backup.yml`; bucket and 90-day retention in `terraform/backups.tf`. Neon's free-plan restore window is only **6 hours**, so these dumps are the real recovery path. Restore runbook: `make db-restore`. Dumps must use the **direct** endpoint, not the `-pooler` one — PgBouncer's transaction mode breaks pg_dump's snapshot.
 - **Neon quota** — Free plan allows **100 CU-hours/project/month**; exceeding it suspends the compute until the period resets (an outage, not a bill), and Free has no spending notifications. `.github/workflows/neon-quota.yml` polls consumption every 6h and opens an issue; it needs the `NEON_API_KEY` secret. Logic and thresholds live in `scripts/check_neon_quota.py`.
 - **Never poll a DB-backed endpoint on a schedule** — uptime checks or probes against `/health/db/` keep the Neon compute from suspending, which is what forced the paid plan (PR #93). Alerting here is passive/log-based for that reason.
-- **Health endpoints** — `/health/` is process liveness and does **no** DB query; `/health/db/` is the deep DB connectivity check. Probes and uptime monitors must use `/health/`. Polling `/health/db/` more often than Neon's autosuspend timeout keeps the compute awake and burns the compute-hour allowance.
+- **Health endpoints** — `/health/` is process liveness, public, and does **no** DB query; `/health/db/` is the deep DB connectivity check. Probes and uptime monitors must use `/health/`. Polling `/health/db/` more often than Neon's autosuspend timeout keeps the compute awake and burns the compute-hour allowance.
+- **Operator-only endpoints** — `/health/db/` and `/metrics` need `Authorization: Bearer $OPS_TOKEN` (`gift/middleware/ops_token.py`); anyone else gets a bare 404 that runs no query. With `OPS_TOKEN` unset (today, in dev and prod) they 404 unless `DEBUG`. Refuse with `not_found()`, never `Http404` — the 404 template queries the DB.
 - **Deployment** — Cloud Run (primary) via Terraform + GitHub Actions; Kubernetes manifests in `deploy/` are k3s reference/backup only
 - **Terraform state** — Remote backend in GCS bucket `wikileet-terraform-state`
 - **CI/CD** — GitHub Actions: `ci.yml` (lint, migration check and tests on PRs and `main`; its `deploy-dev` job deploys dev on PRs), `deploy.yml` (prod, triggers on push to `main`)
@@ -127,6 +128,7 @@ See `env.example` for full list. Critical ones:
 - `USE_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`
 - `DJANGO_ALLOWED_USERS` — comma-separated email allowlist override
 - `STEWARD_PROXY_ENABLED`, `PROFILE_PICTURE_ENABLED` — feature flag env overrides
+- `OPS_TOKEN` — bearer token for `/health/db/` and `/metrics`; optional (unset = 404 outside DEBUG)
 
 > **Note:** `deploy/dev/config.env` and `deploy/prod/config.env` are gitignored. `FIREBASE_API_KEY` must be set via `.env` or GH Actions secret — it is not committed.
 

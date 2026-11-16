@@ -157,7 +157,7 @@ if DEBUG:
 MIDDLEWARE = [
     'gift.middleware.error_logging.ErrorLoggingMiddleware',  # Log unhandled exceptions with request/trace context
     'gift.middleware.healthcheck.HealthCheckMiddleware',
-    'gift.middleware.metrics.MetricsMiddleware',  # Handle /metrics endpoint early, before security checks
+    'gift.middleware.metrics.MetricsMiddleware',  # /metrics, gated by OPS_TOKEN before auth runs
     'gift.middleware.prometheus.PrometheusMiddleware',  # Prometheus metrics - early in chain to track all requests
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -194,6 +194,11 @@ FIREBASE_CLIENT_CONFIG = {
 
 # Google Analytics
 GOOGLE_ANALYTICS_ID = os.environ.get('GOOGLE_ANALYTICS_ID')
+
+# Bearer token for the operator-only endpoints, /health/db/ and /metrics.
+# Unset: they 404 unless DEBUG. See gift/middleware/ops_token.py.
+OPS_TOKEN = os.environ.get('OPS_TOKEN', '').strip()
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
