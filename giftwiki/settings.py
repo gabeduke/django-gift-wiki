@@ -39,6 +39,24 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
 # Allow Firebase Auth popups to communicate with the application
 # Django 4.0+ defaults to 'same-origin' which blocks cross-origin popups
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+
+# HTTPS hardening (#131), for deployed environments only. Dev and prod Cloud Run
+# never set DJANGO_DEBUG, so DEBUG is off there; local `make run` sets it on and
+# serves plain HTTP, where Secure cookies would never be sent back.
+# tests/test_deploy_config.py pins these.
+if not DEBUG:
+    # Cloud Run ends TLS at Google's front end and forwards plain HTTP to the
+    # container, with the original scheme in X-Forwarded-Proto. Trusting it
+    # makes request.is_secure() true for real HTTPS requests, which HSTS, the
+    # CSRF origin check and build_absolute_uri() all go by.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Short on purpose while it rolls out: if HTTPS ever breaks, browsers stay
+    # locked to it for at most an hour. Raise to a year (31536000) once dev and
+    # prod are confirmed. No SECURE_HSTS_INCLUDE_SUBDOMAINS or SECURE_HSTS_PRELOAD:
+    # both are hard to walk back. SECURE_SSL_REDIRECT stays off too (#131).
+    SECURE_HSTS_SECONDS = 3600
 # Configure logging - only write to file in debug mode to reduce I/O overhead in production
 LOGGING = {
     'version': 1,
