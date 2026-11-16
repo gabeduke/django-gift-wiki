@@ -40,7 +40,7 @@ make run     # start dev server
 - **Colour themes** — per-user, picked on My Lists (`WikiUser.color_palette`). `gift/themes.py` is the list; `custom.css` sets only `--brand` per `[data-theme]` and derives every other shade from it (relative colour syntax, static fallbacks). The nav logo is an inline, generated partial (`partials/logo_mark.html`) so it follows the theme; the home-screen icon never changes. Tests keep CSS and Python in step and check WCAG AA.
 - **My Lists** — one list is the expanded card at the top: the user's pinned one (`WikiUser.pinned_wishlist`, toggled by POST `/profile/pin/<id>/`), else their most recently updated. Every other list is a compact row. Quick add's "Mine" goes to the pinned list when the user has several.
 - **Edit List** — a plain server-rendered formset of item cards plus `js/edit-list.js`; no client framework. The formset must never include `purchased` (owners would see what's been bought).
-- **Item visibility** — anything that shows a list's items goes through `active_items_visible_to()` (surprise items never reach the owner/dependent). Purchase status is hidden from anyone `can_add_openly()`.
+- **Item visibility** — rules live in `gift/visibility.py`; views ask `access_for()` / `request_access()` and list items through `active_items_visible_to(wishlist, access)`, never re-deriving them. The **recipient** (the `dependent` of a list kept for someone, else the owner) never sees surprise items or purchase state. **Keepers** (owner + managers of a list kept for a kid) see both and can mark purchased; a manager of someone's own list sees surprises but not purchases. **Over the shoulder** (session flag, POST `/over-the-shoulder/`) shows that session every list as its recipient sees it, with a `wl-shoulder` banner on every page.
 - **Media/uploads** — S3 when `USE_S3=TRUE`, local filesystem otherwise
 - **Feature flags** — DB-first via `FeatureFlag` model (admin-togglable), env var fallback
 - **Monitoring** — Prometheus metrics middleware; database-error alerting via `terraform/monitoring.tf` (log-based, needs the `ALERT_EMAIL` GitHub secret)
@@ -50,7 +50,7 @@ make run     # start dev server
 - **Health endpoints** — `/health/` is process liveness and does **no** DB query; `/health/db/` is the deep DB connectivity check. Probes and uptime monitors must use `/health/`. Polling `/health/db/` more often than Neon's autosuspend timeout keeps the compute awake and burns the compute-hour allowance.
 - **Deployment** — Cloud Run (primary) via Terraform + GitHub Actions; Kubernetes manifests in `deploy/` are k3s reference/backup only
 - **Terraform state** — Remote backend in GCS bucket `wikileet-terraform-state`
-- **CI/CD** — GitHub Actions: `deploy.yml` (prod, triggers on push to `main`), `deploy-dev.yml` (dev, triggers on PRs)
+- **CI/CD** — GitHub Actions: `ci.yml` (lint, migration check and tests on PRs and `main`; its `deploy-dev` job deploys dev on PRs), `deploy.yml` (prod, triggers on push to `main`)
 
 ## Key Directories
 ```
@@ -62,9 +62,8 @@ deploy/dev/              # k3s dev overlay (reference/backup — gitignored conf
 deploy/prod/             # k3s prod overlay (reference/backup — gitignored config.env)
 deploy/cloudrun/         # Active: external-dns DNSEndpoint for Cloud Run domain mapping
 terraform/               # Infrastructure as code (remote state: GCS wikileet-terraform-state)
-.github/workflows/       # CI/CD: deploy.yml (prod), deploy-dev.yml (dev/PR)
+.github/workflows/       # CI/CD: ci.yml (tests; dev deploy on PRs), deploy.yml (prod)
 firebase-functions/      # Legacy Cloud Functions (sessionLogin moved to Django)
-local-docs/              # Extensive internal documentation
 docs/superpowers/specs/  # Approved design specs for work not yet built
 scripts/                 # Helper/utility scripts (incl. build_icons.py)
 gift/static/js/          # app.js (SW, install prompt, toasts), quick-add.js, sw.js
@@ -91,7 +90,8 @@ starting work it covers — the decisions and their reasons are recorded there.
 
 ## Business Rules
 - **Ownership**: Only wishlist owner or managers can add/edit/delete items
-- **Purchase**: Only non-owners/non-managers can mark items purchased (prevents spoilers)
+- **Purchase**: Whoever `access.sees_purchases` can mark items purchased — givers, and keepers of a kid's list. Never the recipient, a manager of someone's own list, or anyone over the shoulder (prevents spoilers)
+- **Clear purchased**: Owner/managers; on a kept list, keepers only — not the kid
 - **Purchase toggle**: A user can un-purchase an item they previously marked
 - **Steward proxy**: Feature-flagged — allows a "dependent" user to also manage a list
 - **Soft delete**: Items use `is_deleted=True`; wishlists use hard delete (CASCADE)

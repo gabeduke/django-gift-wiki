@@ -5,6 +5,7 @@ from django.utils.safestring import mark_safe
 
 from gift.models import ChangelogEntry
 from gift.themes import DEFAULT_THEME, theme_colour, theme_for
+from gift.visibility import is_over_the_shoulder
 
 
 def google_analytics(request):
@@ -42,3 +43,14 @@ def theme(request):
         'theme': key if key != DEFAULT_THEME else '',
         'theme_colour': theme_colour(key),
     }
+
+
+def over_the_shoulder(request):
+    """Whether this session is hiding purchases and surprises, for the banner.
+
+    Signed-out pages skip the session entirely: the public ones promise to
+    run no queries.
+    """
+    if not request.user.is_authenticated:
+        return {'over_the_shoulder': False}
+    return {'over_the_shoulder': is_over_the_shoulder(request)}

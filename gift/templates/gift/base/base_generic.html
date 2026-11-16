@@ -86,6 +86,22 @@ it already picked, since "add something to this list" is why you'd tap + here.
   </nav>
   <!-- /NAV -->
 
+  {% if over_the_shoulder %}
+  {% comment %}
+    On every page while the mode is on, so it can't be forgotten — and so the
+    way back is always the same place. Left on by mistake, it only hides things.
+  {% endcomment %}
+  <div class="wl-shoulder" role="status">
+    <span><strong>👀 Over the shoulder</strong> Purchases and surprises are hidden on this screen.</span>
+    <form action="{% url 'gift:over_the_shoulder' %}" method="post"
+          onsubmit="return confirm('Show purchases and surprises again?');">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button type="submit" class="btn btn-sm">Turn off</button>
+    </form>
+  </div>
+  {% endif %}
+
   {% if messages %}
   <div class="wl-messages">
     {% for message in messages %}

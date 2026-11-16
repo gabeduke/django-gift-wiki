@@ -6,7 +6,9 @@ added ("add alongside these sneaky things").
 
 That makes this endpoint another window onto a list, so it must show exactly
 what the wishlist page shows: a surprise item reaching its recipient would
-spoil the gift, and purchase status reaching anyone owner-side would too.
+spoil the gift, and purchase status reaching the recipient (or someone
+helping edit the recipient's own list) would too. The parents keeping a kid's
+list see both, like any giver — see test_keeper_visibility.py.
 """
 
 import pytest

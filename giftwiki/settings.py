@@ -208,6 +208,7 @@ TEMPLATES = [
                 'gift.context_processors.google_analytics',
                 'gift.context_processors.unseen_changelog_count',
                 'gift.context_processors.theme',
+                'gift.context_processors.over_the_shoulder',
                 'giftwiki.feature_flags.get_context_processor',
             ],
         },
