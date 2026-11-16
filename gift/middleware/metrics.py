@@ -1,27 +1,27 @@
 """
-Middleware to handle Prometheus metrics endpoint early in the request chain.
-This bypasses authentication, CSRF, and other security checks for the metrics endpoint.
+Middleware to handle the Prometheus metrics endpoint early in the request chain.
+It runs before sessions, CSRF and authentication, so it gates itself: metrics
+are operator-only (see `ops_token`) and anyone else gets a 404.
 """
 
 from django.http import HttpResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from gift.middleware.ops_token import not_found, ops_request_allowed
+
+METRICS_PATHS = ('/metrics', '/metrics/')
+
 
 class MetricsMiddleware:
-    """
-    Middleware that handles the /metrics endpoint early in the request chain.
-    This ensures metrics are accessible without authentication or CSRF checks.
-    """
+    """Serve `/metrics` to an operator holding `OPS_TOKEN`, 404 to anyone else."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Handle metrics endpoint early, before any other middleware
-        if request.path in ['/metrics', '/metrics/']:
-            try:
-                return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
-            except ImportError:
-                return HttpResponse('Prometheus client not installed', status=503)
+        if request.path in METRICS_PATHS:
+            if not ops_request_allowed(request):
+                return not_found()
+            return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
 
         return self.get_response(request)

@@ -20,7 +20,8 @@ urlpatterns = [
     path('changelog/dismiss/', views.changelog_dismiss, name='changelog_dismiss'),
     path('select-scraped-page/', views.select_scraped_page, name='select_scraped_page'),
     path('logout/', views.logout_view, name='logout'),
-    path('accounts/logout/', views.logout_view),  # Override Django's default POST-only logout
+    # Ours, not Django's LogoutView: it also deletes __session and signs out of Firebase
+    path('accounts/logout/', views.logout_view),
     path('accounts/', include('django.contrib.auth.urls')),  # Keep for login if needed
     path('password-reset-request/', views.password_reset_request, name='password_reset_request'),
     path('managed-user/create/', views.create_managed_user, name='create_managed_user'),

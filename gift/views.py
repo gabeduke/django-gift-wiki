@@ -26,7 +26,6 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timesince import timesince
 from django.views import generic
-from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
@@ -82,22 +81,6 @@ def custom_admin_login(request, **kwargs):
     if 'next' in request.GET:
         url += f"?next={request.GET['next']}"
     return redirect(url)
-
-
-@csrf_exempt
-@never_cache
-def metrics_view(request):
-    """
-    Expose Prometheus metrics endpoint.
-    Only accessible from within the cluster (no external access needed).
-    Exempt from CSRF protection since Prometheus doesn't send CSRF tokens.
-    """
-    try:
-        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
-        return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
-    except ImportError:
-        return HttpResponse('Prometheus client not installed', status=503)
 
 
 def auth_view(request):
@@ -325,9 +308,15 @@ class SignUpView(generic.CreateView):
     template_name = 'gift/auth_signup.html'
 
 
+@require_POST
 @csrf_protect
 def logout_view(request):
-    """Custom logout view that clears Django session and redirects to Firebase logout."""
+    """Clear the Django session and __session cookie, then hand off to auth.html
+    to sign out of Firebase in the browser.
+
+    POST only: on a GET, any page could sign a family member out with an
+    <img> tag, and csrf_protect does nothing for GETs.
+    """
     logger.info(
         'User logged out', extra={'user': getattr(request.user, 'email', str(request.user))}
     )
@@ -687,8 +676,14 @@ def item_delete(request, item_id):
     return redirect('gift:wishlist_detail', wishlist_id=wishlist_id)
 
 
+@require_POST
 @login_required
 def item_purchase(request, item_id):
+    """Mark an item bought by the requester, or undo their own mark.
+
+    POST only: a wrongly-marked gift is the app's worst failure (nobody buys
+    it), and on a GET a link prefetcher, crawler or <img> tag could flip it.
+    """
     item = get_item_visible_to_user(request, item_id)
     wishlist = item.wishlist
     access = request_access(request, wishlist)
