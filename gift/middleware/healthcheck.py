@@ -3,6 +3,8 @@ import logging
 from django.db import connections
 from django.http import HttpResponse, HttpResponseServerError
 
+from gift.middleware.ops_token import not_found, ops_request_allowed
+
 # Get the logger for database queries
 db_logger = logging.getLogger('django.db.backends')
 logger = logging.getLogger(__name__)
@@ -17,10 +19,12 @@ class HealthCheckMiddleware:
     `/health/` answers "is this process up?" and deliberately does not touch the
     database. Probes hit it every few seconds, and running `SELECT 1` on each hit
     kept resetting Neon's autosuspend timer — the compute never slept, which is
-    what put the project on a paid plan.
+    what put the project on a paid plan. It stays public.
 
-    `/health/db/` is the real connectivity check. Poll it sparingly: anything
-    more frequent than Neon's suspend timeout holds the compute awake again.
+    `/health/db/` is the real connectivity check, so it is operator-only (see
+    `ops_token`): anyone else gets a 404 before any query runs. Poll it
+    sparingly: anything more frequent than Neon's suspend timeout holds the
+    compute awake again.
     """
 
     def __init__(self, get_response):
@@ -30,6 +34,8 @@ class HealthCheckMiddleware:
         if request.path == LIVENESS_PATH:
             return HttpResponse('ok')
         if request.path == READINESS_PATH:
+            if not ops_request_allowed(request):
+                return not_found()
             return self._check_database()
         return self.get_response(request)
 

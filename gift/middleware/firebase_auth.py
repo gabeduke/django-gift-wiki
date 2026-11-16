@@ -325,11 +325,10 @@ class FirebaseAuthMiddleware:
         return is_email_allowed(email)
 
     def __call__(self, request):
-        # Skip authentication for health check, metrics, and auth pages
+        # Skip authentication for the liveness check and auth pages. /health/db/
+        # and /metrics never get here: their middleware answers them first.
         if request.path in [
             '/health/',
-            '/metrics',
-            '/metrics/',
             '/auth.html',
             '/sessionLogin',
             '/privacy/',
