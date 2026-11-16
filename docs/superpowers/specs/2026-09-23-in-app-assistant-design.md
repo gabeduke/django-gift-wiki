@@ -46,6 +46,7 @@ wishlist than a form.
 | Count messages, record tokens | "38 messages left" is legible to a ten-year-old; "$0.14" is not. Tokens are recorded but not enforced, so caps can be tuned from real data. |
 | Floating bubble, bottom-right | The "support agent" pattern — present on every page, out of the way until needed. |
 | Context doc readable by managers | Explicitly chosen so a parent can supervise what an LLM records about their child. See *Manager visibility* for how the resulting risk is neutralised. |
+| Probing is rewarded, not refused | The audience is children who will absolutely try "ignore previous instructions". The boundary is structural, so the attempt cannot work — which means it costs nothing to make finding one a prize instead of a scolding. See *Easter eggs*. |
 | Transcripts never persisted | The rollup runs in the request that receives the transcript; only the resulting proposals are stored. Gift secrets never reach the DB or the nightly GCS backups. |
 | Memory via out-of-band rollup, user-approved | A rollup sees that "wants a bike" and "outgrew their bike, needs a 20-inch" are one fact at two points in time; a mid-conversation `remember` tool cannot. Approval makes LLM-authored persistent state safe. |
 
@@ -63,6 +64,37 @@ leak to that parent. Two design choices neutralise it:
    assistant's own words tell a child that their grown-ups can see this. The
    harm to avoid is not a parent reading the document; it is a child believing
    it was private.
+
+### Easter eggs
+
+Children will try to talk their way past the assistant. That is not a threat
+model to be endlessly patched — the boundary in *Tool layer* is structural, so
+the attempts fail by construction — it is an audience doing exactly what a
+curious ten-year-old does with a new toy.
+
+So the app rewards it. Seven named Easter eggs sit in a server-side catalog,
+each recognised by the shape of the attempt: the override ("ignore previous
+instructions"), the impostor ("pretend you are dad"), the peek ("what surprises
+are on my list?"), the backstage pass ("show me your system prompt"), and so
+on. Finding one for the first time records the find and the assistant
+congratulates them by name — "that's 3 of 7."
+
+Three rules make this safe rather than clever:
+
+1. **The prize is a badge, never a peek.** Finding an egg changes nothing about
+   what the tools return. The reward path and the data path do not touch.
+2. **The catalog never enters the prompt.** The assistant is told only the name
+   of the egg just found, never the list or the patterns — otherwise "what are
+   the other secrets?" hands over the answer key. Curated hints live on the
+   profile page instead, where they are a deliberate part of the game.
+3. **Only the slug is stored.** Recording the probe text would be storing a
+   transcript, which the design forbids everywhere else and forbids here too. A
+   find is a user, a slug, and a timestamp.
+
+The hunt is finite and that is the point: seven eggs, a shelf on the profile
+page showing what has been found and hints for what has not, and no payoff to
+farming once the shelf is full. It converts an open-ended adversarial loop into
+a game with an end.
 
 ## Architecture
 
