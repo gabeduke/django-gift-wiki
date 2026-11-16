@@ -141,3 +141,99 @@ class TestManagedUserCanUseTheirList:
 
         assert response.status_code == 302
         assert wishlist.items.filter(name='Lego set', is_deleted=False).exists()
+
+
+@pytest.mark.api
+class TestAssignLoginEmailCannotTakeOverAnAccount:
+    """Assigning an address hands over the account, so it is a one-time grant
+    to an account nobody signs in to yet — never a way to re-point a live one."""
+
+    def _assign(self, client, target, email='attacker@example.com'):
+        return client.post(reverse('gift:assign_login_email', args=[target.id]), {'email': email})
+
+    def test_an_account_that_already_has_an_email_keeps_it(self, authenticated_user, managed_user):
+        managed_user.email = 'ellie.duke@gmail.com'
+        managed_user.save()
+
+        response = self._assign(authenticated_user, managed_user)
+
+        assert response.status_code == 302
+        managed_user.refresh_from_db()
+        assert managed_user.email == 'ellie.duke@gmail.com'
+        assert not AllowedEmail.objects.filter(email='attacker@example.com').exists()
+
+    def test_an_account_that_has_signed_in_is_refused(self, authenticated_user, managed_user):
+        from django.utils import timezone
+
+        managed_user.last_login = timezone.now()
+        managed_user.save()
+
+        self._assign(authenticated_user, managed_user)
+
+        managed_user.refresh_from_db()
+        assert managed_user.email == ''
+
+    def test_an_account_with_a_linked_address_is_refused(self, authenticated_user, managed_user):
+        LinkedEmail.objects.create(user=managed_user, email='ellie@school.example')
+
+        self._assign(authenticated_user, managed_user)
+
+        managed_user.refresh_from_db()
+        assert managed_user.email == ''
+
+    @pytest.mark.parametrize('flag', ['is_staff', 'is_superuser'])
+    def test_a_staff_account_is_refused(self, authenticated_user, wishlist, flag):
+        admin = User.objects.create_user(username='boss', **{flag: True})
+        wishlist.dependent = admin
+        wishlist.save()
+
+        self._assign(authenticated_user, admin)
+
+        admin.refresh_from_db()
+        assert admin.email == ''
+        assert not AllowedEmail.objects.filter(email='attacker@example.com').exists()
+
+
+@pytest.mark.api
+class TestDependentChoiceIsLimitedToPeopleYouManage:
+    """With steward proxy on, the list form let a member name anyone — an
+    admin included — as the `dependent`, which made them a "managed user"."""
+
+    @pytest.fixture(autouse=True)
+    def steward_proxy_on(self):
+        from unittest.mock import patch
+
+        with patch('giftwiki.feature_flags.get_steward_proxy_enabled', return_value=True):
+            yield
+
+    def test_only_yourself_and_people_you_manage_are_offered(
+        self, user, other_user, managed_user
+    ):
+        from gift.forms import WishListForm
+
+        admin = User.objects.create_user(username='boss', is_staff=True)
+
+        choices = set(WishListForm(user=user).fields['dependent'].queryset)
+
+        assert choices == {user, managed_user}
+        assert admin not in choices
+        assert other_user not in choices
+
+    def test_a_manager_is_offered_the_kid_too(self, other_user, managed_user, wishlist):
+        from gift.forms import WishListForm
+
+        wishlist.managers.add(other_user)
+
+        assert managed_user in WishListForm(user=other_user).fields['dependent'].queryset
+
+    def test_posting_an_admin_as_dependent_does_not_make_them_managed(
+        self, authenticated_other_user, other_user, family
+    ):
+        admin = User.objects.create_user(username='boss', is_staff=True)
+
+        authenticated_other_user.post(
+            reverse('gift:create_wishlist'),
+            {'title': 'Trap', 'family_name': family.id, 'dependent': admin.id},
+        )
+
+        assert not WishList.objects.filter(dependent=admin).exists()

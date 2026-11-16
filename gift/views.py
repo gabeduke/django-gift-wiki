@@ -238,6 +238,15 @@ def session_login_view(request):
         logger.warning(f'ID token verification failed: {e}')
         return JsonResponse({'error': 'Invalid ID token'}, status=401)
 
+    # An unverified email proves nothing about who is signing in; refuse here
+    # rather than set a five-day cookie the middleware will only turn away.
+    from gift.middleware.firebase_auth import SignInRejected, require_verified_email
+
+    try:
+        require_verified_email(decoded_token)
+    except SignInRejected as rejection:
+        return JsonResponse({'error': rejection.message}, status=403)
+
     # Check token freshness (same logic as the Cloud Function)
     auth_time = decoded_token.get('auth_time', 0)
     token_issued_at = decoded_token.get('iat', 0)
@@ -1293,6 +1302,22 @@ def assign_login_email(request, user_id):
     managed_user = _get_managed_user_or_none(request.user, user_id)
     if managed_user is None:
         messages.error(request, 'You do not have permission to edit this user.')
+        return redirect('gift:account')
+
+    # A one-time grant to an account nobody signs in to yet. Re-pointing a live
+    # account's email would hand that account to whoever holds the new address.
+    if (
+        managed_user.email
+        or managed_user.last_login
+        or managed_user.is_staff
+        or managed_user.is_superuser
+        or managed_user.linked_emails.exists()
+    ):
+        display_name = managed_user.first_name or managed_user.username
+        messages.error(
+            request,
+            f'{display_name} already has a sign-in. Ask an administrator to change it.',
+        )
         return redirect('gift:account')
 
     form = AssignLoginEmailForm(request.POST, managed_user=managed_user)
