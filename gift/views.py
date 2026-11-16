@@ -283,6 +283,10 @@ def session_login_view(request):
         }
     )
 
+    # With DEBUG off, SECURE_PROXY_SSL_HEADER already makes is_secure() follow
+    # Cloud Run's X-Forwarded-Proto. The explicit check is kept so the cookie
+    # stays Secure behind the proxy even with DEBUG on. Plain-HTTP `make run`
+    # still gets a non-Secure cookie, which is the only kind it can send back.
     is_secure = request.is_secure() or request.META.get('HTTP_X_FORWARDED_PROTO') == 'https'
     response.set_cookie(
         '__session',
