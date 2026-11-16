@@ -81,12 +81,10 @@ class TestMetricsMiddleware:
 @pytest.mark.unit
 class TestFirebaseAuthAllowlist:
     def test_disallowed_email_returns_403(self, client, db):
-        """A successfully-authenticated user whose email is not in the allowlist gets 403."""
-        denied_user = User.objects.create_user(username='denied', email='denied@example.com')
-
+        """A verified Firebase email that is not in the allowlist gets 403."""
         with patch(
-            'gift.middleware.firebase_auth.FirebaseAuthBackend.authenticate',
-            return_value=denied_user,
+            'gift.middleware.firebase_auth.FirebaseAuthBackend.verified_email',
+            return_value='denied@example.com',
         ):
             client.cookies['__session'] = 'fake-session-cookie'
             response = client.get('/')

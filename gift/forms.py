@@ -466,8 +466,24 @@ class WishListForm(forms.ModelForm):
         STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
 
         if STEWARD_PROXY_ENABLED:
+            # Only yourself and people you already manage: naming somebody as a
+            # dependent makes them your "managed user", so it can't be anyone.
+            dependent_choices = User.objects.none()
+            if user:
+                from django.db.models import Q
+
+                dependent_choices = User.objects.filter(
+                    Q(pk=user.pk)
+                    | Q(stewarded_wishlists__owner=user)
+                    | Q(stewarded_wishlists__managers=user)
+                )
+            if instance and instance.pk and instance.dependent_id:
+                # Keep whoever the list is already for, or saving would drop them
+                dependent_choices = dependent_choices | User.objects.filter(
+                    pk=instance.dependent_id
+                )
             self.fields['dependent'] = forms.ModelChoiceField(
-                queryset=User.objects.all(),
+                queryset=dependent_choices.distinct(),
                 required=False,
                 label='Dependent (Proxy User - who manages this list)',
             )
