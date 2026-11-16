@@ -808,6 +808,8 @@ a.wl-list-row:active { transform: scale(.985); }
   display: flex; align-items: center; gap: 5px;
   flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end;
 }
+/* Mark Purchased / Undo posts a form; it sits exactly where the link used to */
+.wl-purchase-form { display: inline-flex; margin: 0; }
 
 /* Price badge */
 .badge-price {
@@ -1417,6 +1419,8 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
 }
 .wl-sheet-links a:hover, .wl-sheet-links button:hover { background: var(--bg-subtle); color: var(--text-primary); text-decoration: none; }
 .wl-sheet-links button[hidden] { display: none; }
+/* Sign out is a form; let its button stretch the full width like the links */
+.wl-sheet-links form { display: flex; flex-direction: column; margin: 0; }
 .wl-sheet-links .wl-sheet-quiet { color: var(--text-secondary); border-top: 1px solid var(--border); border-radius: 0 0 10px 10px; margin-top: 4px; }
 
 /* Launched from the home screen: no browser chrome, so no need for the footer */

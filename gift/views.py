@@ -304,9 +304,15 @@ class SignUpView(generic.CreateView):
     template_name = 'gift/auth_signup.html'
 
 
+@require_POST
 @csrf_protect
 def logout_view(request):
-    """Custom logout view that clears Django session and redirects to Firebase logout."""
+    """Clear the Django session and __session cookie, then hand off to auth.html
+    to sign out of Firebase in the browser.
+
+    POST only: on a GET, any page could sign a family member out with an
+    <img> tag, and csrf_protect does nothing for GETs.
+    """
     logger.info(
         'User logged out', extra={'user': getattr(request.user, 'email', str(request.user))}
     )
@@ -666,8 +672,14 @@ def item_delete(request, item_id):
     return redirect('gift:wishlist_detail', wishlist_id=wishlist_id)
 
 
+@require_POST
 @login_required
 def item_purchase(request, item_id):
+    """Mark an item bought by the requester, or undo their own mark.
+
+    POST only: a wrongly-marked gift is the app's worst failure (nobody buys
+    it), and on a GET a link prefetcher, crawler or <img> tag could flip it.
+    """
     item = get_item_visible_to_user(request, item_id)
     wishlist = item.wishlist
     access = request_access(request, wishlist)

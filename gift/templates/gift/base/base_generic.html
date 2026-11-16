@@ -181,7 +181,11 @@ it already picked, since "add something to this list" is why you'd tap + here.
             {% if unseen_changelog_count > 0 %}<span class="wl-nav-badge">{{ unseen_changelog_count }}</span>{% endif %}</a>
           <a href="{% url 'gift:create_wishlist' %}"><span aria-hidden="true">📝</span> Start a new list</a>
           <button type="button" class="wl-install-action" data-install-app hidden><span aria-hidden="true">📲</span> Install the app</button>
-          <a href="{% url 'gift:logout' %}" class="wl-sheet-quiet"><span aria-hidden="true">👋</span> Sign out</a>
+          {# A form: signing out is POST only, so no other site can do it with a link #}
+          <form action="{% url 'gift:logout' %}" method="post">
+            {% csrf_token %}
+            <button type="submit" class="wl-sheet-quiet"><span aria-hidden="true">👋</span> Sign out</button>
+          </form>
         </nav>
       </div>
     </div>

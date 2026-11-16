@@ -378,7 +378,7 @@ class TestMarkingPurchasedWhileOn:
         client, _wishlist, items = sharer
         plain = items['plain']
 
-        response = client.get(f'/item/purchase/{plain.id}/', follow=True)
+        response = client.post(f'/item/purchase/{plain.id}/', follow=True)
 
         plain.refresh_from_db()
         assert plain.purchased is False
@@ -391,7 +391,7 @@ class TestMarkingPurchasedWhileOn:
         client = signed_in(other_user)
         turn_on(client)
 
-        client.get(f'/item/purchase/{bought.id}/')
+        client.post(f'/item/purchase/{bought.id}/')
 
         bought.refresh_from_db()
         assert bought.purchased_by == other_user
@@ -400,14 +400,14 @@ class TestMarkingPurchasedWhileOn:
         """Even a refusal would confirm the surprise exists."""
         client, _wishlist, items = sharer
 
-        assert client.get(f'/item/purchase/{items["surprise"].id}/').status_code == 404
+        assert client.post(f'/item/purchase/{items["surprise"].id}/').status_code == 404
 
     def test_works_again_once_turned_off(self, authenticated_other_user, other_user, own_items):
         plain = own_items['plain']
         turn_on(authenticated_other_user)
         turn_off(authenticated_other_user)
 
-        authenticated_other_user.get(f'/item/purchase/{plain.id}/')
+        authenticated_other_user.post(f'/item/purchase/{plain.id}/')
 
         plain.refresh_from_db()
         assert plain.purchased_by == other_user
