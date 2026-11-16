@@ -385,7 +385,7 @@ class TestMarkingPurchased:
     def test_keeper_owner_can_mark_an_item_bought(self, authenticated_user, user, kid_items):
         plain = kid_items['plain']
 
-        response = authenticated_user.get(f'/item/purchase/{plain.id}/')
+        response = authenticated_user.post(f'/item/purchase/{plain.id}/')
 
         assert response.status_code == 302
         plain.refresh_from_db()
@@ -395,7 +395,7 @@ class TestMarkingPurchased:
     def test_keeper_manager_can_mark_an_item_bought(self, co_parent, kid_items):
         plain = kid_items['plain']
 
-        signed_in(co_parent).get(f'/item/purchase/{plain.id}/')
+        signed_in(co_parent).post(f'/item/purchase/{plain.id}/')
 
         plain.refresh_from_db()
         assert plain.purchased_by == co_parent
@@ -403,16 +403,16 @@ class TestMarkingPurchased:
     def test_keeper_can_mark_a_surprise_bought(self, authenticated_user, user, kid_items):
         surprise = kid_items['surprise']
 
-        authenticated_user.get(f'/item/purchase/{surprise.id}/')
+        authenticated_user.post(f'/item/purchase/{surprise.id}/')
 
         surprise.refresh_from_db()
         assert surprise.purchased_by == user
 
     def test_keeper_can_undo_their_own_purchase(self, authenticated_user, kid_items):
         plain = kid_items['plain']
-        authenticated_user.get(f'/item/purchase/{plain.id}/')
+        authenticated_user.post(f'/item/purchase/{plain.id}/')
 
-        authenticated_user.get(f'/item/purchase/{plain.id}/')
+        authenticated_user.post(f'/item/purchase/{plain.id}/')
 
         plain.refresh_from_db()
         assert plain.purchased is False
@@ -423,7 +423,7 @@ class TestMarkingPurchased:
     ):
         bought = kid_items['bought']
 
-        authenticated_user.get(f'/item/purchase/{bought.id}/')
+        authenticated_user.post(f'/item/purchase/{bought.id}/')
 
         bought.refresh_from_db()
         assert bought.purchased_by == other_user
@@ -431,7 +431,7 @@ class TestMarkingPurchased:
     def test_kid_cannot_mark_their_own_item_bought(self, kid, kid_items):
         plain = kid_items['plain']
 
-        response = signed_in(kid).get(f'/item/purchase/{plain.id}/')
+        response = signed_in(kid).post(f'/item/purchase/{plain.id}/')
 
         assert response.status_code == 302
         plain.refresh_from_db()
@@ -440,14 +440,14 @@ class TestMarkingPurchased:
     def test_kid_cannot_undo_someone_elses_purchase(self, kid, other_user, kid_items):
         bought = kid_items['bought']
 
-        signed_in(kid).get(f'/item/purchase/{bought.id}/')
+        signed_in(kid).post(f'/item/purchase/{bought.id}/')
 
         bought.refresh_from_db()
         assert bought.purchased_by == other_user
 
     def test_kid_gets_a_404_for_a_surprise(self, kid, kid_items):
         """A redirect would confirm the item exists."""
-        response = signed_in(kid).get(f'/item/purchase/{kid_items["surprise"].id}/')
+        response = signed_in(kid).post(f'/item/purchase/{kid_items["surprise"].id}/')
 
         assert response.status_code == 404
 
@@ -456,7 +456,7 @@ class TestMarkingPurchased:
     ):
         plain = kid_items['plain']
 
-        authenticated_other_user.get(f'/item/purchase/{plain.id}/')
+        authenticated_other_user.post(f'/item/purchase/{plain.id}/')
 
         plain.refresh_from_db()
         assert plain.purchased_by == other_user
@@ -464,7 +464,7 @@ class TestMarkingPurchased:
     def test_owner_of_own_list_still_cannot(self, authenticated_user, own_items):
         plain = own_items['plain']
 
-        authenticated_user.get(f'/item/purchase/{plain.id}/')
+        authenticated_user.post(f'/item/purchase/{plain.id}/')
 
         plain.refresh_from_db()
         assert plain.purchased is False
@@ -472,7 +472,7 @@ class TestMarkingPurchased:
     def test_manager_of_own_list_still_cannot(self, helper, own_items):
         plain = own_items['plain']
 
-        response = signed_in(helper).get(f'/item/purchase/{plain.id}/', follow=True)
+        response = signed_in(helper).post(f'/item/purchase/{plain.id}/', follow=True)
 
         plain.refresh_from_db()
         assert plain.purchased is False
@@ -481,7 +481,7 @@ class TestMarkingPurchased:
         )
 
     def test_keepers_purchase_shows_on_their_purchases_page(self, authenticated_user, kid_items):
-        authenticated_user.get(f'/item/purchase/{kid_items["plain"].id}/')
+        authenticated_user.post(f'/item/purchase/{kid_items["plain"].id}/')
 
         content = authenticated_user.get('/my-purchases/').content.decode()
 

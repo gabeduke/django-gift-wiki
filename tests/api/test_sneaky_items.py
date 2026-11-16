@@ -132,13 +132,13 @@ class TestSneakyVisibility:
         assert sneaky_item.is_deleted is False
 
     def test_owner_gets_404_on_item_purchase(self, authenticated_user, sneaky_item):
-        response = authenticated_user.get(f'/item/purchase/{sneaky_item.id}/')
+        response = authenticated_user.post(f'/item/purchase/{sneaky_item.id}/')
         assert response.status_code == 404
 
     def test_non_owner_can_purchase_sneaky_item(
         self, authenticated_other_user, other_user, sneaky_item
     ):
-        response = authenticated_other_user.get(f'/item/purchase/{sneaky_item.id}/')
+        response = authenticated_other_user.post(f'/item/purchase/{sneaky_item.id}/')
         assert response.status_code == 302
         sneaky_item.refresh_from_db()
         assert sneaky_item.purchased is True

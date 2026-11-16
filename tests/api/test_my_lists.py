@@ -106,7 +106,9 @@ class TestMyListsPage:
     def test_sign_out_is_reachable(self, authenticated_user):
         content = authenticated_user.get('/profile/').content.decode()
 
-        assert f'href="{reverse("gift:logout")}"' in content
+        # A POST form: signing out on a GET would let any page do it (#129)
+        assert f'action="{reverse("gift:logout")}" method="post"' in content
+        assert f'href="{reverse("gift:logout")}"' not in content
 
 
 class TestPickerKnowsWhichListsAreYours:

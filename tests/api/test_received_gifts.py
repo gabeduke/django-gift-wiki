@@ -267,7 +267,7 @@ class TestSneakyToReceivedFlow:
         assert 'Mystery Gift' not in content
 
         # The giver marks it purchased, then the owner archives received gifts
-        authenticated_other_user.get(f'/item/purchase/{gift.id}/')
+        authenticated_other_user.post(f'/item/purchase/{gift.id}/')
         authenticated_user.post(f'/wishlist/{wishlist.id}/archive-purchased/')
 
         # Revealed: no longer sneaky, visible on the received page with who to thank
