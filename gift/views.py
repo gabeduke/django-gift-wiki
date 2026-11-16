@@ -26,7 +26,6 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timesince import timesince
 from django.views import generic
-from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
@@ -82,22 +81,6 @@ def custom_admin_login(request, **kwargs):
     if 'next' in request.GET:
         url += f"?next={request.GET['next']}"
     return redirect(url)
-
-
-@csrf_exempt
-@never_cache
-def metrics_view(request):
-    """
-    Expose Prometheus metrics endpoint.
-    Only accessible from within the cluster (no external access needed).
-    Exempt from CSRF protection since Prometheus doesn't send CSRF tokens.
-    """
-    try:
-        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
-        return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
-    except ImportError:
-        return HttpResponse('Prometheus client not installed', status=503)
 
 
 def auth_view(request):
