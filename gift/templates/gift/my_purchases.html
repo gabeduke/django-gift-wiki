@@ -23,7 +23,14 @@
   </div>
 
   {# Purchases grouped by wishlist #}
-  {% if purchases_by_wishlist %}
+  {% if hidden %}
+
+    <div style="text-align:center;padding:56px 24px;color:var(--text-muted);">
+      <p style="font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">👀 Hidden while you're over the shoulder</p>
+      <p style="font-size:13px;">Your purchases are still here. Turn the mode off at the top of the page to see them.</p>
+    </div>
+
+  {% elif purchases_by_wishlist %}
 
     {% for wishlist, items in purchases_by_wishlist %}
     <div class="wl-cat-section">

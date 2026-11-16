@@ -3,7 +3,8 @@
 Scenarios live in ../features/purchase.feature. Fixtures (``user``,
 ``other_user``, ``wishlist``, ``item``, ``authenticated_user``,
 ``authenticated_other_user``) come from the root ``conftest.py``. A local
-``third_user`` fixture covers the "already-purchased" spoiler scenarios.
+``third_user`` fixture covers the "already-purchased" spoiler scenarios, and
+``child`` the list a parent (the ``user`` fixture) keeps for their kid.
 """
 
 import re
@@ -35,10 +36,33 @@ def authenticated_third_user(third_user):
     return c
 
 
+@pytest.fixture
+def child(db):
+    return User.objects.create_user(
+        username='childuser', email='child@example.com', password='childpass123'
+    )
+
+
+@pytest.fixture
+def authenticated_child(child):
+    c = Client()
+    c.force_login(child)
+    return c
+
+
 @given('a wishlist with an unpurchased item', target_fixture='purchase_item')
 def purchase_item(item):
     assert item.purchased is False
     assert item.purchased_by is None
+    return item
+
+
+@given('a list kept for a child with an unpurchased item', target_fixture='purchase_item')
+def kept_list_item(item, child):
+    """The `user` fixture owns the list and keeps it for `child`."""
+    item.wishlist.dependent = child
+    item.wishlist.save()
+    assert item.purchased is False
     return item
 
 
@@ -59,6 +83,11 @@ def owner_tries_to_purchase(authenticated_user, purchase_item):
     authenticated_user.post(f'/item/purchase/{purchase_item.id}/')
 
 
+@when('the parent marks the item as purchased')
+def parent_marks_purchased(authenticated_user, purchase_item):
+    authenticated_user.post(f'/item/purchase/{purchase_item.id}/')
+
+
 @when('a third user tries to mark the item as purchased')
 def third_user_tries_to_purchase(authenticated_third_user, purchase_item):
     authenticated_third_user.post(f'/item/purchase/{purchase_item.id}/')
@@ -74,11 +103,28 @@ def owner_views(authenticated_user, purchase_item):
     return authenticated_user.get(f'/wishlist/{purchase_item.wishlist_id}/')
 
 
+@when('the parent views the wishlist page', target_fixture='wishlist_response')
+def parent_views(authenticated_user, purchase_item):
+    return authenticated_user.get(f'/wishlist/{purchase_item.wishlist_id}/')
+
+
+@when('the child views the wishlist page', target_fixture='wishlist_response')
+def child_views(authenticated_child, purchase_item):
+    return authenticated_child.get(f'/wishlist/{purchase_item.wishlist_id}/')
+
+
 @then('the item is marked purchased by the other user')
 def assert_purchased_by_other(purchase_item, other_user):
     purchase_item.refresh_from_db()
     assert purchase_item.purchased is True
     assert purchase_item.purchased_by == other_user
+
+
+@then('the item is marked purchased by the parent')
+def assert_purchased_by_parent(purchase_item, user):
+    purchase_item.refresh_from_db()
+    assert purchase_item.purchased is True
+    assert purchase_item.purchased_by == user
 
 
 @then('the item is still unpurchased')
@@ -115,10 +161,24 @@ def page_has_reveal_control(wishlist_response):
     assert 'reveal-purchaser' in content
 
 
+@then('the page shows the item as purchased')
+def page_shows_purchased(wishlist_response):
+    assert wishlist_response.status_code == 200
+    content = wishlist_response.content.decode()
+    assert 'purchased-badge' in content
+    assert 'class="wl-progress"' in content
+    # The parent bought it, so the button offers to undo rather than to buy
+    assert 'Undo' in content
+
+
 @then('the page does not show purchase information')
 def page_hides_purchase_info(wishlist_response):
     assert wishlist_response.status_code == 200
     content = wishlist_response.content.decode()
-    # The purchased badge markup is not rendered for owners; use a class that
-    # only appears in the actual badge HTML, not in the reveal script.
+    # The purchased badge markup is not rendered for the person the list is
+    # for; use a class that only appears in the actual badge HTML, not in the
+    # reveal script.
     assert 'purchased-badge' not in content
+    assert 'Purchased' not in content
+    assert 'class="wl-progress"' not in content
+    assert '/item/purchase/' not in content

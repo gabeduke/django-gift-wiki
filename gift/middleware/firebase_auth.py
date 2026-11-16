@@ -98,7 +98,7 @@ def resolve_user_for_email(email):
         # If not linked, proceed with regular lookup
         if not user:
             # First try to find by email (most reliable identifier)
-            users_by_email = User.objects.filter(email=email)
+            users_by_email = User.objects.filter(email__iexact=email)
             if users_by_email.exists():
                 if users_by_email.count() > 1:
                     logger.warning(

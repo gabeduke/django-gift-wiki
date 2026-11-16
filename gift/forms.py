@@ -239,18 +239,35 @@ class ManagedUserForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        # The requester's list this person is kept on, if any
+        self.current_wishlist = None
         if user:
             from django.db.models import Q
 
             self.fields['link_to_wishlist'].queryset = WishList.objects.filter(
                 Q(owner=user) | Q(managers=user)
             ).distinct()
-            
-            # Pre-populate if this managed user is already a dependent
+
+            # Pre-populate from the requester's own lists only: one outside the
+            # choices renders the select blank, and saving a blank select unlinks.
             if self.instance and self.instance.pk:
-                current_wishlist = WishList.objects.filter(dependent=self.instance).first()
-                if current_wishlist:
-                    self.initial['link_to_wishlist'] = current_wishlist.pk
+                self.current_wishlist = (
+                    self.fields['link_to_wishlist']
+                    .queryset.filter(dependent=self.instance)
+                    .first()
+                )
+                if self.current_wishlist:
+                    self.initial['link_to_wishlist'] = self.current_wishlist.pk
+
+    def clean_link_to_wishlist(self):
+        """Never take a list away from somebody else it's already kept for."""
+        wishlist = self.cleaned_data.get('link_to_wishlist')
+        if wishlist and wishlist.dependent_id not in (None, self.instance.pk):
+            raise forms.ValidationError(
+                f'"{wishlist.title}" is already kept for '
+                f'{wishlist.dependent.first_name or wishlist.dependent.username}.'
+            )
+        return wishlist
 
 
 class CreateManagedUserForm(ManagedUserForm):
@@ -411,9 +428,11 @@ class WishListForm(forms.ModelForm):
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
-        # Exclude the current user from the managers queryset
-        if user:
-            self.fields['managers'].queryset = User.objects.all().exclude(id=user.id)
+        # Leave out the list's owner (for a new list, its creator) — not whoever
+        # is editing: a manager saving the list must stay a manager.
+        owner = instance.owner if instance and instance.pk else user
+        if owner:
+            self.fields['managers'].queryset = User.objects.all().exclude(id=owner.id)
         else:
             self.fields['managers'].queryset = User.objects.all()
 

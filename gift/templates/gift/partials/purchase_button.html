@@ -1,0 +1,8 @@
+{% if item.purchased and item.purchased_by != request.user %}
+  {# Bought by someone else: the badge says so, and it isn't ours to undo #}
+{% else %}
+  <a href="{% url 'gift:purchase_item' item.id %}"
+     class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+    {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
+  </a>
+{% endif %}

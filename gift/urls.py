@@ -14,6 +14,7 @@ urlpatterns = [
     path('profile/theme/', views.set_theme, name='set_theme'),
     path('profile/pin/<int:wishlist_id>/', views.pin_wishlist, name='pin_wishlist'),
     path('my-purchases/', views.my_purchases, name='my_purchases'),
+    path('over-the-shoulder/', views.over_the_shoulder, name='over_the_shoulder'),
     path('received-gifts/', views.received_gifts, name='received_gifts'),
     path('changelog/', views.changelog, name='changelog'),
     path('changelog/dismiss/', views.changelog_dismiss, name='changelog_dismiss'),
