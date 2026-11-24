@@ -103,3 +103,54 @@ class TestItemPriority:
             < content.index('Normal First')
             < content.index('Normal Last')
         )
+
+
+@pytest.mark.unit
+class TestPriorityStar:
+    """The one-tap ⭐ on the list page and My Lists (no trip to Edit List)."""
+
+    def url(self, item):
+        return f'/item/{item.id}/most-wanted/'
+
+    def test_owner_stars_and_unstars_in_the_background(self, authenticated_user, item):
+        response = authenticated_user.post(self.url(item), HTTP_X_REQUESTED_WITH='fetch')
+        assert response.json() == {'is_priority': True}
+        item.refresh_from_db()
+        assert item.is_priority is True
+
+        response = authenticated_user.post(self.url(item), HTTP_X_REQUESTED_WITH='fetch')
+        assert response.json() == {'is_priority': False}
+
+    def test_without_js_it_returns_to_the_page(self, authenticated_user, wishlist, item):
+        response = authenticated_user.post(self.url(item), {'next': f'/wishlist/{wishlist.id}/'})
+        assert response.status_code == 302
+        assert response.url == f'/wishlist/{wishlist.id}/'
+
+    def test_next_must_stay_on_site(self, authenticated_user, wishlist, item):
+        response = authenticated_user.post(self.url(item), {'next': 'https://evil.example/'})
+        assert response.url == f'/wishlist/{wishlist.id}/'
+
+    def test_someone_else_cannot_star(self, authenticated_other_user, item):
+        response = authenticated_other_user.post(self.url(item), HTTP_X_REQUESTED_WITH='fetch')
+        assert response.status_code == 403
+        item.refresh_from_db()
+        assert item.is_priority is False
+
+    def test_post_only(self, authenticated_user, item):
+        assert authenticated_user.get(self.url(item)).status_code == 405
+
+    def test_owner_sees_the_star_on_their_list(self, authenticated_user, wishlist, item):
+        page = authenticated_user.get(f'/wishlist/{wishlist.id}/').content.decode()
+        assert f'/item/{item.id}/most-wanted/' in page
+        assert 'aria-pressed="false"' in page
+
+    def test_givers_see_a_plain_badge(self, authenticated_other_user, wishlist, item):
+        item.is_priority = True
+        item.save()
+        page = authenticated_other_user.get(f'/wishlist/{wishlist.id}/').content.decode()
+        assert '⭐ Most wanted' in page
+        assert '/most-wanted/' not in page
+
+    def test_my_lists_card_has_the_star(self, authenticated_user, item):
+        page = authenticated_user.get('/profile/').content.decode()
+        assert f'/item/{item.id}/most-wanted/' in page

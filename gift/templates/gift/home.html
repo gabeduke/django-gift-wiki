@@ -13,6 +13,10 @@
       <div class="wl-changelog-head">
         <span class="wl-changelog-title">✨ What's new</span>
         <span class="wl-count-badge">{{ unseen_changelog_count }}</span>
+        <button type="submit" form="whats-new-dismiss" class="wl-icon-btn wl-changelog-close"
+                aria-label="Close what's new" title="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
       </div>
       {% for entry in unseen_changelog_entries %}
       <div class="wl-changelog-entry">
@@ -25,7 +29,7 @@
       {% endfor %}
       <div class="wl-changelog-foot">
         <a class="wl-changelog-more" href="{% url 'gift:changelog' %}">{% if unseen_changelog_more %}…and {{ unseen_changelog_more }} more{% else %}See details{% endif %}</a>
-        <form method="post" action="{% url 'gift:changelog_dismiss' %}" class="wl-changelog-dismiss">
+        <form method="post" action="{% url 'gift:changelog_dismiss' %}" class="wl-changelog-dismiss" id="whats-new-dismiss">
           {% csrf_token %}
           <button type="submit" class="btn btn-primary btn-sm">Got it, thanks!</button>
         </form>

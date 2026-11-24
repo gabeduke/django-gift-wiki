@@ -44,6 +44,10 @@ class TestHomeWhatsNewCard:
         assert 'Feature Two' in content
         assert 'Jul 27, 2026' in content  # published date rendered
         assert 'Got it, thanks!' in content
+        # A close button in the corner submits the same dismiss form
+        assert 'form="whats-new-dismiss"' in content
+        assert 'id="whats-new-dismiss"' in content
+        assert 'aria-label="Close what' in content
 
     def test_no_card_when_nothing_unseen(self, authenticated_user):
         response = authenticated_user.get('/')
