@@ -5,6 +5,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
 
+from .exchange_kinds import DEFAULT_KIND, ICON_CHOICES, KIND_CHOICES, kind_for
 from .themes import DEFAULT_THEME, THEME_CHOICES
 
 logger = logging.getLogger(__name__)
@@ -564,6 +565,8 @@ class Exchange(models.Model):
     """
 
     name = models.CharField(max_length=80, default='Secret Santa')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=DEFAULT_KIND)
+    icon = models.CharField(max_length=8, choices=ICON_CHOICES, blank=True, default='')
     organizer = models.ForeignKey(
         WikiUser, on_delete=models.SET_NULL, null=True, related_name='organized_exchanges'
     )
@@ -571,6 +574,10 @@ class Exchange(models.Model):
     exchange_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
     drawn_at = models.DateTimeField(null=True, blank=True)
+    # Letters stay with their writers until the organizer hands them out.
+    letters_delivered_at = models.DateTimeField(null=True, blank=True)
+    # After delivery, a page of every letter both sides agreed to share
+    board_enabled = models.BooleanField(default=False)
     # Wrapped-up exchanges leave the home page but keep their history.
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -585,6 +592,26 @@ class Exchange(models.Model):
     def is_drawn(self):
         return self.drawn_at is not None
 
+    @property
+    def days_until(self):
+        """Days until the exchange date: 0 on the day, None without a date or after."""
+        if not self.exchange_date:
+            return None
+        days = (self.exchange_date - timezone.localdate()).days
+        return days if days >= 0 else None
+
+    @property
+    def letters_delivered(self):
+        return self.letters_delivered_at is not None
+
+    @property
+    def kind_info(self):
+        return kind_for(self.kind)
+
+    @property
+    def display_icon(self):
+        return self.icon or self.kind_info.icon
+
 
 class ExchangeParticipant(models.Model):
     """
@@ -598,8 +625,11 @@ class ExchangeParticipant(models.Model):
     receiver = models.ForeignKey(
         WikiUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
     )
-    # Set when the giver dismisses the reveal; until then the home page shows it.
+    # Set when the giver opens theirs; until then the home page shows it.
     reveal_seen_at = models.DateTimeField(null=True, blank=True)
+    # Their pick changed after they'd been dealt one (a redraw, or someone
+    # slotted in or taken out next to them), so the home page says so.
+    pick_changed = models.BooleanField(default=False)
     joined_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -609,3 +639,63 @@ class ExchangeParticipant(models.Model):
 
     def __str__(self):
         return f'{self.giver} in {self.exchange}'
+
+
+def letter_image_storage():
+    """Where letter photos live: the S3 bucket in prod, local disk otherwise.
+
+    Set on this field alone because the project-wide DEFAULT_FILE_STORAGE
+    setting is ignored since Django 5.1. Photos are never linked directly —
+    gift/exchange_views.py serves them only to people allowed to see them.
+    """
+    from django.conf import settings
+    from django.core.files.storage import default_storage
+
+    if getattr(settings, 'USE_S3', False):
+        from storages.backends.s3boto3 import S3Boto3Storage
+
+        return S3Boto3Storage()
+    return default_storage
+
+
+def letter_image_path(instance, filename):
+    import uuid
+
+    # Random, so the name says nothing about who it's from or for
+    return f'exchange-letters/{uuid.uuid4().hex}.jpg'
+
+
+class ExchangeLetter(models.Model):
+    """
+    A letter from a giver to the person they drew. Only its author can read it
+    until the organizer delivers the exchange's letters; then its receiver can
+    too. Nobody else, ever — keep the body out of __str__, admin and messages.
+
+    The receiver is stored here rather than read from the draw, so a letter
+    can never land with someone it wasn't written for.
+    """
+
+    MAX_LENGTH = 4000
+
+    exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE, related_name='letters')
+    author = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='+')
+    receiver = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='exchange_letters')
+    body = models.TextField(max_length=MAX_LENGTH, blank=True)
+    # A photo or scan: a handwritten letter, a poem, a drawing
+    image = models.ImageField(
+        upload_to=letter_image_path, storage=letter_image_storage, blank=True, null=True
+    )
+    # The display board needs both: the writer's yes when writing, and the
+    # reader's yes after reading
+    shareable = models.BooleanField(default=False)
+    shared_by_receiver = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['exchange', 'author'], name='one_letter_per_author'),
+        ]
+
+    def __str__(self):
+        return f'Letter in {self.exchange}'

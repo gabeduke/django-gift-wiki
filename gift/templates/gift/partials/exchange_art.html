@@ -1,0 +1,14 @@
+{% if art == 'present' %}
+<span class="wl-reveal-gift" aria-hidden="true">
+  <span class="wl-reveal-lid"></span>
+  <span class="wl-reveal-body"></span>
+</span>
+{% else %}
+<span class="wl-reveal-envelope" aria-hidden="true">
+  <span class="wl-envelope-back"></span>
+  <span class="wl-envelope-card"></span>
+  <span class="wl-envelope-front"></span>
+  <span class="wl-envelope-flap"></span>
+  <span class="wl-envelope-seal">{{ icon }}</span>
+</span>
+{% endif %}

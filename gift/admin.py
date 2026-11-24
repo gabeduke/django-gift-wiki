@@ -63,7 +63,8 @@ class ExchangeParticipantInline(admin.TabularInline):
 
 @admin.register(Exchange)
 class ExchangeAdmin(admin.ModelAdmin):
-    list_display = ['name', 'organizer', 'drawn_at', 'is_active']
+    list_display = ['name', 'kind', 'organizer', 'drawn_at', 'is_active']
+    # ExchangeLetter isn't registered at all: letters are private to their writer and reader.
     inlines = [ExchangeParticipantInline]
 
 

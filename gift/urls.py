@@ -37,11 +37,39 @@ urlpatterns = [
     path('exchanges/<int:exchange_id>/', exchange_views.exchange_detail, name='exchange_detail'),
     path('exchanges/<int:exchange_id>/join/', exchange_views.exchange_join, name='exchange_join'),
     path('exchanges/<int:exchange_id>/leave/', exchange_views.exchange_leave, name='exchange_leave'),
+    path(
+        'exchanges/<int:exchange_id>/not-this-time/',
+        exchange_views.exchange_decline,
+        name='exchange_decline',
+    ),
     path('exchanges/<int:exchange_id>/edit/', exchange_views.exchange_edit, name='exchange_edit'),
     path(
         'exchanges/<int:exchange_id>/remove/<int:participant_id>/',
         exchange_views.exchange_remove,
         name='exchange_remove',
+    ),
+    path('exchanges/<int:exchange_id>/add/', exchange_views.exchange_add, name='exchange_add'),
+    path('exchanges/<int:exchange_id>/letter/', exchange_views.exchange_letter, name='exchange_letter'),
+    path(
+        'exchanges/<int:exchange_id>/deliver/',
+        exchange_views.exchange_deliver,
+        name='exchange_deliver',
+    ),
+    path('exchanges/<int:exchange_id>/board/', exchange_views.exchange_board, name='exchange_board'),
+    path(
+        'exchanges/<int:exchange_id>/letters/<int:letter_id>/photo/',
+        exchange_views.exchange_letter_image,
+        name='exchange_letter_image',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/letters/<int:letter_id>/privacy/',
+        exchange_views.exchange_letter_privacy,
+        name='exchange_letter_privacy',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/letters/<int:letter_id>/read/',
+        exchange_views.exchange_letter_read,
+        name='exchange_letter_read',
     ),
     path('exchanges/<int:exchange_id>/draw/', exchange_views.exchange_draw, name='exchange_draw'),
     path(
