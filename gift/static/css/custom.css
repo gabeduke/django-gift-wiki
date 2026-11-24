@@ -939,11 +939,22 @@ a.wl-list-row:active { transform: scale(.985); }
 }
 .wl-changelog-body { margin: 2px 0 0; font-size: 13px; color: var(--text-secondary); }
 .wl-item-name .wl-changelog-date { margin-left: auto; }
+.wl-new-badge {
+  padding: 1px 7px; border-radius: var(--radius-pill);
+  background: var(--brand); color: #fff;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.wl-item-row.is-new { border-color: var(--brand-border); box-shadow: 0 0 0 3px var(--brand-light), var(--shadow-1); }
 .wl-changelog-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-top: 10px;
 }
 .wl-changelog-dismiss { margin: 0; }
+/* The × in the corner: same as "Got it", for anyone who looks for a close */
+.wl-changelog-close {
+  margin-left: auto; margin-right: -8px; width: 32px; height: 32px;
+  font-size: 22px; line-height: 1;
+}
 
 /* ── GIFT EXCHANGE ──────────────────────────────────────── */
 .wl-exchange-banner {
@@ -1005,6 +1016,8 @@ a.wl-list-row:active { transform: scale(.985); }
 .wl-exchange-edit form { margin-top: 10px; }
 .wl-exchange-wrap { margin: 10px 0 0; }
 .wl-exchange-wrap .btn-link { padding: 0; color: var(--text-muted); }
+.wl-exchange-delete { margin: 10px 0 0; }
+.wl-exchange-delete .btn-link { padding: 0; color: var(--danger); }
 
 /* The reveal: a wrapped present that opens onto your pick */
 .wl-reveal { text-align: center; border-top: 3px solid var(--brand); }
@@ -1392,6 +1405,58 @@ a.wl-list-row:active { transform: scale(.985); }
   padding: 7px 2px; font-size: 14px; color: var(--text-primary);
 }
 .wl-mylist-items li + li { border-top: 1px dashed var(--border); }
+/* Most wanted: a star people who look after the list can tap */
+.wl-star-form { display: inline; margin: 0; }
+.wl-star {
+  display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;
+  margin-left: 6px; padding: 2px 8px; border-radius: 999px;
+  border: 1px dashed var(--border); background: transparent;
+  color: var(--text-muted); font-size: 11px; font-weight: 600; line-height: 1.4; cursor: pointer;
+  transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+}
+.wl-star-icon::before { content: "☆"; font-size: 13px; }
+.wl-star-label { display: none; }
+.wl-star:hover { color: var(--text-primary); border-style: solid; }
+.wl-star:active { transform: scale(.92); }
+.wl-star.is-on { border: 1px solid #f0c36d; background: #fff4d6; color: #7a5300; }
+.wl-star.is-on .wl-star-icon::before { content: "⭐"; font-size: 11px; }
+.wl-star.is-on .wl-star-label { display: inline; }
+.wl-star.is-busy { opacity: .6; }
+.wl-star-compact {
+  margin: 0; width: 24px; height: 24px; padding: 0; justify-content: center;
+  border: 0; flex-shrink: 0; align-self: center;
+}
+.wl-star-compact.is-on { border: 0; background: transparent; }
+/* Considering: a one-tap 🤔 for givers, beside Mark Purchased. Off it's just
+   the 🤔; on it reads "Considering" in the brand tint. */
+.wl-consider {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px dashed var(--border); background: transparent;
+  color: var(--text-muted); font-size: 12px; font-weight: 600; line-height: 1.4; cursor: pointer;
+  transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+}
+.wl-consider-label { display: none; }
+.wl-consider:hover { color: var(--text-primary); border-style: solid; }
+.wl-consider:active { transform: scale(.92); }
+.wl-consider.is-on {
+  border: 1px solid var(--brand-border); background: var(--brand-light); color: var(--brand-text);
+}
+.wl-consider.is-on .wl-consider-label { display: inline; }
+.wl-consider.is-busy { opacity: .6; }
+/* Phones: the tint alone says it's on, so item names keep their room */
+@media (max-width: 576px) { .wl-consider.is-on .wl-consider-label { display: none; } }
+.wl-considering-note { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+
+/* My Purchases: one section per person, bought then considering */
+.wl-plan-totals { font-size: 12px; font-family: var(--font-mono); color: var(--text-muted); }
+.wl-plan-sub {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  margin: 10px 4px 6px;
+}
+.wl-plan-list { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.wl-plan-list a { color: inherit; }
+.wl-plan-list a:hover { color: var(--brand); }
 .wl-mylist-bullet { width: 16px; text-align: center; color: var(--text-muted); flex-shrink: 0; font-size: 12px; }
 .wl-mylist-item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wl-mylist-more a { font-size: 13px; font-weight: 600; padding-left: 26px; }

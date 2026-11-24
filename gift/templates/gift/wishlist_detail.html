@@ -165,12 +165,15 @@
             {% if access.sees_purchases and item.purchased and item.purchased_by %}
               · <strong>purchased by {{ item.purchased_by.get_full_name|default:item.purchased_by.username }}</strong>
             {% endif %}
+            {% if access.sees_purchases and not item.purchased %}
+              {% include 'gift/partials/considering_note.html' %}
+            {% endif %}
           </div>
           {% if item.description %}
             <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">{{ item.description }}</div>
           {% endif %}
         </div>
-        <div>
+        <div class="wl-item-actions">
           {% if access.sees_purchases %}
             {% include 'gift/partials/purchase_button.html' %}
           {% endif %}

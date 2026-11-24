@@ -1,0 +1,20 @@
+{% comment %}
+  A one-tap 🤔 for givers: say you're thinking of buying `item`, or stop.
+  As secret as a purchase — include it only where access.sees_purchases.
+  `item.considering_me` comes from note_considering() in the view. js/app.js
+  sends it in the background (data-bg-toggle); without JS, or with
+  `full_reload` (My Purchases, whose totals depend on it), it posts and returns.
+{% endcomment %}
+<form method="post" action="{% url 'gift:toggle_considering' item.id %}" class="wl-purchase-form"{% if not full_reload %} data-bg-toggle="considering"{% endif %}>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button type="submit"
+          class="wl-consider{% if item.considering_me %} is-on{% endif %}"
+          aria-pressed="{% if item.considering_me %}true{% else %}false{% endif %}"
+          aria-label="Considering: {{ item.name }}"
+          data-title-on="You're considering this — tap to stop"
+          data-title-off="Thinking of getting this? Other givers will see"
+          title="{% if item.considering_me %}You're considering this — tap to stop{% else %}Thinking of getting this? Other givers will see{% endif %}">
+    <span aria-hidden="true">🤔</span><span class="wl-consider-label">Considering</span>
+  </button>
+</form>

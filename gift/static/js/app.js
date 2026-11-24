@@ -31,6 +31,40 @@
     });
   }
 
+  // ---- One-tap toggles --------------------------------------------------
+  // One-tap toggles (⭐ most wanted, 🤔 considering) save without leaving the
+  // page. The form's data-bg-toggle names the key the server answers with,
+  // e.g. {"considering": true}; the button's data-title-on/-off follow it.
+  // Without JS the form simply posts and comes back.
+  document.addEventListener('submit', function (event) {
+    var form = event.target.closest && event.target.closest('[data-bg-toggle]');
+    if (!form || !window.fetch) return;
+    event.preventDefault();
+    var key = form.getAttribute('data-bg-toggle');
+    var button = form.querySelector('button');
+    if (button.classList.contains('is-busy')) return;
+    button.classList.add('is-busy');
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'fetch' },
+      credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+    }).then(function (result) {
+      if (!result.ok) throw new Error(result.data.error);
+      var on = result.data[key];
+      button.classList.toggle('is-on', on);
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      var title = button.getAttribute(on ? 'data-title-on' : 'data-title-off');
+      if (title) button.title = title;
+    }).catch(function (error) {
+      if (window.wlToast) window.wlToast((error && error.message) || 'Couldn’t save that — try again.');
+    }).then(function () {
+      button.classList.remove('is-busy');
+    });
+  });
+
   // ---- Toasts ------------------------------------------------------------
   // wlToast('Added!', {actions: [{label: 'View', href: '/x/'}, {label: 'Undo', onClick: fn}]})
   window.wlToast = function (message, options) {

@@ -1,7 +1,8 @@
 {% comment %}
-  One item on the wishlist page. Purchase marks and the purchase button are for
-  people the view says may see them (access.sees_purchases) — never the
-  recipient, and nobody while over the shoulder is on.
+  One item on the wishlist page. Purchase marks, who's considering what, and
+  the giver buttons are for people the view says may see them
+  (access.sees_purchases) — never the recipient, and nobody while over the
+  shoulder is on.
 {% endcomment %}
 <div class="wl-item-row{% if access.sees_purchases and item.purchased %} purchased{% endif %}">
   <div class="wl-item-main">
@@ -20,7 +21,9 @@
       {% if item.price_range %}
         <span class="badge-price">{{ item.get_price_range_display }}</span>
       {% endif %}
-      {% if item.is_priority %}
+      {% if access.can_manage %}
+        {% include 'gift/partials/most_wanted_toggle.html' %}
+      {% elif item.is_priority %}
         <span class="badge badge-warning priority-badge">⭐ Most wanted</span>
       {% endif %}
       {% if access.sees_purchases and item.purchased %}
@@ -44,6 +47,9 @@
         {% else %}
           <span class="badge badge-success">Purchased</span>
         {% endif %}
+      {% endif %}
+      {% if access.sees_purchases and not item.purchased %}
+        {% include 'gift/partials/considering_note.html' %}
       {% endif %}
     </div>
     {% if item.description %}

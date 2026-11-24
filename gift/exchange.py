@@ -209,6 +209,14 @@ def delete_letters(letters):
         letter.delete()
 
 
+def delete_exchange(exchange):
+    """Delete an exchange outright — for one made by mistake. Everyone in it,
+    their picks and their letters go with it, photos included."""
+    with transaction.atomic():
+        delete_letters(ExchangeLetter.objects.filter(exchange=exchange))
+        exchange.delete()
+
+
 def can_see_letter(user, letter, exchange):
     """The author always; the receiver once delivered; everyone in the
     exchange once it's on the board."""

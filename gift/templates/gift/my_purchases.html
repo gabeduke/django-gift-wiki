@@ -8,13 +8,19 @@
     <div class="wl-page-header-row">
       <div>
         <h1 class="wl-page-title">My Purchases</h1>
-        <p class="wl-page-subtitle">Everything you've marked as purchased, grouped by list.</p>
-        {% if total_count %}
+        <p class="wl-page-subtitle">What you've bought and what you're considering, for each person.</p>
+        {% if plans %}
         <div class="wl-progress">
           <span class="wl-progress-label">
-            <span class="wl-progress-mono">{{ total_count }}</span>
-            item{{ total_count|pluralize }} purchased &middot;
-            total spend <span class="wl-progress-mono">${{ total_spend|floatformat:2 }}</span>
+            <span class="wl-progress-mono">{{ bought_count }}</span> bought
+            &middot; <span class="wl-progress-mono">${{ spent|floatformat:2 }}</span> spent
+            {% if considering_count %}
+              &middot; <span class="wl-progress-mono">{{ considering_count }}</span> considering
+              {% if considering_total %}(<span class="wl-progress-mono">${{ considering_total|floatformat:2 }}</span>){% endif %}
+            {% endif %}
+            {% if unpriced_count %}
+              &middot; {{ unpriced_count }} without a price
+            {% endif %}
           </span>
         </div>
         {% endif %}
@@ -22,7 +28,6 @@
     </div>
   </div>
 
-  {# Purchases grouped by wishlist #}
   {% if hidden %}
 
     <div style="text-align:center;padding:56px 24px;color:var(--text-muted);">
@@ -30,56 +35,38 @@
       <p style="font-size:13px;">Your purchases are still here. Turn the mode off at the top of the page to see them.</p>
     </div>
 
-  {% elif purchases_by_wishlist %}
+  {% elif plans %}
 
-    {% for wishlist, items in purchases_by_wishlist %}
-    <div class="wl-cat-section">
+    {% for plan in plans %}
+    <section class="wl-cat-section">
       <div class="wl-cat-header">
-        <span class="wl-cat-label">
-          {{ wishlist.title }} &middot;
-          {% with person=wishlist.dependent|default:wishlist.owner %}
-            {{ person.get_full_name|default:person.username }}
-          {% endwith %}
+        <span class="wl-cat-label">{{ plan.person.get_full_name|default:plan.person.username }}</span>
+        <span class="wl-plan-totals">
+          ${{ plan.spent|floatformat:2 }} spent{% if plan.still_open %} &middot; {{ plan.still_open|length }} considering{% if plan.considering_total %} (${{ plan.considering_total|floatformat:2 }}){% endif %}{% endif %}
         </span>
-        <span class="wl-count-badge">{{ items|length }}</span>
       </div>
 
-      {% for item in items %}
-      <a class="wl-item-row" href="{% url 'gift:wishlist_detail' wishlist.id %}"
-         style="text-decoration:none;color:inherit;">
-        <div class="wl-item-main">
-          <div class="wl-item-name">
-            <span>{{ item.name }}</span>
-            {% if item.price %}
-              <span class="badge-price">${{ item.price|floatformat:2 }}</span>
-            {% elif item.price_range %}
-              <span class="badge-price">{{ item.get_price_range_display }}</span>
-            {% endif %}
-          </div>
-          {% if item.description %}
-          <div class="wl-item-desc">{{ item.description|safe }}</div>
-          {% endif %}
-        </div>
+      {% if plan.bought %}
+        <div class="wl-plan-sub">Bought &middot; {{ plan.bought|length }}</div>
+        {% for item in plan.bought %}
+          {% include 'gift/partials/gift_plan_row.html' %}
+        {% endfor %}
+      {% endif %}
 
-        <div class="wl-item-actions">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round"
-               style="color:var(--text-muted);flex-shrink:0;">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </div>
-      </a>
-      {% endfor %}
-
-    </div>
+      {% if plan.considering %}
+        <div class="wl-plan-sub">🤔 Considering &middot; {{ plan.still_open|length }}</div>
+        {% for item in plan.considering %}
+          {% include 'gift/partials/gift_plan_row.html' %}
+        {% endfor %}
+      {% endif %}
+    </section>
     {% endfor %}
 
   {% else %}
 
     <div style="text-align:center;padding:56px 24px;color:var(--text-muted);">
-      <p style="font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">You haven't marked anything as purchased yet</p>
-      <p style="font-size:13px;margin-bottom:20px;">Browse your family's wishlists and tap "Mark Purchased" on anything you buy.</p>
+      <p style="font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Nothing bought or considered yet</p>
+      <p style="font-size:13px;margin-bottom:20px;">On someone's list, tap 🤔 when you're thinking of getting something, or Mark Purchased once you have.</p>
       <a href="{% url 'gift:home' %}" class="btn btn-primary">Browse Wishlists</a>
     </div>
 

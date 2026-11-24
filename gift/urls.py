@@ -50,6 +50,11 @@ urlpatterns = [
     ),
     path('exchanges/<int:exchange_id>/edit/', exchange_views.exchange_edit, name='exchange_edit'),
     path(
+        'exchanges/<int:exchange_id>/delete/',
+        exchange_views.exchange_delete,
+        name='exchange_delete',
+    ),
+    path(
         'exchanges/<int:exchange_id>/remove/<int:participant_id>/',
         exchange_views.exchange_remove,
         name='exchange_remove',
@@ -122,6 +127,8 @@ urlpatterns = [
     path('item/edit/<int:item_id>/', views.item_edit, name='edit_item'),
     path('item/delete/<int:item_id>/', views.item_delete, name='delete_item'),
     path('item/purchase/<int:item_id>/', views.item_purchase, name='purchase_item'),
+    path('item/<int:item_id>/most-wanted/', views.item_priority_toggle, name='toggle_priority'),
+    path('item/<int:item_id>/considering/', views.item_consider_toggle, name='toggle_considering'),
     path('item/<int:item_id>/thank-you/', views.item_thank_you_toggle, name='toggle_thank_you'),
     # Categories
     path('category/edit/<int:category_id>/', views.category_edit, name='edit_category'),

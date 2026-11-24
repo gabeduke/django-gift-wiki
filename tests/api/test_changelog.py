@@ -44,6 +44,10 @@ class TestHomeWhatsNewCard:
         assert 'Feature Two' in content
         assert 'Jul 27, 2026' in content  # published date rendered
         assert 'Got it, thanks!' in content
+        # A close button in the corner submits the same dismiss form
+        assert 'form="whats-new-dismiss"' in content
+        assert 'id="whats-new-dismiss"' in content
+        assert 'aria-label="Close what' in content
 
     def test_no_card_when_nothing_unseen(self, authenticated_user):
         response = authenticated_user.get('/')
@@ -163,6 +167,43 @@ class TestChangelogPage:
         entry.seen_by.add(user)
         content = authenticated_user.get('/changelog/').content.decode()
         assert 'Seen Entry' in content
+
+    def test_opening_the_page_marks_everything_read(self, authenticated_user, user):
+        make_entry('one', 'One')
+        make_entry('two', 'Two')
+
+        content = authenticated_user.get('/changelog/').content.decode()
+
+        assert set(user.seen_changelog_entries.values_list('slug', flat=True)) == {'one', 'two'}
+        # The badge is gone on this very page, and the home card with it
+        assert 'wl-nav-badge' not in content
+        assert 'wl-tab-dot' not in content
+        assert 'wl-changelog-card' not in authenticated_user.get('/').content.decode()
+
+    def test_unread_entries_are_tagged_new_for_that_visit(self, authenticated_user, user):
+        make_entry('old', 'Old News').seen_by.add(user)
+        make_entry('fresh', 'Fresh News')
+
+        first = authenticated_user.get('/changelog/').content.decode()
+        assert first.count('class="wl-new-badge"') == 1
+        assert first.index('Fresh News') < first.index('class="wl-new-badge"') < first.index('Old News')
+
+        again = authenticated_user.get('/changelog/').content.decode()
+        assert 'class="wl-new-badge"' not in again
+
+    def test_inactive_entries_are_not_marked(self, authenticated_user, user):
+        make_entry('hidden', 'Hidden', is_active=False)
+
+        authenticated_user.get('/changelog/')
+
+        assert not user.seen_changelog_entries.exists()
+
+    def test_reading_is_per_user(self, authenticated_user, other_user):
+        make_entry('one', 'One')
+
+        authenticated_user.get('/changelog/')
+
+        assert not other_user.seen_changelog_entries.exists()
 
 
 @pytest.mark.unit
