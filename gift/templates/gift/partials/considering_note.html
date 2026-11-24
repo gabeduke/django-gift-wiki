@@ -1,0 +1,6 @@
+{# Other givers eyeing `item` (names from note_considering). Only where access.sees_purchases. #}
+{% with others=item.considering_others %}
+{% if others %}
+<span class="wl-considering-note">🤔 {{ others|join:", " }} {% if others|length > 1 %}are{% else %}is{% endif %} considering</span>
+{% endif %}
+{% endwith %}

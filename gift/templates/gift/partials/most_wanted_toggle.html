@@ -2,15 +2,16 @@
   A one-tap ⭐ for people who look after a list: star or unstar `item` as
   most wanted. `compact` draws just the star (My Lists); otherwise it's a
   chip that reads "Most wanted" when on. js/app.js sends it in the
-  background; without JS it posts and comes back to this page.
+  background (data-bg-toggle); without JS it posts and comes back to this page.
 {% endcomment %}
-<form method="post" action="{% url 'gift:toggle_priority' item.id %}" class="wl-star-form" data-most-wanted>
+<form method="post" action="{% url 'gift:toggle_priority' item.id %}" class="wl-star-form" data-bg-toggle="is_priority">
   {% csrf_token %}
   <input type="hidden" name="next" value="{{ request.get_full_path }}">
   <button type="submit"
           class="wl-star{% if compact %} wl-star-compact{% endif %}{% if item.is_priority %} is-on{% endif %}"
           aria-pressed="{% if item.is_priority %}true{% else %}false{% endif %}"
           aria-label="Most wanted: {{ item.name }}"
+          data-title-on="Most wanted — tap to unstar" data-title-off="Mark as most wanted"
           title="{% if item.is_priority %}Most wanted — tap to unstar{% else %}Mark as most wanted{% endif %}">
     <span class="wl-star-icon" aria-hidden="true"></span>{% if not compact %}<span class="wl-star-label">Most wanted</span>{% endif %}
   </button>

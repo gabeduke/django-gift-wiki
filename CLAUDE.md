@@ -92,6 +92,7 @@ starting work it covers — the decisions and their reasons are recorded there.
 ## Business Rules
 - **Ownership**: Only wishlist owner or managers can add/edit/delete items
 - **Purchase**: Whoever `access.sees_purchases` can mark items purchased — givers, and keepers of a kid's list. Never the recipient, a manager of someone's own list, or anyone over the shoulder (prevents spoilers)
+- **Considering** (🤔, `Item.considered_by`): givers mark what they're thinking of buying; other givers see the names. Exactly as secret as purchased — keyed off `access.sees_purchases`, never in an owner's form. Shown on the list page and on My Purchases (grouped by person, with totals)
 - **Clear purchased**: Owner/managers; on a kept list, keepers only — not the kid
 - **Purchase toggle**: A user can un-purchase an item they previously marked
 - **Steward proxy**: Feature-flagged — allows a "dependent" user to also manage a list
