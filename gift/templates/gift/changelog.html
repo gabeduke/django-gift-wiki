@@ -16,10 +16,11 @@
   {% if entries %}
     <div class="wl-cat-section">
       {% for entry in entries %}
-      <div class="wl-item-row">
+      <div class="wl-item-row{% if entry.is_new %} is-new{% endif %}">
         <div class="wl-item-main">
           <div class="wl-item-name">
             <span>{{ entry.title }}</span>
+            {% if entry.is_new %}<span class="wl-new-badge">New</span>{% endif %}
             <span class="wl-changelog-date">{{ entry.published_at|date:"M j, Y" }}</span>
           </div>
           <div class="wl-item-desc">{{ entry.body }}</div>
