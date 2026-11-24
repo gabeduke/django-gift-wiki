@@ -84,45 +84,19 @@ class WikiUser(AbstractUser):
         return self.username
 
     def get_profile_picture_url(self):
-        """Safely get profile picture URL, returning None if file doesn't exist."""
-        if not self.profile_picture:
-            return None
-        try:
-            # Check if file exists
-            import os
+        """The profile picture's URL, or None if there isn't one.
 
-            from django.conf import settings
-
-            if hasattr(self.profile_picture, 'name'):
-                file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture.name)
-                if os.path.exists(file_path):
-                    return self.profile_picture.url
-            # If it's a new upload (has read method), return the URL
-            elif hasattr(self.profile_picture, 'read'):
-                return self.profile_picture.url
-        except Exception:
-            pass
-        return None
+        No existence check: on S3 that would be a request per avatar per page.
+        `cleanup_missing_profile_pictures` clears references to lost files.
+        """
+        return self.profile_picture.url if self.profile_picture else None
 
     def get_profile_picture_web_url(self):
-        """Safely get web-sized profile picture URL, returning None if file doesn't exist."""
-        if not self.profile_picture_web:
-            return None
-        try:
-            import os
-
-            from django.conf import settings
-
-            if hasattr(self.profile_picture_web, 'name'):
-                file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture_web.name)
-                if os.path.exists(file_path):
-                    return self.profile_picture_web.url
-        except Exception:
-            pass
-        return None
+        """The web-sized profile picture's URL, or None if there isn't one."""
+        return self.profile_picture_web.url if self.profile_picture_web else None
 
     def save(self, *args, **kwargs):
-        # Process profile picture if feature is enabled and a new one is being uploaded
+        # Make the thumbnail and web sizes when a new picture is being uploaded
         try:
             from giftwiki.feature_flags import get_profile_picture_enabled
 
@@ -131,56 +105,21 @@ class WikiUser(AbstractUser):
             # If feature flags aren't available (e.g., during migrations), default to disabled
             PROFILE_PICTURE_ENABLED = False
 
-        if PROFILE_PICTURE_ENABLED:
-            # Process profile picture if a new one is being uploaded
-            # Check if profile_picture has a file (new upload) and the file exists
-            if self.profile_picture:
-                # Check if it's a new upload (has read method) or existing file
-                if hasattr(self.profile_picture, 'read'):
-                    # New upload - process it
-                    from .utils import process_profile_picture
+        # `_committed` is False only for a file that hasn't reached storage yet.
+        # Don't test `hasattr(field, 'read')`: that opens the stored file, so
+        # every save would re-fetch and re-process it (and a missing file raises).
+        if PROFILE_PICTURE_ENABLED and self.profile_picture and not self.profile_picture._committed:
+            from .utils import process_profile_picture
 
-                    try:
-                        thumbnail, web_size = process_profile_picture(self.profile_picture)
-                        if thumbnail:
-                            self.profile_picture_thumbnail = thumbnail
-                        if web_size:
-                            self.profile_picture_web = web_size
-                    except Exception as e:
-                        # Log error but don't fail the save
-                        logger.error(f'Error processing profile picture: {e}')
-                elif hasattr(self.profile_picture, 'name'):
-                    # Existing file path - check if file actually exists
-                    import os
-
-                    from django.conf import settings
-
-                    file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture.name)
-                    if not os.path.exists(file_path):
-                        # File doesn't exist - clear the reference
-                        logger.warning(
-                            f'Profile picture file not found: {file_path}, clearing reference'
-                        )
-                        self.profile_picture = None
-                        self.profile_picture_thumbnail = None
-                        self.profile_picture_web = None
-        else:
-            # Feature disabled - clear any profile picture references if they exist but files are missing
-            if self.profile_picture and hasattr(self.profile_picture, 'name'):
-                import os
-
-                from django.conf import settings
-
-                try:
-                    file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture.name)
-                    if not os.path.exists(file_path):
-                        # File doesn't exist - clear the reference
-                        self.profile_picture = None
-                        self.profile_picture_thumbnail = None
-                        self.profile_picture_web = None
-                except Exception:
-                    # If we can't check, just continue - don't fail the save
-                    pass
+            try:
+                thumbnail, web_size = process_profile_picture(self.profile_picture)
+                if thumbnail:
+                    self.profile_picture_thumbnail = thumbnail
+                if web_size:
+                    self.profile_picture_web = web_size
+            except Exception as e:
+                # Log error but don't fail the save
+                logger.error(f'Error processing profile picture: {e}')
 
         super().save(*args, **kwargs)
 
@@ -642,19 +581,14 @@ class ExchangeParticipant(models.Model):
 
 
 def letter_image_storage():
-    """Where letter photos live: the S3 bucket in prod, local disk otherwise.
+    """Where letter photos live: the default storage (S3 in prod, see
+    STORAGES in settings). Kept as a function because migration 0030 names it.
 
-    Set on this field alone because the project-wide DEFAULT_FILE_STORAGE
-    setting is ignored since Django 5.1. Photos are never linked directly —
-    gift/exchange_views.py serves them only to people allowed to see them.
+    Photos are never linked directly — gift/exchange_views.py serves them only
+    to people allowed to see them.
     """
-    from django.conf import settings
     from django.core.files.storage import default_storage
 
-    if getattr(settings, 'USE_S3', False):
-        from storages.backends.s3boto3 import S3Boto3Storage
-
-        return S3Boto3Storage()
     return default_storage
 
 

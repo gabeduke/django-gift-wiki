@@ -301,21 +301,33 @@ USE_S3 = os.getenv('USE_S3') == 'TRUE'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 
-# Always use WhiteNoise to serve static files in production
-# WhiteNoise serves static files directly from the application server (Gunicorn)
-# This works well in Kubernetes and doesn't require S3 or a separate web server
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# WhiteNoise serves static files from the app server (Gunicorn).
+# Static URLs are deliberately NOT fingerprinted: `staticfiles` stays on
+# Django's plain storage, and anything a browser or the service worker caches
+# long-term goes through {% vstatic %} instead (see gift/pwa.py).
+#
+# Media (uploads) go to S3 when USE_S3. This must be the STORAGES setting:
+# Django 5.1 removed DEFAULT_FILE_STORAGE and STATICFILES_STORAGE, and ignores
+# them silently — uploads went to the container's disk and were lost on
+# redeploy. tests/test_deploy_config.py guards it.
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+}
 
 if USE_S3:
-    # AWS settings for media files (user uploads, profile pictures, etc.)
-    # Note: Static files are served via WhiteNoise, not S3
+    # Note: static files are served via WhiteNoise, not S3
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+    # Unsigned public URLs: object names are their only protection. Private
+    # files (letter photos) are streamed through an access-checked view.
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
-    # Use S3 for media files only
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    # django-storages overwrites by default; two uploads named photo.jpg would
+    # replace each other. Get a suffixed name instead, like FileSystemStorage.
+    AWS_S3_FILE_OVERWRITE = False
+    STORAGES['default'] = {'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage'}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
