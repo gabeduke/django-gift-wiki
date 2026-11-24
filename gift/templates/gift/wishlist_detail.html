@@ -5,7 +5,8 @@
 {% block quick_add_list %}{{ wishlist.id }}{% endblock %}
 
 {% block content %}
-<div class="wl-page">
+{# A decorated list's colour (🎨 Decorate) covers its page; the nav stays the visitor's #}
+<div class="wl-page"{% if wishlist.accent %} data-theme="{{ wishlist.accent }}"{% endif %}>
 
   {# Back link #}
   <a class="wl-back" href="{% url 'gift:home' %}">
@@ -18,9 +19,15 @@
 
   {# Page header #}
   <div class="wl-page-header">
+    {% if wishlist.image %}
+    <img class="wl-cover" src="{{ wishlist.image.url }}" alt="" decoding="async">
+    {% endif %}
     <div class="wl-page-header-row">
       <div>
-        <h1 class="wl-page-title">{{ wishlist.title }}</h1>
+        <div class="wl-page-title-row">
+          {% include 'gift/partials/list_mark.html' with person=recipient %}
+          <h1 class="wl-page-title">{{ wishlist.title }}</h1>
+        </div>
         {% if wishlist.description %}
         <p class="wl-page-subtitle">{{ wishlist.description }}</p>
         {% endif %}
@@ -47,6 +54,7 @@
                 title="Toggle owner / guest view">
           <span id="viewToggleText">View as Guest</span>
         </button>
+        <a href="{% url 'gift:decorate_wishlist' wishlist.id %}" class="btn btn-outline-secondary btn-sm">🎨 Decorate</a>
         <a href="{% url 'gift:edit_wishlist' wishlist.id %}" class="btn btn-outline-secondary btn-sm">Edit List</a>
         <a href="{% url 'gift:add_item' wishlist.id %}" class="btn btn-primary btn-sm" data-quick-add>+ Add Item</a>
         {% endif %}

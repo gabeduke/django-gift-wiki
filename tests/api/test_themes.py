@@ -28,7 +28,8 @@ class TestThemeDefinitions:
         defined = dict(
             re.findall(r'\[data-theme="(\w+)"\]\s*\{\s*--brand:\s*(#[0-9a-f]{6});', CSS.read_text())
         )
-        expected = {key: colour for key, (_label, colour) in THEMES.items() if key != DEFAULT_THEME}
+        # All of them, the default too: a decorated list sets data-theme on its page
+        expected = {key: colour for key, (_label, colour) in THEMES.items()}
 
         assert defined == expected
 

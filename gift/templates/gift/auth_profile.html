@@ -56,7 +56,7 @@
     {% for data in managed_users_data %}
     <article class="wl-card wl-person">
       <span class="wl-list-avatar wl-person-avatar" aria-hidden="true">
-        {% if data.user.first_name %}{{ data.user.first_name|slice:":1"|upper }}{{ data.user.last_name|slice:":1"|upper }}{% else %}{{ data.user.username|slice:":2"|upper }}{% endif %}
+        {% include 'gift/partials/avatar_face.html' with person=data.user %}
       </span>
       <div class="wl-person-info">
         <strong>{{ data.user.get_full_name|default:data.user.username }}</strong>
@@ -93,7 +93,7 @@
   <section class="wl-card">
     <div class="wl-account-id">
       <span class="wl-avatar wl-avatar-lg" aria-hidden="true">
-        {% if request.user.first_name %}{{ request.user.first_name|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}{% else %}{{ request.user.username|slice:":2"|upper }}{% endif %}
+        {% include 'gift/partials/avatar_face.html' with person=request.user %}
       </span>
       <div>
         <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
@@ -141,24 +141,10 @@
 
   {% if PROFILE_PICTURE_ENABLED %}
   <section class="wl-card">
-    <h2 class="wl-card-title">Profile picture</h2>
-    {% if request.user.get_profile_picture_web_url %}
-    <img src="{{ request.user.get_profile_picture_web_url }}" alt="Your profile picture" class="wl-profile-picture">
-    {% endif %}
-    {% if profile_form %}
-    <form method="post" enctype="multipart/form-data" class="wl-form">
-      {% csrf_token %}
-      <div class="wl-field">
-        <label for="{{ profile_form.profile_picture.id_for_label }}">{{ profile_form.profile_picture.label }}</label>
-        {{ profile_form.profile_picture }}
-        {% if profile_form.profile_picture.help_text %}<div class="form-text">{{ profile_form.profile_picture.help_text }}</div>{% endif %}
-        {% for error in profile_form.profile_picture.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
-      </div>
-      <button type="submit" name="update_profile_picture" class="btn btn-outline-secondary">
-        {% if request.user.profile_picture %}Update{% else %}Upload{% endif %} picture
-      </button>
-    </form>
-    {% endif %}
+    <h2 class="wl-card-title">Your photo</h2>
+    <p class="wl-card-subtitle">It shows next to your name and your lists, for your family.</p>
+    {% url 'gift:profile_picture' as picture_action %}
+    {% include 'gift/partials/picture_picker.html' with person=request.user action=picture_action picker_id='own-picture' %}
   </section>
   {% endif %}
 
@@ -252,6 +238,14 @@ their containing block.
           <button type="submit" class="btn btn-primary">Save changes</button>
         </div>
       </form>
+      {% if PROFILE_PICTURE_ENABLED %}
+      <div class="modal-body wl-modal-picture">
+        {% url 'gift:managed_user_picture' data.user.id as picture_action %}
+        {% with uid=data.user.id|stringformat:"s" %}
+        {% include 'gift/partials/picture_picker.html' with person=data.user action=picture_action picker_id='managed-picture-'|add:uid %}
+        {% endwith %}
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

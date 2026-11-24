@@ -1,0 +1,5 @@
+{% comment %}
+The circle beside a list's name: its emoji if it has one, else the photo or
+initials of the person it's for. Tinted with the list's own colour, if it was
+given one in 🎨 Decorate. Expects `wishlist` and `person` (the recipient).
+{% endcomment %}<span class="wl-list-avatar{% if wishlist.emoji %} wl-list-emoji{% endif %}"{% if wishlist.accent %} data-theme="{{ wishlist.accent }}"{% endif %} aria-hidden="true">{% if wishlist.emoji %}{{ wishlist.emoji }}{% else %}{% include 'gift/partials/avatar_face.html' %}{% endif %}</span>

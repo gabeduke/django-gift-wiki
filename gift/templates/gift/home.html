@@ -167,11 +167,7 @@
 
             <div class="wl-list-row-info">
               <div class="wl-list-avatar">
-                {% if entry.user.first_name %}
-                  {{ entry.user.first_name|slice:":1"|upper }}{{ entry.user.last_name|slice:":1"|upper }}
-                {% else %}
-                  {{ entry.user.username|slice:":2"|upper }}
-                {% endif %}
+                {% include 'gift/partials/avatar_face.html' with person=entry.user %}
               </div>
               <div>
                 <div class="wl-list-title">{{ entry.user.get_full_name|default:entry.user.username }}</div>
@@ -222,14 +218,8 @@
         <a class="wl-list-row" data-search="{{ wishlist.search_text }}" href="{% url 'gift:wishlist_detail' wishlist.id %}">
 
           <div class="wl-list-row-info">
-            {# Avatar: initials from owner name #}
-            <div class="wl-list-avatar">
-              {% if wishlist.owner.first_name %}
-                {{ wishlist.owner.first_name|slice:":1"|upper }}{{ wishlist.owner.last_name|slice:":1"|upper }}
-              {% else %}
-                {{ wishlist.owner.username|slice:":2"|upper }}
-              {% endif %}
-            </div>
+            {# Emoji, or the photo/initials of who it's for (not the owner: a kid's list kept by a parent shows the kid) #}
+            {% include 'gift/partials/list_mark.html' with person=wishlist.dependent|default:wishlist.owner %}
             <div>
               <div class="wl-list-title">{{ wishlist.title }}</div>
               <div class="wl-list-owner">

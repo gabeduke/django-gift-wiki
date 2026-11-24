@@ -5,12 +5,15 @@ top of the page (pinned, or your most recent) gets this card; the rest are
 rows (my_list_row.html). Expects `entry` from views.profile.
 {% endcomment %}
 {% with wishlist=entry.wishlist person=entry.person %}
-<article class="wl-card wl-mylist">
+<article class="wl-card wl-mylist"{% if wishlist.accent %} data-theme="{{ wishlist.accent }}"{% endif %}>
+  {% if wishlist.image %}
+  <a href="{% url 'gift:wishlist_detail' wishlist.id %}" tabindex="-1" aria-hidden="true">
+    <img class="wl-cover" src="{{ wishlist.image.url }}" alt="" loading="lazy" decoding="async">
+  </a>
+  {% endif %}
   <div class="wl-mylist-head">
     <a class="wl-mylist-title" href="{% url 'gift:wishlist_detail' wishlist.id %}">
-      <span class="wl-list-avatar" aria-hidden="true">
-        {% if person.first_name %}{{ person.first_name|slice:":1"|upper }}{{ person.last_name|slice:":1"|upper }}{% else %}{{ person.username|slice:":2"|upper }}{% endif %}
-      </span>
+      {% include 'gift/partials/list_mark.html' %}
       <span class="wl-mylist-name">
         <strong>{{ wishlist.title }}{% if entry.pinned %} <span class="wl-pin-badge" title="Pinned to the top">📌 Pinned</span>{% endif %}</strong>
         <span class="wl-mylist-meta">

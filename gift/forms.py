@@ -321,25 +321,73 @@ class AssignLoginEmailForm(forms.Form):
         )
 
 
-class ProfilePictureForm(forms.ModelForm):
-    """Form for uploading profile pictures with camera support."""
+def clean_photo_upload(upload, process=None):
+    """Reject an upload that is too big or isn't a photo, with a message a
+    child can act on. With `process`, return its cleaned result instead."""
+    from .utils import PHOTO_MAX_BYTES, PHOTO_TOO_BIG, open_photo
 
-    profile_picture = forms.ImageField(
-        required=False,
-        label='Profile Picture',
-        help_text='Upload a photo or take a selfie (will be automatically resized)',
-        widget=forms.FileInput(
-            attrs={
-                'accept': 'image/*',
-                'capture': 'user',  # Enable camera on mobile devices
-                'class': 'form-control',
-            }
-        ),
+    if upload.size > PHOTO_MAX_BYTES:
+        raise forms.ValidationError(PHOTO_TOO_BIG)
+    try:
+        if process:
+            return process(upload)
+        open_photo(upload)
+    except ValueError as error:
+        raise forms.ValidationError(str(error)) from error
+    upload.seek(0)
+    return upload
+
+
+class ProfilePictureForm(forms.ModelForm):
+    """A new profile picture. WikiUser.save() crops and cleans it."""
+
+    # A plain FileField, not ImageField: the extension check would turn away
+    # photos phones hand over as .webp or .heic-converted; open_photo decides.
+    profile_picture = forms.FileField(
+        required=True,
+        label='Choose a photo',
+        help_text='We crop it to a square and remove where it was taken.',
+        widget=forms.FileInput(attrs={'accept': 'image/*', 'class': 'form-control'}),
     )
 
     class Meta:
         model = User
         fields = ['profile_picture']
+
+    def clean_profile_picture(self):
+        return clean_photo_upload(self.cleaned_data['profile_picture'])
+
+
+class DecorateListForm(forms.ModelForm):
+    """🎨 Decorate: an emoji, a colour and a cover photo for one list."""
+
+    image = forms.FileField(
+        required=False,
+        label='Cover photo',
+        widget=forms.FileInput(attrs={'accept': 'image/*', 'class': 'wl-file-input'}),
+    )
+    remove_image = forms.BooleanField(required=False)
+
+    class Meta:
+        model = WishList
+        fields = ['emoji', 'accent', 'image']
+        widgets = {'emoji': forms.RadioSelect, 'accent': forms.RadioSelect}
+
+    def clean_image(self):
+        from .utils import process_cover_image
+
+        upload = self.cleaned_data.get('image')
+        # Unchanged (the stored file) or nothing chosen: nothing to process
+        if not upload or not hasattr(upload, 'content_type'):
+            return upload
+        return clean_photo_upload(upload, process=process_cover_image)
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('remove_image') and not self.files.get('image'):
+            # False, not None: None means "unchanged" to a model FileField
+            cleaned['image'] = False
+        return cleaned
 
 
 class WishListForm(forms.ModelForm):

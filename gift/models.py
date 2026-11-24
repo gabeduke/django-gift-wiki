@@ -5,10 +5,37 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
 
+from .decor import LIST_EMOJI_CHOICES
 from .exchange_kinds import DEFAULT_KIND, ICON_CHOICES, KIND_CHOICES, kind_for
 from .themes import DEFAULT_THEME, THEME_CHOICES
 
 logger = logging.getLogger(__name__)
+
+
+def _random_jpeg_name(folder):
+    """An upload path that says nothing about who it is. Media URLs on S3 are
+    public and unsigned, so the name is all that keeps a photo of a child from
+    being guessed."""
+    import uuid
+
+    return f'{folder}/{uuid.uuid4().hex}.jpg'
+
+
+# Module-level functions (not lambdas), so migrations can name them
+def profile_picture_path(instance, filename):
+    return _random_jpeg_name('profile_pictures')
+
+
+def profile_picture_web_path(instance, filename):
+    return _random_jpeg_name('profile_pictures/web')
+
+
+def profile_picture_thumbnail_path(instance, filename):
+    return _random_jpeg_name('profile_pictures/thumbnails')
+
+
+def wishlist_image_path(instance, filename):
+    return _random_jpeg_name('wishlist_images')
 
 
 class WikiUser(AbstractUser):
@@ -19,16 +46,16 @@ class WikiUser(AbstractUser):
         null=True, blank=True, help_text="User's birthday for organizing wishlists by season."
     )
     profile_picture = models.ImageField(
-        upload_to='profile_pictures/',
+        upload_to=profile_picture_path,
         blank=True,
         null=True,
         help_text='Profile picture (will be automatically resized)',
     )
     profile_picture_thumbnail = models.ImageField(
-        upload_to='profile_pictures/thumbnails/',
+        upload_to=profile_picture_thumbnail_path,
         blank=True,
         null=True,
-        help_text='Thumbnail version (150x150)',
+        help_text='Thumbnail version (160x160)',
     )
     secret_santa_target = models.ForeignKey(
         'self',
@@ -39,7 +66,7 @@ class WikiUser(AbstractUser):
         help_text="The person this user drew for the Christmas exchange."
     )
     profile_picture_web = models.ImageField(
-        upload_to='profile_pictures/web/', blank=True, null=True, help_text='Web version (400x400)'
+        upload_to=profile_picture_web_path, blank=True, null=True, help_text='Web version (400x400)'
     )
 
     @property
@@ -95,33 +122,63 @@ class WikiUser(AbstractUser):
         """The web-sized profile picture's URL, or None if there isn't one."""
         return self.profile_picture_web.url if self.profile_picture_web else None
 
+    def get_avatar_url(self):
+        """The small square picture avatars show, or None for initials."""
+        if self.profile_picture_thumbnail:
+            return self.profile_picture_thumbnail.url
+        return self.get_profile_picture_web_url()
+
+    @property
+    def initials(self):
+        if self.first_name:
+            return f'{self.first_name[:1]}{self.last_name[:1]}'.upper()
+        return self.username[:2].upper()
+
+    PICTURE_FIELDS = ('profile_picture', 'profile_picture_web', 'profile_picture_thumbnail')
+
+    def _stored_picture_names(self):
+        return [getattr(self, name).name for name in self.PICTURE_FIELDS if getattr(self, name)]
+
+    def remove_profile_picture(self):
+        """Back to initials, and the files go too."""
+        names = self._stored_picture_names()
+        for name in self.PICTURE_FIELDS:
+            setattr(self, name, None)
+        self.save(update_fields=list(self.PICTURE_FIELDS))
+        from .utils import delete_stored_files
+
+        delete_stored_files(self._meta.get_field('profile_picture').storage, names)
+
     def save(self, *args, **kwargs):
-        # Make the thumbnail and web sizes when a new picture is being uploaded
-        try:
-            from giftwiki.feature_flags import get_profile_picture_enabled
-
-            PROFILE_PICTURE_ENABLED = get_profile_picture_enabled()
-        except Exception:
-            # If feature flags aren't available (e.g., during migrations), default to disabled
-            PROFILE_PICTURE_ENABLED = False
-
-        # `_committed` is False only for a file that hasn't reached storage yet.
-        # Don't test `hasattr(field, 'read')`: that opens the stored file, so
-        # every save would re-fetch and re-process it (and a missing file raises).
-        if PROFILE_PICTURE_ENABLED and self.profile_picture and not self.profile_picture._committed:
+        # A new upload (from the profile page or admin) is replaced by clean,
+        # square copies before anything is stored: the raw photo would keep
+        # its GPS position at a public URL. `_committed` is False only for a
+        # file that hasn't reached storage yet; don't test `hasattr(field,
+        # 'read')`, which opens the stored file on every save.
+        old_names = []
+        if self.profile_picture and not self.profile_picture._committed:
             from .utils import process_profile_picture
 
             try:
-                thumbnail, web_size = process_profile_picture(self.profile_picture)
-                if thumbnail:
-                    self.profile_picture_thumbnail = thumbnail
-                if web_size:
-                    self.profile_picture_web = web_size
-            except Exception as e:
-                # Log error but don't fail the save
-                logger.error(f'Error processing profile picture: {e}')
+                original, web, thumbnail = process_profile_picture(self.profile_picture)
+            except ValueError:
+                # Forms reject these before getting here; never store one raw
+                logger.warning('Unreadable profile picture dropped', extra={'user_id': self.pk})
+                self.profile_picture = None
+            else:
+                if self.pk:
+                    previous = WikiUser.objects.filter(pk=self.pk).first()
+                    old_names = previous._stored_picture_names() if previous else []
+                self.profile_picture = original
+                self.profile_picture_web = web
+                self.profile_picture_thumbnail = thumbnail
 
         super().save(*args, **kwargs)
+
+        if old_names:
+            from .utils import delete_stored_files
+
+            delete_stored_files(self._meta.get_field('profile_picture').storage, old_names)
 
 
 class Family(models.Model):
@@ -155,12 +212,12 @@ class WishList(models.Model):
     )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    image = models.ImageField(
-        upload_to='wishlist_images/',
-        blank=True,
-        null=True,
-        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])],
-    )
+    # Cover photo, from 🎨 Decorate. Always stored as a cleaned JPEG
+    # (utils.process_cover_image), so any photo a phone hands over is fine.
+    image = models.ImageField(upload_to=wishlist_image_path, blank=True, null=True)
+    emoji = models.CharField(max_length=8, choices=LIST_EMOJI_CHOICES, blank=True, default='')
+    # A theme key (gift/themes.py); blank means each visitor's own colour
+    accent = models.CharField(max_length=20, choices=THEME_CHOICES, blank=True, default='')
     family_category = models.CharField(max_length=255, default='General')  # Default value
     family_name = models.ForeignKey(
         Family, on_delete=models.SET_NULL, null=True, blank=True, related_name='wishlists'

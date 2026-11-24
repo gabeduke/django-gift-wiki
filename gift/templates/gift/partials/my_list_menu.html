@@ -15,6 +15,7 @@ Expects `entry` from views.profile.
       {% csrf_token %}
       <button type="submit" class="dropdown-item">{% if entry.pinned %}📌 Unpin{% else %}📌 Pin to top{% endif %}</button>
     </form>
+    <a class="dropdown-item" href="{% url 'gift:decorate_wishlist' wishlist.id %}">🎨 Decorate</a>
     <a class="dropdown-item" href="{% url 'gift:edit_wishlist' wishlist.id %}">✏️ Edit list</a>
     <button type="button" class="dropdown-item" data-share-url="{{ entry.share_url }}" data-share-title="{{ wishlist.title }}">🔗 Share link</button>
     {% if entry.can_delete %}

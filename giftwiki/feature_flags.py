@@ -94,7 +94,7 @@ def get_steward_proxy_enabled():
 
 def get_profile_picture_enabled():
     """Get PROFILE_PICTURE_ENABLED flag - uses cached value unless invalidated."""
-    return get_flag('PROFILE_PICTURE_ENABLED', 'PROFILE_PICTURE_ENABLED', default=False)
+    return get_flag('PROFILE_PICTURE_ENABLED', 'PROFILE_PICTURE_ENABLED', default=True)
 
 
 # Module-level accessors - use simple environment variables at import time
