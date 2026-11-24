@@ -182,6 +182,7 @@ class Item(models.Model):
         name (CharField): The name of the Item
         description (TextField): The description of the Item
         purchased (BooleanField): The status of the Item
+        considered_by (ManyToManyField): Givers thinking of buying it — as secret as purchased
         is_priority (BooleanField): Whether the owner marked this as a most-wanted item
         is_sneaky (BooleanField): Whether this is a sneaky item hidden from the list owner
         added_by (ForeignKey): Who first added the item; never overwritten on edit
@@ -235,6 +236,15 @@ class Item(models.Model):
     )
     updated_by = models.ForeignKey(
         WikiUser, on_delete=models.CASCADE, related_name='updated_%(class)s_records', null=True
+    )
+    considered_by = models.ManyToManyField(
+        WikiUser,
+        blank=True,
+        related_name='considered_items',
+        help_text=(
+            'Givers thinking of buying this. Kept as secret as purchased: only '
+            'people who may see purchases (access.sees_purchases) ever learn it.'
+        ),
     )
     added_by = models.ForeignKey(
         WikiUser,

@@ -1,0 +1,32 @@
+{% comment %}
+  One item on My Purchases: something the giver bought or is considering.
+  The view only lists items on lists where the giver sees purchases, so the
+  giver buttons are safe here. Archived gifts have been given: no buttons.
+{% endcomment %}
+{% with wishlist=item.wishlist %}
+<div class="wl-item-row{% if item.purchased and item.purchased_by != request.user %} purchased{% endif %}">
+  <div class="wl-item-main">
+    <div class="wl-item-name">
+      <a href="{% url 'gift:wishlist_detail' wishlist.id %}">{{ item.name }}</a>
+      {% if item.price %}
+        <span class="badge-price">${{ item.price|floatformat:2 }}</span>
+      {% elif item.price_range %}
+        <span class="badge-price">{{ item.get_price_range_display }}</span>
+      {% endif %}
+      {% if item.purchased and item.purchased_by != request.user %}
+        <span class="badge badge-warning">Someone else got this</span>
+      {% elif not item.purchased %}
+        {% include 'gift/partials/considering_note.html' %}
+      {% endif %}
+    </div>
+    <div class="wl-plan-list">
+      on <a href="{% url 'gift:wishlist_detail' wishlist.id %}">{{ wishlist.title }}</a>{% if item.archived_at %} · given{% endif %}
+    </div>
+  </div>
+  {% if not item.archived_at %}
+  <div class="wl-item-actions">
+    {% include 'gift/partials/purchase_button.html' with full_reload=True %}
+  </div>
+  {% endif %}
+</div>
+{% endwith %}

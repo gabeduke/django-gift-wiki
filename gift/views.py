@@ -4,7 +4,9 @@ import re
 import secrets
 import string
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from functools import lru_cache
 from urllib.parse import urlencode
 
@@ -570,6 +572,29 @@ def get_item_visible_to_user(request, item_id):
     return item
 
 
+def is_background(request):
+    """Whether a page script sent this (and wants JSON), not a plain form post."""
+    return request.headers.get('X-Requested-With') == 'fetch'
+
+
+def back_to_page(request, item):
+    """Return to the page a form was posted from (its `next`), else the item's list."""
+    next_url = request.POST.get('next', '')
+    if not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        next_url = reverse('gift:wishlist_detail', args=[item.wishlist_id])
+    return redirect(next_url)
+
+
+def refuse_toggle(request, item, message, status=403):
+    """Turn down a one-tap toggle: JSON for the page script, else a message."""
+    if is_background(request):
+        return JsonResponse({'error': message}, status=status)
+    messages.error(request, message)
+    return back_to_page(request, item)
+
+
 @login_required
 def sneaky_item_add(request, wishlist_id):
     """Add a surprise gift to someone's list — hidden from whoever it's for."""
@@ -695,7 +720,7 @@ def item_purchase(request, item_id):
         messages.warning(
             request, 'Turn off over-the-shoulder mode before marking anything as purchased.'
         )
-        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+        return back_to_page(request, item)
 
     # Whoever can't see purchases can't make them either: the recipient, and
     # people who help manage someone's own list
@@ -705,12 +730,12 @@ def item_purchase(request, item_id):
             extra={'item_id': item_id, 'wishlist_id': wishlist.id, 'user': request.user.email},
         )
         messages.warning(request, 'You cannot mark items as purchased on your own list.')
-        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+        return back_to_page(request, item)
 
     # Can only purchase if not already purchased by someone else
     if item.purchased_by is not None and item.purchased_by != request.user:
         messages.warning(request, 'This item has already been purchased by someone else.')
-        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+        return back_to_page(request, item)
 
     # Mark as purchased by current user (or toggle if already purchased by this user)
     if item.purchased_by == request.user and item.purchased:
@@ -725,7 +750,7 @@ def item_purchase(request, item_id):
         messages.success(request, 'Item marked as purchased.')
 
     item.save(current_user=request.user)
-    return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+    return back_to_page(request, item)
 
 
 @login_required
@@ -1730,7 +1755,11 @@ def wishlist_detail(request, wishlist_id):
     # Sneaky items get their own labelled section rather than being folded into
     # the recipient's categories: they are other people's additions, not things
     # the recipient asked for. Interleaving them is how the feature went unseen.
+    if access.sees_purchases:
+        items = items.prefetch_related('considered_by')
     fetched = list(items)
+    if access.sees_purchases:
+        note_considering(fetched, request.user)
     sneaky_items = [i for i in fetched if i.is_sneaky]
     items = [i for i in fetched if not i.is_sneaky]
 
@@ -1780,35 +1809,89 @@ def wishlist_detail(request, wishlist_id):
         raise
 
 
+@dataclass
+class GiftPlan:
+    """What one giver has bought, and is thinking of buying, for one person."""
+
+    person: object
+    bought: list = field(default_factory=list)
+    considering: list = field(default_factory=list)
+
+    @property
+    def still_open(self):
+        """Considered items nobody else has bought yet."""
+        return [item for item in self.considering if not item.purchased]
+
+    @property
+    def spent(self):
+        return sum((item.price for item in self.bought if item.price), Decimal('0.00'))
+
+    @property
+    def considering_total(self):
+        return sum((item.price for item in self.still_open if item.price), Decimal('0.00'))
+
+    @property
+    def unpriced_count(self):
+        return sum(1 for item in self.bought + self.still_open if not item.price)
+
+
 @login_required
 def my_purchases(request):
-    """Show every item the current user has marked as purchased, grouped by wishlist."""
-    from decimal import Decimal
+    """What the signed-in giver has bought and is considering, by person.
 
+    Grouped by who the gifts are for, so a kid with two lists shows once. A
+    list only appears while the giver may still see its purchases — the same
+    rule as the list page — so nothing leaks if they have since become its
+    recipient or a manager of someone's own list."""
     if is_over_the_shoulder(request):
         # Everything here is a spoiler for somebody
         return render(request, 'gift/my_purchases.html', {'hidden': True})
 
-    items = (
-        Item.objects.filter(purchased_by=request.user, is_deleted=False)
-        .select_related('wishlist', 'wishlist__owner', 'wishlist__dependent')
+    user = request.user
+    related = ('wishlist__owner', 'wishlist__dependent', 'purchased_by')
+    bought = (
+        Item.objects.filter(purchased_by=user, is_deleted=False)
+        .select_related(*related)
+        .prefetch_related('wishlist__managers')
+        .order_by('-updated_at')
+    )
+    considering = (
+        Item.objects.filter(considered_by=user, is_deleted=False, archived_at__isnull=True)
+        .exclude(purchased_by=user)
+        .select_related(*related)
+        .prefetch_related('wishlist__managers', 'considered_by')
         .order_by('-updated_at')
     )
 
-    # Group by wishlist. Items are ordered most-recently-updated first, so groups
-    # are headed by the wishlist with the most recent purchase and items within
-    # each group are most recent first as well.
-    purchases_by_wishlist = defaultdict(list)
-    total_spend = Decimal('0.00')
-    for item in items:
-        purchases_by_wishlist[item.wishlist].append(item)
-        if item.price is not None:
-            total_spend += item.price
+    sees_purchases = {}
+    by_person = {}
 
+    def plan_for(item):
+        wishlist = item.wishlist
+        if wishlist.id not in sees_purchases:
+            sees_purchases[wishlist.id] = access_for(wishlist, user).sees_purchases
+        if not sees_purchases[wishlist.id]:
+            return None
+        person = recipient_of(wishlist)
+        return by_person.setdefault(person.pk, GiftPlan(person))
+
+    for item in bought:
+        if plan := plan_for(item):
+            plan.bought.append(item)
+    considering = list(considering)
+    note_considering(considering, user)
+    for item in considering:
+        if plan := plan_for(item):
+            plan.considering.append(item)
+
+    plans = sorted(by_person.values(), key=lambda plan: person_display_name(plan.person).lower())
     context = {
-        'purchases_by_wishlist': purchases_by_wishlist.items(),
-        'total_spend': total_spend,
-        'total_count': len(items),
+        'plans': plans,
+        'bought_count': sum(len(plan.bought) for plan in plans),
+        'considering_count': sum(len(plan.still_open) for plan in plans),
+        'spent': sum((plan.spent for plan in plans), Decimal('0.00')),
+        'considering_total': sum((plan.considering_total for plan in plans), Decimal('0.00')),
+        'unpriced_count': sum(plan.unpriced_count for plan in plans),
     }
     return render(request, 'gift/my_purchases.html', context)
 
@@ -1843,24 +1926,57 @@ def item_priority_toggle(request, item_id):
     Whoever may edit the list's items may do this. The page calls it in the
     background (and gets JSON back); without JS the form posts and returns."""
     item = get_item_visible_to_user(request, item_id)
-    background = request.headers.get('X-Requested-With') == 'fetch'
     if item.is_deleted or not request_access(request, item.wishlist).can_manage:
-        if background:
-            return JsonResponse({'error': 'You can only change lists you look after.'}, status=403)
-        messages.error(request, 'You can only change lists you look after.')
-        return redirect('gift:wishlist_detail', wishlist_id=item.wishlist_id)
+        return refuse_toggle(request, item, 'You can only change lists you look after.')
 
     item.is_priority = not item.is_priority
     item.save(current_user=request.user)
-    if background:
+    if is_background(request):
         return JsonResponse({'is_priority': item.is_priority})
+    return back_to_page(request, item)
 
-    next_url = request.POST.get('next', '')
-    if not url_has_allowed_host_and_scheme(
-        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-    ):
-        next_url = reverse('gift:wishlist_detail', args=[item.wishlist_id])
-    return redirect(next_url)
+
+@require_POST
+@login_required
+def item_consider_toggle(request, item_id):
+    """Say you're thinking of buying an item, or stop.
+
+    As secret as a purchase: only people who may see purchases can do it (never
+    the recipient, a manager of someone's own list, or anyone over the
+    shoulder), and other givers see who's considering what. Anyone may drop
+    their own mark, but nobody starts considering something already bought."""
+    item = get_item_visible_to_user(request, item_id)
+    access = request_access(request, item.wishlist)
+    if access.hiding:
+        return refuse_toggle(request, item, 'Turn off over-the-shoulder mode first.')
+    if not access.sees_purchases:
+        return refuse_toggle(request, item, 'You can only do that on lists you give to.')
+
+    considering = item.considered_by.filter(pk=request.user.pk).exists()
+    if considering:
+        item.considered_by.remove(request.user)
+    elif item.purchased or item.is_deleted or item.archived_at:
+        return refuse_toggle(request, item, 'Someone has already got this one.', status=409)
+    else:
+        item.considered_by.add(request.user)
+
+    if is_background(request):
+        return JsonResponse({'considering': not considering})
+    return back_to_page(request, item)
+
+
+def note_considering(items, user):
+    """Note who is considering each item, for a giver allowed to know.
+
+    Sets `item.considering_me` and `item.considering_others` (names). The marks
+    are as secret as purchases, so only call this for someone whose access
+    `sees_purchases`, with `considered_by` prefetched."""
+    for item in items:
+        givers = item.considered_by.all()
+        item.considering_me = any(giver.pk == user.pk for giver in givers)
+        item.considering_others = [
+            person_display_name(giver) for giver in givers if giver.pk != user.pk
+        ]
 
 
 @require_POST

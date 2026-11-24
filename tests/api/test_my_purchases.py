@@ -1,5 +1,6 @@
 """
-Tests for the "My purchases" page: a giver's own cross-wishlist purchase history.
+Tests for the "My purchases" page: what a giver has bought, across lists.
+Considering (🤔) is covered in test_considering.py.
 """
 
 import pytest
@@ -36,7 +37,7 @@ class TestMyPurchasesView:
         response = authenticated_user.get('/my-purchases/')
         assert response.status_code == 200
         content = response.content.decode()
-        assert "You haven't marked anything as purchased yet" in content
+        assert 'Nothing bought or considered yet' in content
         assert 'Browse Wishlists' in content
 
     def test_only_own_purchases_appear(
@@ -104,7 +105,7 @@ class TestMyPurchasesView:
         assert response.status_code == 200
         content = response.content.decode()
         assert 'Deleted Purchase' not in content
-        assert "You haven't marked anything as purchased yet" in content
+        assert 'Nothing bought or considered yet' in content
 
     def test_total_spend_sums_priced_items(self, authenticated_user, user, other_wishlist):
         """Total spend sums priced items only; unpriced items still list."""
@@ -128,27 +129,31 @@ class TestMyPurchasesView:
         # All 3 purchased items are counted
         assert '<span class="wl-progress-mono">3</span>' in content
 
-    def test_grouped_by_wishlist_with_owner_and_links(
-        self, authenticated_user, user, wishlist, other_wishlist
+    def test_grouped_by_person_with_list_links(
+        self, authenticated_user, user, other_user, family, other_wishlist
     ):
-        """Purchases are grouped under wishlist title + owner, linking to the list."""
-        Item.objects.create(
-            wishlist=wishlist, name='Item A', purchased=True, purchased_by=user,
+        """Purchases are grouped by who they're for: two lists, one person."""
+        second_list = WishList.objects.create(
+            owner=other_user, title='Birthday Ideas', family_name=family
         )
         Item.objects.create(
-            wishlist=other_wishlist, name='Item B', purchased=True, purchased_by=user,
+            wishlist=other_wishlist, name='Item A', purchased=True, purchased_by=user,
+        )
+        Item.objects.create(
+            wishlist=second_list, name='Item B', purchased=True, purchased_by=user,
         )
 
         response = authenticated_user.get('/my-purchases/')
         assert response.status_code == 200
         content = response.content.decode()
-        # Group headers show wishlist titles and owner display names
-        assert 'Test Wishlist' in content
-        assert 'Other User Wishlist' in content
+        # One section for the person, naming both lists
+        assert content.count('class="wl-cat-section"') == 1
         assert 'otheruser' in content
+        assert 'Other User Wishlist' in content
+        assert 'Birthday Ideas' in content
         # Items link back to their wishlist detail pages
-        assert f'/wishlist/{wishlist.id}/' in content
         assert f'/wishlist/{other_wishlist.id}/' in content
+        assert f'/wishlist/{second_list.id}/' in content
 
     def test_most_recent_first_within_group(self, authenticated_user, user, other_wishlist):
         """Within a wishlist group, most recently updated purchases come first."""

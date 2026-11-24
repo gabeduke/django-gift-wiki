@@ -1424,6 +1424,36 @@ a.wl-list-row:active { transform: scale(.985); }
   border: 0; flex-shrink: 0; align-self: center;
 }
 .wl-star-compact.is-on { border: 0; background: transparent; }
+/* Considering: a one-tap 🤔 for givers, beside Mark Purchased. Off it's just
+   the 🤔; on it reads "Considering" in the brand tint. */
+.wl-consider {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px dashed var(--border); background: transparent;
+  color: var(--text-muted); font-size: 12px; font-weight: 600; line-height: 1.4; cursor: pointer;
+  transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+}
+.wl-consider-label { display: none; }
+.wl-consider:hover { color: var(--text-primary); border-style: solid; }
+.wl-consider:active { transform: scale(.92); }
+.wl-consider.is-on {
+  border: 1px solid var(--brand-border); background: var(--brand-light); color: var(--brand-text);
+}
+.wl-consider.is-on .wl-consider-label { display: inline; }
+.wl-consider.is-busy { opacity: .6; }
+/* Phones: the tint alone says it's on, so item names keep their room */
+@media (max-width: 576px) { .wl-consider.is-on .wl-consider-label { display: none; } }
+.wl-considering-note { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+
+/* My Purchases: one section per person, bought then considering */
+.wl-plan-totals { font-size: 12px; font-family: var(--font-mono); color: var(--text-muted); }
+.wl-plan-sub {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  margin: 10px 4px 6px;
+}
+.wl-plan-list { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.wl-plan-list a { color: inherit; }
+.wl-plan-list a:hover { color: var(--brand); }
 .wl-mylist-bullet { width: 16px; text-align: center; color: var(--text-muted); flex-shrink: 0; font-size: 12px; }
 .wl-mylist-item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wl-mylist-more a { font-size: 13px; font-weight: 600; padding-left: 26px; }
