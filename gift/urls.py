@@ -111,6 +111,7 @@ urlpatterns = [
     path('item/edit/<int:item_id>/', views.item_edit, name='edit_item'),
     path('item/delete/<int:item_id>/', views.item_delete, name='delete_item'),
     path('item/purchase/<int:item_id>/', views.item_purchase, name='purchase_item'),
+    path('item/<int:item_id>/most-wanted/', views.item_priority_toggle, name='toggle_priority'),
     path('item/<int:item_id>/thank-you/', views.item_thank_you_toggle, name='toggle_thank_you'),
     # Categories
     path('category/edit/<int:category_id>/', views.category_edit, name='edit_category'),

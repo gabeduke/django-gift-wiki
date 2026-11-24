@@ -26,7 +26,7 @@ rows (my_list_row.html). Expects `entry` from views.profile.
   <ul class="wl-mylist-items">
     {% for item in entry.preview %}
     <li>
-      <span class="wl-mylist-bullet" aria-hidden="true">{% if item.is_priority %}⭐{% else %}•{% endif %}</span>
+      {% include 'gift/partials/most_wanted_toggle.html' with compact=True %}
       <span class="wl-mylist-item-name">{{ item.name }}</span>
     </li>
     {% endfor %}

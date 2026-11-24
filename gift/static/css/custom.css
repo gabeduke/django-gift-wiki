@@ -1394,6 +1394,28 @@ a.wl-list-row:active { transform: scale(.985); }
   padding: 7px 2px; font-size: 14px; color: var(--text-primary);
 }
 .wl-mylist-items li + li { border-top: 1px dashed var(--border); }
+/* Most wanted: a star people who look after the list can tap */
+.wl-star-form { display: inline; margin: 0; }
+.wl-star {
+  display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;
+  margin-left: 6px; padding: 2px 8px; border-radius: 999px;
+  border: 1px dashed var(--border); background: transparent;
+  color: var(--text-muted); font-size: 11px; font-weight: 600; line-height: 1.4; cursor: pointer;
+  transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+}
+.wl-star-icon::before { content: "☆"; font-size: 13px; }
+.wl-star-label { display: none; }
+.wl-star:hover { color: var(--text-primary); border-style: solid; }
+.wl-star:active { transform: scale(.92); }
+.wl-star.is-on { border: 1px solid #f0c36d; background: #fff4d6; color: #7a5300; }
+.wl-star.is-on .wl-star-icon::before { content: "⭐"; font-size: 11px; }
+.wl-star.is-on .wl-star-label { display: inline; }
+.wl-star.is-busy { opacity: .6; }
+.wl-star-compact {
+  margin: 0; width: 24px; height: 24px; padding: 0; justify-content: center;
+  border: 0; flex-shrink: 0; align-self: center;
+}
+.wl-star-compact.is-on { border: 0; background: transparent; }
 .wl-mylist-bullet { width: 16px; text-align: center; color: var(--text-muted); flex-shrink: 0; font-size: 12px; }
 .wl-mylist-item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wl-mylist-more a { font-size: 13px; font-weight: 600; padding-left: 26px; }

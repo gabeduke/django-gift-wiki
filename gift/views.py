@@ -1817,6 +1817,34 @@ def received_gifts(request):
 
 @require_POST
 @login_required
+def item_priority_toggle(request, item_id):
+    """Star or unstar an item as most wanted, from wherever it's shown.
+
+    Whoever may edit the list's items may do this. The page calls it in the
+    background (and gets JSON back); without JS the form posts and returns."""
+    item = get_item_visible_to_user(request, item_id)
+    background = request.headers.get('X-Requested-With') == 'fetch'
+    if item.is_deleted or not request_access(request, item.wishlist).can_manage:
+        if background:
+            return JsonResponse({'error': 'You can only change lists you look after.'}, status=403)
+        messages.error(request, 'You can only change lists you look after.')
+        return redirect('gift:wishlist_detail', wishlist_id=item.wishlist_id)
+
+    item.is_priority = not item.is_priority
+    item.save(current_user=request.user)
+    if background:
+        return JsonResponse({'is_priority': item.is_priority})
+
+    next_url = request.POST.get('next', '')
+    if not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        next_url = reverse('gift:wishlist_detail', args=[item.wishlist_id])
+    return redirect(next_url)
+
+
+@require_POST
+@login_required
 def item_thank_you_toggle(request, item_id):
     """Flip the thank-you-sent flag on an archived gift (owner only, 404 otherwise)."""
     item = get_object_or_404(
