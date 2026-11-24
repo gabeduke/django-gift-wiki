@@ -48,7 +48,8 @@ class TestPurchaseBehavior:
     """Test the purchase behavior - simplified for list tracking."""
 
     def test_anyone_can_purchase_items(self, authenticated_other_user, wishlist, other_user):
-        """Anyone (except owners/managers) can mark items as purchased."""
+        """Anyone but the recipient (and people helping edit the recipient's own
+        list) can mark items as purchased."""
         item = Item.objects.create(
             wishlist=wishlist, name='Test Item', description='Test', updated_by=wishlist.owner
         )
@@ -115,7 +116,7 @@ class TestPurchaseBehavior:
 
 @pytest.mark.unit
 class TestPurchaseVisibility:
-    """Test that purchase information is visible to everyone."""
+    """Test that purchase information is visible to givers."""
 
     def test_everyone_can_see_purchase_status(
         self, authenticated_other_user, wishlist, other_user, user

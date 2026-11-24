@@ -1,0 +1,15 @@
+{% if item.purchased and item.purchased_by != request.user %}
+  {# Bought by someone else: the badge says so, and it isn't ours to undo #}
+{% else %}
+  {% comment %}
+    A form, never a link: the view is POST only, so a link prefetcher, crawler
+    or image tag can't mark a gift bought. Laid out like the link it replaced.
+  {% endcomment %}
+  <form action="{% url 'gift:purchase_item' item.id %}" method="post" class="wl-purchase-form">
+    {% csrf_token %}
+    <button type="submit"
+            class="btn btn-sm {% if item.purchased_by == request.user %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+      {% if item.purchased_by == request.user %}Undo{% else %}Mark Purchased{% endif %}
+    </button>
+  </form>
+{% endif %}

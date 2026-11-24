@@ -60,6 +60,8 @@ it already picked, since "add something to this list" is why you'd tap + here.
            href="{% url 'gift:my_purchases' %}">My Purchases</a>
         <a class="wl-nav-link {% if request.resolver_match.url_name == 'received_gifts' %}active{% endif %}"
            href="{% url 'gift:received_gifts' %}">Received</a>
+        <a class="wl-nav-link {% if request.resolver_match.url_name == 'exchange_list' or request.resolver_match.url_name == 'exchange_detail' %}active{% endif %}"
+           href="{% url 'gift:exchange_list' %}">Exchanges</a>
         <a class="wl-nav-link {% if request.resolver_match.url_name == 'changelog' %}active{% endif %}"
            href="{% url 'gift:changelog' %}">What's New{% if unseen_changelog_count > 0 %}<span class="wl-nav-badge">{{ unseen_changelog_count }}</span>{% endif %}</a>
         {% endif %}
@@ -85,6 +87,22 @@ it already picked, since "add something to this list" is why you'd tap + here.
     </div>
   </nav>
   <!-- /NAV -->
+
+  {% if over_the_shoulder %}
+  {% comment %}
+    On every page while the mode is on, so it can't be forgotten — and so the
+    way back is always the same place. Left on by mistake, it only hides things.
+  {% endcomment %}
+  <div class="wl-shoulder" role="status">
+    <span><strong>👀 Over the shoulder</strong> Purchases and surprises are hidden on this screen.</span>
+    <form action="{% url 'gift:over_the_shoulder' %}" method="post"
+          onsubmit="return confirm('Show purchases and surprises again?');">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button type="submit" class="btn btn-sm">Turn off</button>
+    </form>
+  </div>
+  {% endif %}
 
   {% if messages %}
   <div class="wl-messages">
@@ -142,7 +160,7 @@ it already picked, since "add something to this list" is why you'd tap + here.
       </svg>
       <span>Purchases</span>
     </a>
-    <button type="button" class="wl-tab {% if url_name == 'received_gifts' or url_name == 'changelog' %}active{% endif %}"
+    <button type="button" class="wl-tab {% if url_name == 'received_gifts' or url_name == 'changelog' or url_name == 'exchange_list' or url_name == 'exchange_detail' %}active{% endif %}"
             data-toggle="modal" data-target="#wl-more-sheet" aria-haspopup="dialog">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true">
@@ -161,11 +179,16 @@ it already picked, since "add something to this list" is why you'd tap + here.
         <div class="wl-sheet-grip" aria-hidden="true"></div>
         <nav class="wl-sheet-links">
           <a href="{% url 'gift:received_gifts' %}"><span aria-hidden="true">🎁</span> Received gifts</a>
+          <a href="{% url 'gift:exchange_list' %}"><span aria-hidden="true">✉️</span> Exchanges</a>
           <a href="{% url 'gift:changelog' %}"><span aria-hidden="true">✨</span> What's new
             {% if unseen_changelog_count > 0 %}<span class="wl-nav-badge">{{ unseen_changelog_count }}</span>{% endif %}</a>
           <a href="{% url 'gift:create_wishlist' %}"><span aria-hidden="true">📝</span> Start a new list</a>
           <button type="button" class="wl-install-action" data-install-app hidden><span aria-hidden="true">📲</span> Install the app</button>
-          <a href="{% url 'gift:logout' %}" class="wl-sheet-quiet"><span aria-hidden="true">👋</span> Sign out</a>
+          {# A form: signing out is POST only, so no other site can do it with a link #}
+          <form action="{% url 'gift:logout' %}" method="post">
+            {% csrf_token %}
+            <button type="submit" class="wl-sheet-quiet"><span aria-hidden="true">👋</span> Sign out</button>
+          </form>
         </nav>
       </div>
     </div>

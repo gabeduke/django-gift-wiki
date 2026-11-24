@@ -2,7 +2,9 @@
 Tests for sneaky (surprise) items — issue #7.
 
 A sneaky item is added to someone's wishlist by another user and is hidden
-from the list owner/recipient until the gift is received and archived.
+from the recipient — the owner of their own list, or the kid a list is kept
+for — until the gift is received and archived. The parents keeping a kid's
+list see them like any giver (see test_keeper_visibility.py).
 """
 
 import pytest
@@ -80,7 +82,11 @@ class TestSneakyItemAdd:
 
 @pytest.mark.unit
 class TestSneakyVisibility:
-    """Sneaky items are hidden from the owner server-side, visible to everyone else."""
+    """Sneaky items are hidden from the recipient server-side, visible to everyone else.
+
+    The `wishlist` fixture is the owner's own list, so here the owner is the
+    recipient.
+    """
 
     def test_sneaky_item_hidden_from_owner_detail(self, authenticated_user, wishlist, sneaky_item):
         response = authenticated_user.get(f'/wishlist/{wishlist.id}/')
@@ -126,13 +132,13 @@ class TestSneakyVisibility:
         assert sneaky_item.is_deleted is False
 
     def test_owner_gets_404_on_item_purchase(self, authenticated_user, sneaky_item):
-        response = authenticated_user.get(f'/item/purchase/{sneaky_item.id}/')
+        response = authenticated_user.post(f'/item/purchase/{sneaky_item.id}/')
         assert response.status_code == 404
 
     def test_non_owner_can_purchase_sneaky_item(
         self, authenticated_other_user, other_user, sneaky_item
     ):
-        response = authenticated_other_user.get(f'/item/purchase/{sneaky_item.id}/')
+        response = authenticated_other_user.post(f'/item/purchase/{sneaky_item.id}/')
         assert response.status_code == 302
         sneaky_item.refresh_from_db()
         assert sneaky_item.purchased is True
@@ -200,7 +206,7 @@ class TestSneakySection:
         self, authenticated_other_user, wishlist, item
     ):
         """A section that only appears once items exist cannot teach anyone the
-        feature exists. Non-owners always see it, empty or not."""
+        feature exists. Everyone but the recipient always sees it, empty or not."""
         response = authenticated_other_user.get(f'/wishlist/{wishlist.id}/')
 
         content = response.content.decode()
@@ -215,7 +221,8 @@ class TestSneakySection:
         assert not response.context['sneaky_items']
 
     def test_steward_never_sees_the_section(self, authenticated_other_user, wishlist, other_user):
-        """The dependent is a recipient too — the surprise must hold for them."""
+        """The dependent is who a kept list is for, so the surprise must hold
+        for them — even though the parent keeping the list now sees it."""
         wishlist.dependent = other_user
         wishlist.save()
         Item.objects.create(

@@ -5,6 +5,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
 
+from .exchange_kinds import DEFAULT_KIND, ICON_CHOICES, KIND_CHOICES, kind_for
 from .themes import DEFAULT_THEME, THEME_CHOICES
 
 logger = logging.getLogger(__name__)
@@ -83,45 +84,19 @@ class WikiUser(AbstractUser):
         return self.username
 
     def get_profile_picture_url(self):
-        """Safely get profile picture URL, returning None if file doesn't exist."""
-        if not self.profile_picture:
-            return None
-        try:
-            # Check if file exists
-            import os
+        """The profile picture's URL, or None if there isn't one.
 
-            from django.conf import settings
-
-            if hasattr(self.profile_picture, 'name'):
-                file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture.name)
-                if os.path.exists(file_path):
-                    return self.profile_picture.url
-            # If it's a new upload (has read method), return the URL
-            elif hasattr(self.profile_picture, 'read'):
-                return self.profile_picture.url
-        except Exception:
-            pass
-        return None
+        No existence check: on S3 that would be a request per avatar per page.
+        `cleanup_missing_profile_pictures` clears references to lost files.
+        """
+        return self.profile_picture.url if self.profile_picture else None
 
     def get_profile_picture_web_url(self):
-        """Safely get web-sized profile picture URL, returning None if file doesn't exist."""
-        if not self.profile_picture_web:
-            return None
-        try:
-            import os
-
-            from django.conf import settings
-
-            if hasattr(self.profile_picture_web, 'name'):
-                file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture_web.name)
-                if os.path.exists(file_path):
-                    return self.profile_picture_web.url
-        except Exception:
-            pass
-        return None
+        """The web-sized profile picture's URL, or None if there isn't one."""
+        return self.profile_picture_web.url if self.profile_picture_web else None
 
     def save(self, *args, **kwargs):
-        # Process profile picture if feature is enabled and a new one is being uploaded
+        # Make the thumbnail and web sizes when a new picture is being uploaded
         try:
             from giftwiki.feature_flags import get_profile_picture_enabled
 
@@ -130,56 +105,21 @@ class WikiUser(AbstractUser):
             # If feature flags aren't available (e.g., during migrations), default to disabled
             PROFILE_PICTURE_ENABLED = False
 
-        if PROFILE_PICTURE_ENABLED:
-            # Process profile picture if a new one is being uploaded
-            # Check if profile_picture has a file (new upload) and the file exists
-            if self.profile_picture:
-                # Check if it's a new upload (has read method) or existing file
-                if hasattr(self.profile_picture, 'read'):
-                    # New upload - process it
-                    from .utils import process_profile_picture
+        # `_committed` is False only for a file that hasn't reached storage yet.
+        # Don't test `hasattr(field, 'read')`: that opens the stored file, so
+        # every save would re-fetch and re-process it (and a missing file raises).
+        if PROFILE_PICTURE_ENABLED and self.profile_picture and not self.profile_picture._committed:
+            from .utils import process_profile_picture
 
-                    try:
-                        thumbnail, web_size = process_profile_picture(self.profile_picture)
-                        if thumbnail:
-                            self.profile_picture_thumbnail = thumbnail
-                        if web_size:
-                            self.profile_picture_web = web_size
-                    except Exception as e:
-                        # Log error but don't fail the save
-                        logger.error(f'Error processing profile picture: {e}')
-                elif hasattr(self.profile_picture, 'name'):
-                    # Existing file path - check if file actually exists
-                    import os
-
-                    from django.conf import settings
-
-                    file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture.name)
-                    if not os.path.exists(file_path):
-                        # File doesn't exist - clear the reference
-                        logger.warning(
-                            f'Profile picture file not found: {file_path}, clearing reference'
-                        )
-                        self.profile_picture = None
-                        self.profile_picture_thumbnail = None
-                        self.profile_picture_web = None
-        else:
-            # Feature disabled - clear any profile picture references if they exist but files are missing
-            if self.profile_picture and hasattr(self.profile_picture, 'name'):
-                import os
-
-                from django.conf import settings
-
-                try:
-                    file_path = os.path.join(settings.MEDIA_ROOT, self.profile_picture.name)
-                    if not os.path.exists(file_path):
-                        # File doesn't exist - clear the reference
-                        self.profile_picture = None
-                        self.profile_picture_thumbnail = None
-                        self.profile_picture_web = None
-                except Exception:
-                    # If we can't check, just continue - don't fail the save
-                    pass
+            try:
+                thumbnail, web_size = process_profile_picture(self.profile_picture)
+                if thumbnail:
+                    self.profile_picture_thumbnail = thumbnail
+                if web_size:
+                    self.profile_picture_web = web_size
+            except Exception as e:
+                # Log error but don't fail the save
+                logger.error(f'Error processing profile picture: {e}')
 
         super().save(*args, **kwargs)
 
@@ -552,3 +492,145 @@ class ChangelogEntry(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Exchange(models.Model):
+    """
+    A gift exchange: people opt in, the organizer draws names, and each person
+    privately learns who they're giving to. The family names it — "Secret
+    Santa" is only the default. Logic lives in gift/exchange.py.
+
+    Nobody but the giver ever sees a pairing on the site, the organizer
+    included; see ExchangeParticipant.
+    """
+
+    name = models.CharField(max_length=80, default='Secret Santa')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=DEFAULT_KIND)
+    icon = models.CharField(max_length=8, choices=ICON_CHOICES, blank=True, default='')
+    organizer = models.ForeignKey(
+        WikiUser, on_delete=models.SET_NULL, null=True, related_name='organized_exchanges'
+    )
+    budget = models.CharField(max_length=40, blank=True, help_text='e.g. "$50"')
+    exchange_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    drawn_at = models.DateTimeField(null=True, blank=True)
+    # Letters stay with their writers until the organizer hands them out.
+    letters_delivered_at = models.DateTimeField(null=True, blank=True)
+    # After delivery, a page of every letter both sides agreed to share
+    board_enabled = models.BooleanField(default=False)
+    # Wrapped-up exchanges leave the home page but keep their history.
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_drawn(self):
+        return self.drawn_at is not None
+
+    @property
+    def days_until(self):
+        """Days until the exchange date: 0 on the day, None without a date or after."""
+        if not self.exchange_date:
+            return None
+        days = (self.exchange_date - timezone.localdate()).days
+        return days if days >= 0 else None
+
+    @property
+    def letters_delivered(self):
+        return self.letters_delivered_at is not None
+
+    @property
+    def kind_info(self):
+        return kind_for(self.kind)
+
+    @property
+    def display_icon(self):
+        return self.icon or self.kind_info.icon
+
+
+class ExchangeParticipant(models.Model):
+    """
+    Someone opted into an exchange, and — once names are drawn — who they give
+    to. The receiver is secret: keep it out of __str__, admin, logs and flash
+    messages. Only the giver's own row is ever shown to them.
+    """
+
+    exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE, related_name='participants')
+    giver = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='exchange_entries')
+    receiver = models.ForeignKey(
+        WikiUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    # Set when the giver opens theirs; until then the home page shows it.
+    reveal_seen_at = models.DateTimeField(null=True, blank=True)
+    # Their pick changed after they'd been dealt one (a redraw, or someone
+    # slotted in or taken out next to them), so the home page says so.
+    pick_changed = models.BooleanField(default=False)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['exchange', 'giver'], name='one_entry_per_exchange'),
+        ]
+
+    def __str__(self):
+        return f'{self.giver} in {self.exchange}'
+
+
+def letter_image_storage():
+    """Where letter photos live: the default storage (S3 in prod, see
+    STORAGES in settings). Kept as a function because migration 0030 names it.
+
+    Photos are never linked directly — gift/exchange_views.py serves them only
+    to people allowed to see them.
+    """
+    from django.core.files.storage import default_storage
+
+    return default_storage
+
+
+def letter_image_path(instance, filename):
+    import uuid
+
+    # Random, so the name says nothing about who it's from or for
+    return f'exchange-letters/{uuid.uuid4().hex}.jpg'
+
+
+class ExchangeLetter(models.Model):
+    """
+    A letter from a giver to the person they drew. Only its author can read it
+    until the organizer delivers the exchange's letters; then its receiver can
+    too. Nobody else, ever — keep the body out of __str__, admin and messages.
+
+    The receiver is stored here rather than read from the draw, so a letter
+    can never land with someone it wasn't written for.
+    """
+
+    MAX_LENGTH = 4000
+
+    exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE, related_name='letters')
+    author = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='+')
+    receiver = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='exchange_letters')
+    body = models.TextField(max_length=MAX_LENGTH, blank=True)
+    # A photo or scan: a handwritten letter, a poem, a drawing
+    image = models.ImageField(
+        upload_to=letter_image_path, storage=letter_image_storage, blank=True, null=True
+    )
+    # The display board needs both: the writer's yes when writing, and the
+    # reader's yes after reading
+    shareable = models.BooleanField(default=False)
+    shared_by_receiver = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['exchange', 'author'], name='one_letter_per_author'),
+        ]
+
+    def __str__(self):
+        return f'Letter in {self.exchange}'

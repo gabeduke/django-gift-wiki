@@ -9,6 +9,13 @@ from django.http import HttpResponseServerError
 
 User = get_user_model()
 
+OPS_TOKEN = 'test-ops-token'
+GATED_PATHS = ['/health/db/', '/metrics', '/metrics/']
+
+
+def bearer(token):
+    return {'Authorization': f'Bearer {token}'}
+
 
 @pytest.mark.unit
 class TestHealthCheckMiddleware:
@@ -42,51 +49,133 @@ class TestHealthCheckMiddleware:
         assert response.status_code == 200
         assert response.content == b'ok'
 
-
-@pytest.mark.unit
-class TestDatabaseHealthCheckMiddleware:
-    def test_db_health_endpoint_returns_200_when_database_reachable(
-        self, client, db, django_assert_num_queries
+    def test_health_endpoint_stays_public_when_an_ops_token_is_set(
+        self, client, db, settings, django_assert_num_queries
     ):
-        with django_assert_num_queries(1):
-            response = client.get('/health/db/')
+        """Probes carry no token. Gating the DB check must not gate liveness."""
+        settings.OPS_TOKEN = OPS_TOKEN
+
+        with django_assert_num_queries(0):
+            response = client.get('/health/')
 
         assert response.status_code == 200
         assert response.content == b'ok'
 
-    def test_db_health_endpoint_returns_500_when_database_unreachable(self, client):
+
+@pytest.mark.unit
+class TestOperatorOnlyEndpoints:
+    """`/health/db/` and `/metrics` are answered before authentication (#130).
+
+    A public `/health/db/` lets anyone run a query and reset Neon's autosuspend
+    timer, burning the free plan's compute allowance; `/metrics` leaks paths and
+    usage patterns. Refusals must be a 404 that runs no query at all.
+    """
+
+    @pytest.mark.parametrize('path', GATED_PATHS)
+    def test_anonymous_request_is_404_without_touching_the_database(
+        self, client, db, settings, django_assert_num_queries, path
+    ):
+        settings.OPS_TOKEN = ''
+
+        with django_assert_num_queries(0):
+            response = client.get(path)
+
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize('path', GATED_PATHS)
+    def test_missing_token_is_404_without_touching_the_database(
+        self, client, db, settings, django_assert_num_queries, path
+    ):
+        settings.OPS_TOKEN = OPS_TOKEN
+
+        with django_assert_num_queries(0):
+            response = client.get(path)
+
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize('path', GATED_PATHS)
+    @pytest.mark.parametrize(
+        'authorization',
+        [
+            'Bearer wrong-token',
+            f'Bearer {OPS_TOKEN}x',
+            f'Basic {OPS_TOKEN}',
+            OPS_TOKEN,
+            'Bearer ',
+        ],
+    )
+    def test_wrong_token_is_404_without_touching_the_database(
+        self, client, db, settings, django_assert_num_queries, path, authorization
+    ):
+        settings.OPS_TOKEN = OPS_TOKEN
+
+        with django_assert_num_queries(0):
+            response = client.get(path, headers={'Authorization': authorization})
+
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize('path', GATED_PATHS)
+    def test_token_is_enforced_even_under_debug(self, client, db, settings, path):
+        settings.DEBUG = True
+        settings.OPS_TOKEN = OPS_TOKEN
+
+        assert client.get(path).status_code == 404
+
+    def test_db_check_with_the_token_runs_one_query(
+        self, client, db, settings, django_assert_num_queries
+    ):
+        settings.OPS_TOKEN = OPS_TOKEN
+
+        with django_assert_num_queries(1):
+            response = client.get('/health/db/', headers=bearer(OPS_TOKEN))
+
+        assert response.status_code == 200
+        assert response.content == b'ok'
+
+    def test_db_check_with_the_token_reports_an_unreachable_database(self, client, settings):
+        settings.OPS_TOKEN = OPS_TOKEN
+
         with patch(
             'gift.middleware.healthcheck.connections.__getitem__',
             side_effect=OperationalError('could not connect to server'),
         ):
-            response = client.get('/health/db/')
+            response = client.get('/health/db/', headers=bearer(OPS_TOKEN))
 
         assert response.status_code == 500
         assert b'Database check failed' in response.content
 
+    @pytest.mark.parametrize('path', ['/metrics', '/metrics/'])
+    def test_metrics_with_the_token(self, client, settings, path):
+        settings.OPS_TOKEN = OPS_TOKEN
 
-@pytest.mark.unit
-class TestMetricsMiddleware:
-    def test_metrics_endpoint_returns_200_unauthenticated(self, client):
-        response = client.get('/metrics')
+        response = client.get(path, headers=bearer(OPS_TOKEN))
+
         assert response.status_code == 200
         assert 'text/plain' in response['Content-Type']
 
-    def test_metrics_endpoint_with_trailing_slash_returns_200(self, client):
-        response = client.get('/metrics/')
+    def test_bearer_scheme_is_case_insensitive(self, client, settings):
+        settings.OPS_TOKEN = OPS_TOKEN
+
+        response = client.get('/metrics', headers={'Authorization': f'bearer {OPS_TOKEN}'})
+
         assert response.status_code == 200
-        assert 'text/plain' in response['Content-Type']
+
+    def test_open_under_debug_when_no_token_is_configured(self, client, db, settings):
+        """Local development needs no token."""
+        settings.DEBUG = True
+        settings.OPS_TOKEN = ''
+
+        assert client.get('/health/db/').status_code == 200
+        assert client.get('/metrics').status_code == 200
 
 
 @pytest.mark.unit
 class TestFirebaseAuthAllowlist:
     def test_disallowed_email_returns_403(self, client, db):
-        """A successfully-authenticated user whose email is not in the allowlist gets 403."""
-        denied_user = User.objects.create_user(username='denied', email='denied@example.com')
-
+        """A verified Firebase email that is not in the allowlist gets 403."""
         with patch(
-            'gift.middleware.firebase_auth.FirebaseAuthBackend.authenticate',
-            return_value=denied_user,
+            'gift.middleware.firebase_auth.FirebaseAuthBackend.verified_email',
+            return_value='denied@example.com',
         ):
             client.cookies['__session'] = 'fake-session-cookie'
             response = client.get('/')

@@ -39,6 +39,24 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
 # Allow Firebase Auth popups to communicate with the application
 # Django 4.0+ defaults to 'same-origin' which blocks cross-origin popups
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+
+# HTTPS hardening (#131), for deployed environments only. Dev and prod Cloud Run
+# never set DJANGO_DEBUG, so DEBUG is off there; local `make run` sets it on and
+# serves plain HTTP, where Secure cookies would never be sent back.
+# tests/test_deploy_config.py pins these.
+if not DEBUG:
+    # Cloud Run ends TLS at Google's front end and forwards plain HTTP to the
+    # container, with the original scheme in X-Forwarded-Proto. Trusting it
+    # makes request.is_secure() true for real HTTPS requests, which HSTS, the
+    # CSRF origin check and build_absolute_uri() all go by.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Short on purpose while it rolls out: if HTTPS ever breaks, browsers stay
+    # locked to it for at most an hour. Raise to a year (31536000) once dev and
+    # prod are confirmed. No SECURE_HSTS_INCLUDE_SUBDOMAINS or SECURE_HSTS_PRELOAD:
+    # both are hard to walk back. SECURE_SSL_REDIRECT stays off too (#131).
+    SECURE_HSTS_SECONDS = 3600
 # Configure logging - only write to file in debug mode to reduce I/O overhead in production
 LOGGING = {
     'version': 1,
@@ -157,7 +175,7 @@ if DEBUG:
 MIDDLEWARE = [
     'gift.middleware.error_logging.ErrorLoggingMiddleware',  # Log unhandled exceptions with request/trace context
     'gift.middleware.healthcheck.HealthCheckMiddleware',
-    'gift.middleware.metrics.MetricsMiddleware',  # Handle /metrics endpoint early, before security checks
+    'gift.middleware.metrics.MetricsMiddleware',  # /metrics, gated by OPS_TOKEN before auth runs
     'gift.middleware.prometheus.PrometheusMiddleware',  # Prometheus metrics - early in chain to track all requests
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -194,6 +212,11 @@ FIREBASE_CLIENT_CONFIG = {
 
 # Google Analytics
 GOOGLE_ANALYTICS_ID = os.environ.get('GOOGLE_ANALYTICS_ID')
+
+# Bearer token for the operator-only endpoints, /health/db/ and /metrics.
+# Unset: they 404 unless DEBUG. See gift/middleware/ops_token.py.
+OPS_TOKEN = os.environ.get('OPS_TOKEN', '').strip()
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -208,6 +231,7 @@ TEMPLATES = [
                 'gift.context_processors.google_analytics',
                 'gift.context_processors.unseen_changelog_count',
                 'gift.context_processors.theme',
+                'gift.context_processors.over_the_shoulder',
                 'giftwiki.feature_flags.get_context_processor',
             ],
         },
@@ -277,21 +301,33 @@ USE_S3 = os.getenv('USE_S3') == 'TRUE'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 
-# Always use WhiteNoise to serve static files in production
-# WhiteNoise serves static files directly from the application server (Gunicorn)
-# This works well in Kubernetes and doesn't require S3 or a separate web server
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# WhiteNoise serves static files from the app server (Gunicorn).
+# Static URLs are deliberately NOT fingerprinted: `staticfiles` stays on
+# Django's plain storage, and anything a browser or the service worker caches
+# long-term goes through {% vstatic %} instead (see gift/pwa.py).
+#
+# Media (uploads) go to S3 when USE_S3. This must be the STORAGES setting:
+# Django 5.1 removed DEFAULT_FILE_STORAGE and STATICFILES_STORAGE, and ignores
+# them silently — uploads went to the container's disk and were lost on
+# redeploy. tests/test_deploy_config.py guards it.
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+}
 
 if USE_S3:
-    # AWS settings for media files (user uploads, profile pictures, etc.)
-    # Note: Static files are served via WhiteNoise, not S3
+    # Note: static files are served via WhiteNoise, not S3
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+    # Unsigned public URLs: object names are their only protection. Private
+    # files (letter photos) are streamed through an access-checked view.
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
-    # Use S3 for media files only
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    # django-storages overwrites by default; two uploads named photo.jpg would
+    # replace each other. Get a suffixed name instead, like FileSystemStorage.
+    AWS_S3_FILE_OVERWRITE = False
+    STORAGES['default'] = {'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage'}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

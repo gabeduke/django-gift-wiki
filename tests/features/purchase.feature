@@ -1,10 +1,12 @@
 Feature: Wishlist item purchase rules
   Anyone on the family can mark a wishlist item as purchased except the
-  list's owner or managers (no spoilers). A purchaser may toggle their
-  own purchase back off. Once an item is purchased, it is shown as
-  "Purchased" anonymously by default; a reveal control lets curious
-  viewers see who purchased it. List owners/managers see no purchase
-  information at all.
+  person the list is for, and anyone helping manage someone's own list
+  (no spoilers). On a list kept for a child, the parents who keep it are
+  givers too: they see and mark purchases, and the child sees none of it.
+  A purchaser may toggle their own purchase back off. Once an item is
+  purchased, it is shown as "Purchased" anonymously by default; a reveal
+  control lets curious viewers see who purchased it. The person a list is
+  for sees no purchase information at all.
 
   Scenario: Non-owner can mark an item as purchased
     Given a wishlist with an unpurchased item
@@ -40,4 +42,13 @@ Feature: Wishlist item purchase rules
     Given a wishlist with an unpurchased item
     And the other user has already purchased the item
     When the owner views the wishlist page
+    Then the page does not show purchase information
+
+  Scenario: A parent can mark an item purchased on a list kept for their child, and the child sees no purchase information
+    Given a list kept for a child with an unpurchased item
+    When the parent marks the item as purchased
+    Then the item is marked purchased by the parent
+    When the parent views the wishlist page
+    Then the page shows the item as purchased
+    When the child views the wishlist page
     Then the page does not show purchase information

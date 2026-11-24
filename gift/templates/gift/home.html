@@ -13,6 +13,10 @@
       <div class="wl-changelog-head">
         <span class="wl-changelog-title">✨ What's new</span>
         <span class="wl-count-badge">{{ unseen_changelog_count }}</span>
+        <button type="submit" form="whats-new-dismiss" class="wl-icon-btn wl-changelog-close"
+                aria-label="Close what's new" title="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
       </div>
       {% for entry in unseen_changelog_entries %}
       <div class="wl-changelog-entry">
@@ -25,13 +29,72 @@
       {% endfor %}
       <div class="wl-changelog-foot">
         <a class="wl-changelog-more" href="{% url 'gift:changelog' %}">{% if unseen_changelog_more %}…and {{ unseen_changelog_more }} more{% else %}See details{% endif %}</a>
-        <form method="post" action="{% url 'gift:changelog_dismiss' %}" class="wl-changelog-dismiss">
+        <form method="post" action="{% url 'gift:changelog_dismiss' %}" class="wl-changelog-dismiss" id="whats-new-dismiss">
           {% csrf_token %}
           <button type="submit" class="btn btn-primary btn-sm">Got it, thanks!</button>
         </form>
       </div>
     </div>
     {% endif %}
+
+    {% for letter in exchange_letters %}
+    <!-- A delivered letter: shown until it's been read. Who it's from waits for the opening. -->
+    <a class="wl-exchange-banner wl-exchange-banner-reveal" href="{% url 'gift:exchange_detail' letter.exchange.id %}#letters">
+      <span class="wl-exchange-banner-gift" aria-hidden="true">💌</span>
+      <span class="wl-exchange-banner-text">
+        <strong>{{ letter.exchange.kind_info.received_title }} is waiting</strong>
+        <span>{{ letter.exchange.name }}</span>
+      </span>
+      <span class="btn btn-primary btn-sm">Open it</span>
+    </a>
+    {% endfor %}
+
+    {% for entry in exchange_reveals %}
+    <!-- Names are drawn: shown on every visit until the giver opens theirs -->
+    <a class="wl-exchange-banner wl-exchange-banner-reveal" href="{% url 'gift:exchange_detail' entry.exchange.id %}#reveal">
+      <span class="wl-exchange-banner-gift" aria-hidden="true">{{ entry.exchange.display_icon }}</span>
+      <span class="wl-exchange-banner-text">
+        {% if entry.pick_changed %}
+        <strong>Your pick for {{ entry.exchange.name }} has changed</strong>
+        <span>There's a new one waiting — tap to see who.</span>
+        {% else %}
+        <strong>Names are drawn for {{ entry.exchange.name }}!</strong>
+        <span>Yours is waiting — tap to see who you drew.</span>
+        {% endif %}
+      </span>
+      <span class="btn btn-primary btn-sm">Open it</span>
+    </a>
+    {% endfor %}
+
+    {% for entry in exchange_picks %}
+    <!-- Your pick, without the name: anyone glancing at the screen sees nothing -->
+    <a class="wl-exchange-banner" href="{% url 'gift:exchange_detail' entry.exchange.id %}#reveal">
+      <span class="wl-exchange-banner-gift" aria-hidden="true">{{ entry.exchange.display_icon }}</span>
+      <span class="wl-exchange-banner-text">
+        <strong>{{ entry.exchange.name }}</strong>
+        <span>
+          {% if entry.exchange.kind_info.letter_is_the_gift and not entry.exchange.letters_delivered %}
+            {% if entry.letter_written %}Letter written ✓{% else %}Your {{ entry.exchange.kind_info.letter_title|lower }} isn't written yet{% endif %}
+          {% else %}See your pick{% endif %}
+          {% with days=entry.exchange.days_until %}{% if days is not None %} · {% if days == 0 %}today!{% elif days == 1 %}tomorrow{% else %}{{ days }} days to go{% endif %}{% endif %}{% endwith %}
+        </span>
+      </span>
+      <span class="wl-exchange-banner-go" aria-hidden="true">→</span>
+    </a>
+    {% endfor %}
+
+    {% for exchange in exchange_invites %}
+    <div class="wl-exchange-banner wl-exchange-banner-quiet">
+      <span class="wl-exchange-banner-gift" aria-hidden="true">{{ exchange.display_icon }}</span>
+      <a class="wl-exchange-banner-text" href="{% url 'gift:exchange_detail' exchange.id %}">
+        <span><strong>{{ exchange.name }}</strong> is taking names — want in?</span>
+      </a>
+      <form method="post" action="{% url 'gift:exchange_decline' exchange.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-link btn-sm wl-exchange-decline">Not this time</button>
+      </form>
+    </div>
+    {% endfor %}
 
     <section class="wl-home-top">
       <figure class="wl-home-photo">

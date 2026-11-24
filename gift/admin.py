@@ -11,6 +11,8 @@ from gift.models import (
     AllowedEmail,
     Category,
     ChangelogEntry,
+    Exchange,
+    ExchangeParticipant,
     Family,
     FeatureFlag,
     Item,
@@ -48,6 +50,22 @@ class CustomUserAdmin(ImportExportModelAdmin, UserAdmin):
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Family)
 admin.site.register(Season)
+
+
+class ExchangeParticipantInline(admin.TabularInline):
+    # No receiver: whoever opens the admin may be playing too. Draw again
+    # from the exchange page rather than editing pairings by hand.
+    model = ExchangeParticipant
+    fields = ('giver', 'reveal_seen_at', 'joined_at')
+    readonly_fields = ('reveal_seen_at', 'joined_at')
+    extra = 0
+
+
+@admin.register(Exchange)
+class ExchangeAdmin(admin.ModelAdmin):
+    list_display = ['name', 'kind', 'organizer', 'drawn_at', 'is_active']
+    # ExchangeLetter isn't registered at all: letters are private to their writer and reader.
+    inlines = [ExchangeParticipantInline]
 
 
 @admin.register(WishList)

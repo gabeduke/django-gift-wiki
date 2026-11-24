@@ -1,0 +1,1 @@
+{% with days=exchange.days_until %}{% if days is not None %}<span class="wl-exchange-countdown">{% if days == 0 %}Today!{% elif days == 1 %}Tomorrow{% else %}{{ days }} days to go{% endif %}</span>{% endif %}{% endwith %}

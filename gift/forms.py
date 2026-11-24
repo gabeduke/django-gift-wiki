@@ -8,7 +8,8 @@ from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Q
 from django.forms import formset_factory, modelformset_factory
 
-from .models import Category, Item, ScrapedWikiPage, Suggestion, WishList
+from .exchange_kinds import DEFAULT_KIND, KINDS
+from .models import Category, Exchange, ExchangeLetter, Item, ScrapedWikiPage, Suggestion, WishList
 
 User = get_user_model()
 
@@ -239,18 +240,35 @@ class ManagedUserForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        # The requester's list this person is kept on, if any
+        self.current_wishlist = None
         if user:
             from django.db.models import Q
 
             self.fields['link_to_wishlist'].queryset = WishList.objects.filter(
                 Q(owner=user) | Q(managers=user)
             ).distinct()
-            
-            # Pre-populate if this managed user is already a dependent
+
+            # Pre-populate from the requester's own lists only: one outside the
+            # choices renders the select blank, and saving a blank select unlinks.
             if self.instance and self.instance.pk:
-                current_wishlist = WishList.objects.filter(dependent=self.instance).first()
-                if current_wishlist:
-                    self.initial['link_to_wishlist'] = current_wishlist.pk
+                self.current_wishlist = (
+                    self.fields['link_to_wishlist']
+                    .queryset.filter(dependent=self.instance)
+                    .first()
+                )
+                if self.current_wishlist:
+                    self.initial['link_to_wishlist'] = self.current_wishlist.pk
+
+    def clean_link_to_wishlist(self):
+        """Never take a list away from somebody else it's already kept for."""
+        wishlist = self.cleaned_data.get('link_to_wishlist')
+        if wishlist and wishlist.dependent_id not in (None, self.instance.pk):
+            raise forms.ValidationError(
+                f'"{wishlist.title}" is already kept for '
+                f'{wishlist.dependent.first_name or wishlist.dependent.username}.'
+            )
+        return wishlist
 
 
 class CreateManagedUserForm(ManagedUserForm):
@@ -411,9 +429,11 @@ class WishListForm(forms.ModelForm):
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
-        # Exclude the current user from the managers queryset
-        if user:
-            self.fields['managers'].queryset = User.objects.all().exclude(id=user.id)
+        # Leave out the list's owner (for a new list, its creator) — not whoever
+        # is editing: a manager saving the list must stay a manager.
+        owner = instance.owner if instance and instance.pk else user
+        if owner:
+            self.fields['managers'].queryset = User.objects.all().exclude(id=owner.id)
         else:
             self.fields['managers'].queryset = User.objects.all()
 
@@ -466,8 +486,24 @@ class WishListForm(forms.ModelForm):
         STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
 
         if STEWARD_PROXY_ENABLED:
+            # Only yourself and people you already manage: naming somebody as a
+            # dependent makes them your "managed user", so it can't be anyone.
+            dependent_choices = User.objects.none()
+            if user:
+                from django.db.models import Q
+
+                dependent_choices = User.objects.filter(
+                    Q(pk=user.pk)
+                    | Q(stewarded_wishlists__owner=user)
+                    | Q(stewarded_wishlists__managers=user)
+                )
+            if instance and instance.pk and instance.dependent_id:
+                # Keep whoever the list is already for, or saving would drop them
+                dependent_choices = dependent_choices | User.objects.filter(
+                    pk=instance.dependent_id
+                )
             self.fields['dependent'] = forms.ModelChoiceField(
-                queryset=User.objects.all(),
+                queryset=dependent_choices.distinct(),
                 required=False,
                 label='Dependent (Proxy User - who manages this list)',
             )
@@ -641,3 +677,114 @@ class ScrapedPageSelectionForm(forms.Form):
         else:
             self.fields['target_wishlist'].widget = forms.HiddenInput()
             self.fields['target_wishlist'].required = False
+
+
+class ExchangeForm(forms.ModelForm):
+    """Name and details of an exchange — call it whatever the family likes."""
+
+    class Meta:
+        model = Exchange
+        fields = ['name', 'kind', 'icon', 'budget', 'exchange_date', 'notes', 'board_enabled']
+        labels = {
+            'name': 'What should we call it?',
+            'kind': 'What are we exchanging?',
+            'icon': 'Icon',
+            'budget': 'Spending limit (optional)',
+            'exchange_date': 'When it happens',
+            'notes': 'Anything else people should know',
+            'board_enabled': 'After letters are delivered, show everyone a board of them',
+        }
+        help_texts = {
+            'budget': '',
+            'board_enabled': 'Only letters both the writer and the reader choose to share. '
+            'Lovely for a letters or kindness exchange.',
+        }
+        widgets = {
+            'name': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'e.g. Thankful Letters 2026'}
+            ),
+            'kind': forms.Select(attrs={'class': 'form-control'}),
+            'icon': forms.RadioSelect(attrs={'class': 'wl-icon-choice'}),
+            'budget': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. $50'}),
+            'exchange_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'notes': forms.Textarea(
+                attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Optional'}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Leaving it out keeps what it was (a gift exchange, for a new one)
+        self.fields['kind'].required = False
+        # Each kind's one-line description, shown as a list under the select
+        self.kind_blurbs = [(kind.icon, kind.label, kind.blurb) for kind in KINDS.values()]
+        if not self.instance.pk:
+            # Start blank so the placeholder shows, not the model's default
+            self.initial['name'] = ''
+
+    def clean_kind(self):
+        return self.cleaned_data.get('kind') or self.instance.kind or DEFAULT_KIND
+
+
+class ExchangeLetterForm(forms.ModelForm):
+    """A letter to the person you drew: words, a photo of something handmade, or both."""
+
+    remove_image = forms.BooleanField(required=False, label='Remove the photo')
+
+    class Meta:
+        model = ExchangeLetter
+        fields = ['body', 'image', 'shareable']
+        labels = {
+            'body': '',
+            'image': 'Add a photo or scan',
+            'shareable': 'Okay to show on the exchange’s board once it’s delivered',
+        }
+        widgets = {
+            'body': forms.Textarea(attrs={'class': 'form-control', 'rows': 6}),
+            'image': forms.FileInput(attrs={'accept': 'image/*'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # A blank letter with no photo is how you take yours back
+        self.fields['body'].required = False
+        # Length is checked in clean_body, after line endings are normalised:
+        # browsers count a line break as one character but send two.
+        self.fields['body'].max_length = None
+        self.fields['body'].validators = []
+
+    def clean_body(self):
+        body = (self.cleaned_data.get('body') or '').replace('\r\n', '\n')
+        if len(body) > ExchangeLetter.MAX_LENGTH:
+            raise forms.ValidationError(
+                f'Letters can be up to {ExchangeLetter.MAX_LENGTH:,} characters — '
+                f'this one is {len(body):,}.'
+            )
+        return body
+
+    def clean_image(self):
+        from .utils import LETTER_IMAGE_MAX_BYTES, process_letter_image
+
+        upload = self.cleaned_data.get('image')
+        # Unchanged (the stored file) or cleared: nothing to process
+        if not upload or not hasattr(upload, 'content_type'):
+            return upload
+        if upload.size > LETTER_IMAGE_MAX_BYTES:
+            raise forms.ValidationError('That photo is too big — 15 MB at most.')
+        try:
+            return process_letter_image(upload)
+        except ValueError as error:
+            raise forms.ValidationError(str(error)) from error
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('remove_image') and not self.files.get('image'):
+            # False, not None: None means "unchanged" to a model FileField
+            cleaned['image'] = False
+        return cleaned
+
+    @property
+    def is_empty(self):
+        """Nothing written and no photo: the letter should be taken back."""
+        body = (self.cleaned_data.get('body') or '').strip()
+        return not body and not self.cleaned_data.get('image')

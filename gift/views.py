@@ -18,18 +18,20 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.validators import URLValidator
 from django.db import models
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timesince import timesince
 from django.views import generic
-from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
 from . import pwa
+from .exchange import assignments_for, letters_for, open_invitations_for
+from .exchange_views import DECLINED_SESSION_KEY
 from .forms import (
     AssignLoginEmailForm,
     CategoryForm,
@@ -45,6 +47,7 @@ from .forms import (
 from .models import (
     Category,
     ChangelogEntry,
+    ExchangeLetter,
     Item,
     ScrapedWikiItem,
     ScrapedWikiPage,
@@ -52,6 +55,16 @@ from .models import (
     WishList,
 )
 from .themes import THEMES, theme_colour, theme_for
+from .visibility import (
+    OVER_THE_SHOULDER_SESSION_KEY,
+    access_for,
+    active_items_visible_to,
+    can_add_openly,
+    is_kept_for_someone,
+    is_over_the_shoulder,
+    recipient_of,
+    request_access,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,22 +86,6 @@ def custom_admin_login(request, **kwargs):
     return redirect(url)
 
 
-@csrf_exempt
-@never_cache
-def metrics_view(request):
-    """
-    Expose Prometheus metrics endpoint.
-    Only accessible from within the cluster (no external access needed).
-    Exempt from CSRF protection since Prometheus doesn't send CSRF tokens.
-    """
-    try:
-        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
-        return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
-    except ImportError:
-        return HttpResponse('Prometheus client not installed', status=503)
-
-
 def auth_view(request):
     """
     Render the authentication page with Firebase configuration injected from settings.
@@ -106,6 +103,21 @@ def privacy_view(request):
 
 def data_deletion_view(request):
     return render(request, 'gift/data_deletion.html')
+
+
+# Gift lists are private, and every crawl wakes a scaled-to-zero container.
+# /privacy/ and /data-deletion/ stay open because Google's OAuth review reads them.
+ROBOTS_TXT = """User-agent: *
+Allow: /privacy/
+Allow: /data-deletion/
+Disallow: /
+"""
+
+
+def robots_view(request):
+    response = HttpResponse(ROBOTS_TXT, content_type='text/plain')
+    response['Cache-Control'] = 'public, max-age=86400'
+    return response
 
 
 # ---- PWA -------------------------------------------------------------------
@@ -223,6 +235,15 @@ def session_login_view(request):
         logger.warning(f'ID token verification failed: {e}')
         return JsonResponse({'error': 'Invalid ID token'}, status=401)
 
+    # An unverified email proves nothing about who is signing in; refuse here
+    # rather than set a five-day cookie the middleware will only turn away.
+    from gift.middleware.firebase_auth import SignInRejected, require_verified_email
+
+    try:
+        require_verified_email(decoded_token)
+    except SignInRejected as rejection:
+        return JsonResponse({'error': rejection.message}, status=403)
+
     # Check token freshness (same logic as the Cloud Function)
     auth_time = decoded_token.get('auth_time', 0)
     token_issued_at = decoded_token.get('iat', 0)
@@ -265,6 +286,10 @@ def session_login_view(request):
         }
     )
 
+    # With DEBUG off, SECURE_PROXY_SSL_HEADER already makes is_secure() follow
+    # Cloud Run's X-Forwarded-Proto. The explicit check is kept so the cookie
+    # stays Secure behind the proxy even with DEBUG on. Plain-HTTP `make run`
+    # still gets a non-Secure cookie, which is the only kind it can send back.
     is_secure = request.is_secure() or request.META.get('HTTP_X_FORWARDED_PROTO') == 'https'
     response.set_cookie(
         '__session',
@@ -286,9 +311,15 @@ class SignUpView(generic.CreateView):
     template_name = 'gift/auth_signup.html'
 
 
+@require_POST
 @csrf_protect
 def logout_view(request):
-    """Custom logout view that clears Django session and redirects to Firebase logout."""
+    """Clear the Django session and __session cookie, then hand off to auth.html
+    to sign out of Firebase in the browser.
+
+    POST only: on a GET, any page could sign a family member out with an
+    <img> tag, and csrf_protect does nothing for GETs.
+    """
     logger.info(
         'User logged out', extra={'user': getattr(request.user, 'email', str(request.user))}
     )
@@ -316,33 +347,6 @@ def quick_add_prefill(request):
     }
 
 
-def can_add_openly(wishlist, user):
-    """Whether `user` may put an ordinary, visible item on `wishlist`.
-
-    Owner-side means the owner, the dependent the list is kept for, or a
-    manager. Everyone else is a gift-giver, and what they add has to stay
-    hidden from the recipient.
-    """
-    if user == wishlist.owner or user == wishlist.dependent:
-        return True
-    # Iterating .all() rather than .filter().exists() lets the picker's
-    # prefetch_related('managers') answer this without a query per list.
-    return any(manager.pk == user.pk for manager in wishlist.managers.all())
-
-
-def active_items_visible_to(wishlist, user):
-    """Active items on `wishlist` that `user` may know exist.
-
-    Surprise items never reach the owner or the dependent the list is kept for
-    — not in a count, not in a duplicate check, not anywhere. Everything that
-    shows a list's items to someone starts here so that rule lives in one place.
-    """
-    items = wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
-    if user == wishlist.owner or user == wishlist.dependent:
-        items = items.exclude(is_sneaky=True)
-    return items
-
-
 @require_GET
 @login_required
 def wishlist_picker(request):
@@ -353,11 +357,15 @@ def wishlist_picker(request):
     page — Neon's compute-hour budget makes that worth caring about.
     """
     wishlists = WishList.objects.select_related('owner', 'dependent').prefetch_related('managers')
+    over_the_shoulder = is_over_the_shoulder(request)
 
     entries = []
     for wishlist in wishlists:
         open_add = can_add_openly(wishlist, request.user)
-        person = wishlist.dependent or wishlist.owner
+        if over_the_shoulder and not open_add:
+            # Adding here would be a surprise, and the recipient may be watching
+            continue
+        person = recipient_of(wishlist)
         entries.append(
             {
                 'id': wishlist.id,
@@ -396,15 +404,15 @@ def wishlist_glance(request, wishlist_id):
     Fetched when a list is picked, then matched in the browser as the user
     types, so typing costs no requests. Shows exactly what the wishlist page
     would show this user: surprise items are withheld from the recipient, and
-    purchase status from anyone owner-side.
+    purchase status from anyone who isn't allowed to see it there.
     """
     wishlist = get_object_or_404(
         WishList.objects.select_related('owner', 'dependent'), id=wishlist_id
     )
-    shows_purchases = not can_add_openly(wishlist, request.user)
+    access = request_access(request, wishlist)
 
     items = (
-        active_items_visible_to(wishlist, request.user)
+        active_items_visible_to(wishlist, access)
         .select_related('added_by')
         .order_by('-is_priority', 'id')[:GLANCE_ITEM_LIMIT]
     )
@@ -414,13 +422,13 @@ def wishlist_glance(request, wishlist_id):
         entry = {'name': item.name, 'url': item.url or '', 'is_sneaky': item.is_sneaky}
         if item.is_sneaky and item.added_by:
             entry['added_by'] = person_display_name(item.added_by)
-        if shows_purchases:
+        if access.sees_purchases:
             entry['purchased'] = item.purchased
         entries.append(entry)
 
     return JsonResponse(
         {
-            'person': person_display_name(wishlist.dependent or wishlist.owner),
+            'person': person_display_name(recipient_of(wishlist)),
             'items': entries,
         }
     )
@@ -471,6 +479,11 @@ def item_quick_add(request):
             )
 
     is_sneaky = not can_add_openly(wishlist, request.user)
+    if is_sneaky and is_over_the_shoulder(request):
+        # A surprise can't be added, or even confirmed, with the recipient watching
+        return JsonResponse(
+            {'status': 'error', 'message': 'Pick one of your own lists.'}, status=400
+        )
     item = Item(wishlist=wishlist, name=name, url=url or None, is_sneaky=is_sneaky)
     item.save(current_user=request.user)
 
@@ -484,7 +497,7 @@ def item_quick_add(request):
         },
     )
 
-    person = person_display_name(wishlist.dependent or wishlist.owner)
+    person = person_display_name(recipient_of(wishlist))
     if is_sneaky:
         message = f'Surprise gift added to {wishlist.title} — {person} can’t see it. 🤫'
     else:
@@ -549,28 +562,30 @@ def item_add(request, wishlist_id):
 
 
 def get_item_visible_to_user(request, item_id):
-    """Fetch an item by id, 404ing on surprise items when the requester is the
-    list's owner/recipient — they must not learn the item exists."""
-    return get_object_or_404(
-        Item.objects.exclude(is_sneaky=True, wishlist__owner=request.user).exclude(
-            is_sneaky=True, wishlist__dependent=request.user
-        ),
-        id=item_id,
-    )
+    """Fetch an item by id, 404ing on surprise items the requester may not know
+    about — the recipient, or anyone while over the shoulder is on."""
+    item = get_object_or_404(Item.objects.select_related('wishlist'), id=item_id)
+    if item.is_sneaky and not request_access(request, item.wishlist).sees_surprises:
+        raise Http404
+    return item
 
 
 @login_required
 def sneaky_item_add(request, wishlist_id):
-    """Add a surprise gift to someone else's list — hidden from the list owner."""
+    """Add a surprise gift to someone's list — hidden from whoever it's for."""
     wishlist = get_object_or_404(WishList, id=wishlist_id)
+    access = request_access(request, wishlist)
 
-    # The list owner/recipient can never add surprise items to their own list
-    if request.user == wishlist.owner or request.user == wishlist.dependent:
+    # The recipient can never add surprise items to their own list
+    if access.is_recipient:
         logger.warning(
-            'Owner attempted to add a surprise item to their own list',
+            'Recipient attempted to add a surprise item to their own list',
             extra={'wishlist_id': wishlist_id, 'user': request.user.email},
         )
         messages.error(request, 'You cannot add surprise gifts to your own list.')
+        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
+    if access.hiding:
+        # Over the shoulder: say nothing that hints surprises exist
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
     if request.method == 'POST':
@@ -588,7 +603,7 @@ def sneaky_item_add(request, wishlist_id):
                     'user': request.user.email,
                 },
             )
-            messages.success(request, "Surprise gift added — the list owner can't see it. 🤫")
+            messages.success(request, "Surprise gift added — it's hidden from whoever the list is for. 🤫")
             return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
         logger.error(f'Form validation errors: {form.errors}')
         messages.error(request, 'Please correct the errors below.')
@@ -664,22 +679,27 @@ def item_delete(request, item_id):
     return redirect('gift:wishlist_detail', wishlist_id=wishlist_id)
 
 
+@require_POST
 @login_required
 def item_purchase(request, item_id):
+    """Mark an item bought by the requester, or undo their own mark.
+
+    POST only: a wrongly-marked gift is the app's worst failure (nobody buys
+    it), and on a GET a link prefetcher, crawler or <img> tag could flip it.
+    """
     item = get_item_visible_to_user(request, item_id)
     wishlist = item.wishlist
+    access = request_access(request, wishlist)
 
-    # Check if user is owner, steward, or manager
-    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
-    from giftwiki.feature_flags import get_steward_proxy_enabled
+    if access.hiding:
+        messages.warning(
+            request, 'Turn off over-the-shoulder mode before marking anything as purchased.'
+        )
+        return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
-    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
-    is_steward = STEWARD_PROXY_ENABLED and request.user == wishlist.dependent
-    is_manager = request.user in wishlist.managers.all()
-    is_list_manager = is_owner or is_steward or is_manager
-
-    # List owners/managers cannot mark items on their own list as purchased
-    if is_list_manager:
+    # Whoever can't see purchases can't make them either: the recipient, and
+    # people who help manage someone's own list
+    if not access.sees_purchases:
         logger.warning(
             'Owner/manager attempted to purchase own list item',
             extra={'item_id': item_id, 'wishlist_id': wishlist.id, 'user': request.user.email},
@@ -786,10 +806,9 @@ def wishlist_create(request):
                 # Handle scraped page import if selected
                 scraped_page = form.cleaned_data.get('scraped_page')
                 if scraped_page:
-                    wishlist = import_scraped_page_to_user(
+                    if import_scraped_page_to_user(
                         request.user, scraped_page, target_wishlist=wishlist
-                    )
-                    if wishlist:
+                    ):
                         messages.success(
                             request,
                             f'Wishlist created and {scraped_page.item_count} items imported from "{scraped_page.title}"!',
@@ -802,7 +821,7 @@ def wishlist_create(request):
             except ValidationError as e:
                 logger.error(e)
                 messages.error(request, e.message)
-                return redirect('home')
+                return redirect('gift:home')
 
             if not scraped_page:
                 messages.success(request, 'Wishlist created successfully.')
@@ -923,8 +942,8 @@ def import_scraped_page_to_user(user, scraped_page, target_wishlist=None):
         if target_wishlist:
             wishlist = target_wishlist
             # Verify user owns this wishlist
-            if wishlist.owner != user and wishlist.dependent != user:
-                logger.error(f'User {user.username} does not own wishlist {wishlist.id}')
+            if not can_add_openly(wishlist, user):
+                logger.error(f'User {user.username} does not own or manage wishlist {wishlist.id}')
                 return None
         else:
             # Create a new wishlist for the user
@@ -1244,24 +1263,28 @@ def edit_managed_user(request, user_id):
     form = ManagedUserForm(request.POST, instance=managed_user, user=request.user)
     if form.is_valid():
         form.save()
-        
-        # Handle wishlist linking/unlinking
-        if 'link_to_wishlist' in form.cleaned_data:
-            wishlist = form.cleaned_data['link_to_wishlist']
+
+        # `dependent` is what hides purchases and surprises from the kid, so
+        # only touch it when the select actually changed, and only on the
+        # requester's own lists (the form's choices and current_wishlist).
+        wishlist = form.cleaned_data.get('link_to_wishlist')
+        if wishlist != form.current_wishlist:
             if wishlist:
-                # Link to new wishlist
                 wishlist.dependent = managed_user
                 wishlist.save()
             else:
-                # Unlink from current wishlist if any
-                current_wishlists = WishList.objects.filter(dependent=managed_user)
-                for cw in current_wishlists:
-                    cw.dependent = None
-                    cw.save()
-                    
+                form.current_wishlist.dependent = None
+                form.current_wishlist.save()
+
         messages.success(request, f"Successfully updated details for {managed_user.username}.")
     else:
-        messages.error(request, f"Error updating details for {managed_user.username}. Please check the form.")
+        link_errors = form.errors.get('link_to_wishlist')
+        messages.error(
+            request,
+            link_errors[0]
+            if link_errors
+            else f"Error updating details for {managed_user.username}. Please check the form.",
+        )
         
     return redirect('gift:account')
 
@@ -1278,6 +1301,22 @@ def assign_login_email(request, user_id):
     managed_user = _get_managed_user_or_none(request.user, user_id)
     if managed_user is None:
         messages.error(request, 'You do not have permission to edit this user.')
+        return redirect('gift:account')
+
+    # A one-time grant to an account nobody signs in to yet. Re-pointing a live
+    # account's email would hand that account to whoever holds the new address.
+    if (
+        managed_user.email
+        or managed_user.last_login
+        or managed_user.is_staff
+        or managed_user.is_superuser
+        or managed_user.linked_emails.exists()
+    ):
+        display_name = managed_user.first_name or managed_user.username
+        messages.error(
+            request,
+            f'{display_name} already has a sign-in. Ask an administrator to change it.',
+        )
         return redirect('gift:account')
 
     form = AssignLoginEmailForm(request.POST, managed_user=managed_user)
@@ -1347,11 +1386,16 @@ def get_season(date, seasons):
     return 'Unknown'
 
 # We pass seasons and request_user into the strategy to avoid N+1 queries.
-def get_grouping_strategies(seasons, request_user):
+def get_grouping_strategies(seasons, request_user, exchange_targets=None):
+    """`exchange_targets` maps the id of each person the viewer is giving to in
+    a gift exchange to that exchange's name. Only pass revealed, non-shoulder
+    targets — the grouping must never be what spoils the reveal."""
+    exchange_targets = exchange_targets or {}
+
     def christmas_exchange_group(wl):
         person = wl.dependent or wl.owner
-        if request_user.secret_santa_target == person:
-            return '🎯 Your Secret Santa Target'
+        if person.id in exchange_targets:
+            return f'🎯 Your {exchange_targets[person.id]} pick'
         if person.is_kid:
             return '🧒 Kids'
         return '👤 Other Adults'
@@ -1483,6 +1527,7 @@ def home(request):
     upcoming_birthdays = []
     unseen_changelog_entries = []
     christmas_in_days = None
+    assignments = exchange_reveals = exchange_picks = exchange_invites = exchange_letters = []
 
     if request.user.is_authenticated:
         christmas_in_days = days_until_christmas(timezone.localdate())
@@ -1496,14 +1541,44 @@ def home(request):
             ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user)
         )
 
+        # Gift exchanges: unopened envelopes get a card until the giver opens
+        # them; opened ones label the "Gift Exchange" grouping. Neither shows
+        # over the shoulder — that's exactly when the receiver may be looking.
+        over_the_shoulder = is_over_the_shoulder(request)
+        if not over_the_shoulder:
+            assignments = assignments_for(request.user)
+            exchange_reveals = [a for a in assignments if not a.reveal_seen_at]
+            exchange_picks = [a for a in assignments if a.reveal_seen_at]
+            exchange_invites = open_invitations_for(
+                request.user, request.session.get(DECLINED_SESSION_KEY, [])
+            )
+            # Delivered letters to you show until you've read them. Not over
+            # the shoulder: they're nobody else's to read.
+            exchange_letters = [letter for letter in letters_for(request.user) if not letter.read_at]
+            # Letters you've written, for the "not written yet" nudge
+            written = set(
+                ExchangeLetter.objects.filter(
+                    author=request.user, exchange_id__in=[a.exchange_id for a in exchange_picks]
+                ).values_list('exchange_id', flat=True)
+            )
+            for pick in exchange_picks:
+                pick.letter_written = pick.exchange_id in written
+        # Only gift exchanges point you at your pick's wishlists
+        exchange_targets = {
+            a.receiver_id: a.exchange.name for a in exchange_picks if a.exchange.kind_info.shows_lists
+        }
+        if not assignments and request.user.secret_santa_target_id and not over_the_shoulder:
+            # Set by hand in the admin before exchanges existed
+            exchange_targets = {request.user.secret_santa_target_id: 'Secret Santa'}
+
         # Fetch seasons once
         seasons = list(Season.objects.all())
-        strategies = get_grouping_strategies(seasons, request.user)
+        strategies = get_grouping_strategies(seasons, request.user, exchange_targets)
 
         grouping_options = [
             {'value': 'house', 'label': 'Household'},
             {'value': 'alpha', 'label': 'Alphabetical'},
-            {'value': 'christmas_exchange', 'label': 'Christmas Exchange'},
+            {'value': 'christmas_exchange', 'label': 'Gift Exchange'},
         ]
         for season in seasons:
             grouping_options.append({
@@ -1528,11 +1603,13 @@ def home(request):
         wishlists = (
             WishList.objects.select_related('family_name', 'owner', 'dependent')
             .prefetch_related(
+                # access_for() reads managers; one query for all lists, not one each
+                'managers',
                 models.Prefetch(
                     'items',
                     queryset=Item.objects.filter(is_deleted=False, archived_at__isnull=True),
                     to_attr='active_items',
-                )
+                ),
             )
             .all()
         )
@@ -1540,12 +1617,12 @@ def home(request):
         strategy = strategies[current_grouping]
 
         for wishlist in wishlists:
-            if request.user == wishlist.owner or request.user == wishlist.dependent:
+            if access_for(wishlist, request.user, over_the_shoulder).sees_surprises:
+                wishlist.card_item_count = len(wishlist.active_items)
+            else:
                 wishlist.card_item_count = sum(
                     1 for item in wishlist.active_items if not item.is_sneaky
                 )
-            else:
-                wishlist.card_item_count = len(wishlist.active_items)
             wishlist.search_text = wishlist_search_text(wishlist)
             group_key = strategy(wishlist)
             if group_key is not None:
@@ -1577,6 +1654,10 @@ def home(request):
         'unseen_changelog_entries': unseen_changelog_entries[:CHANGELOG_CARD_LIMIT],
         'unseen_changelog_more': max(0, len(unseen_changelog_entries) - CHANGELOG_CARD_LIMIT),
         'christmas_in_days': christmas_in_days,
+        'exchange_reveals': exchange_reveals,
+        'exchange_picks': exchange_picks,
+        'exchange_invites': exchange_invites,
+        'exchange_letters': exchange_letters,
     }
     return render(request, 'gift/home.html', context)
 
@@ -1624,29 +1705,23 @@ def wishlist_detail(request, wishlist_id):
     wishlist = get_object_or_404(
         WishList.objects.select_related('owner', 'family_name', 'dependent'), id=wishlist_id
     )
-    # Check if user is owner, steward, or manager
-    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
-    from giftwiki.feature_flags import get_steward_proxy_enabled
-
-    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
-    is_steward = STEWARD_PROXY_ENABLED and request.user == wishlist.dependent
-    is_manager = request.user in wishlist.managers.all()
-    is_list_manager = is_owner or is_steward or is_manager
+    access = request_access(request, wishlist)
+    # Deleting the whole list stays with the owner and the person it's for
+    can_delete = request.user in (wishlist.owner, wishlist.dependent)
     # Only the true owner archives purchased gifts — the reveal is their moment
     can_archive = request.user == wishlist.owner
 
-    # List owners/managers should NOT see purchase information or be able to mark items as purchased
-    # Only other users can see and mark items as purchased
-
     # Priority items first; id keeps a stable order within each group.
-    # Shoppers also get what's still available ahead of what's been bought, so
-    # the top of the list is what they can act on. Never for the list's own
-    # people: an order that depends on `purchased` would give the game away.
+    # Whoever can see purchases also gets what's still available ahead of
+    # what's been bought, so the top of the list is what they can act on.
+    # Never for anyone else: an order that depends on `purchased` would give
+    # the game away.
     # Archived gifts live on the received-gifts page instead of the active list.
-    # Sneaky items never reach the owner/recipient's queryset at all
-    ordering = ('-is_priority', 'id') if is_list_manager else ('purchased', '-is_priority', 'id')
+    ordering = (
+        ('purchased', '-is_priority', 'id') if access.sees_purchases else ('-is_priority', 'id')
+    )
     items = (
-        active_items_visible_to(wishlist, request.user)
+        active_items_visible_to(wishlist, access)
         .select_related('purchased_by', 'updated_by', 'added_by')
         .prefetch_related('categories')
         .order_by(*ordering)
@@ -1676,7 +1751,10 @@ def wishlist_detail(request, wishlist_id):
     sorted_category_items = sorted(items_by_category.items(), key=lambda x: x[0].name.lower())
 
     total_count = len(items)
-    purchased_count = sum(1 for item in items if item.purchased)
+    # Counted only for people allowed to know, so the number can't leak by accident
+    purchased_count = (
+        sum(1 for item in items if item.purchased) if access.sees_purchases else None
+    )
 
     try:
         return render(
@@ -1687,10 +1765,9 @@ def wishlist_detail(request, wishlist_id):
                 'sorted_category_items': sorted_category_items,
                 'uncategorized_items': uncategorized_items,
                 'sneaky_items': sneaky_items,
-                'is_owner': is_owner,
-                'is_steward': is_steward,
-                'is_manager': is_manager,
-                'is_list_manager': is_list_manager,
+                'recipient': recipient_of(wishlist),
+                'access': access,
+                'can_delete': can_delete,
                 'can_archive': can_archive,
                 'total_count': total_count,
                 'purchased_count': purchased_count,
@@ -1707,6 +1784,10 @@ def wishlist_detail(request, wishlist_id):
 def my_purchases(request):
     """Show every item the current user has marked as purchased, grouped by wishlist."""
     from decimal import Decimal
+
+    if is_over_the_shoulder(request):
+        # Everything here is a spoiler for somebody
+        return render(request, 'gift/my_purchases.html', {'hidden': True})
 
     items = (
         Item.objects.filter(purchased_by=request.user, is_deleted=False)
@@ -1756,6 +1837,34 @@ def received_gifts(request):
 
 @require_POST
 @login_required
+def item_priority_toggle(request, item_id):
+    """Star or unstar an item as most wanted, from wherever it's shown.
+
+    Whoever may edit the list's items may do this. The page calls it in the
+    background (and gets JSON back); without JS the form posts and returns."""
+    item = get_item_visible_to_user(request, item_id)
+    background = request.headers.get('X-Requested-With') == 'fetch'
+    if item.is_deleted or not request_access(request, item.wishlist).can_manage:
+        if background:
+            return JsonResponse({'error': 'You can only change lists you look after.'}, status=403)
+        messages.error(request, 'You can only change lists you look after.')
+        return redirect('gift:wishlist_detail', wishlist_id=item.wishlist_id)
+
+    item.is_priority = not item.is_priority
+    item.save(current_user=request.user)
+    if background:
+        return JsonResponse({'is_priority': item.is_priority})
+
+    next_url = request.POST.get('next', '')
+    if not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        next_url = reverse('gift:wishlist_detail', args=[item.wishlist_id])
+    return redirect(next_url)
+
+
+@require_POST
+@login_required
 def item_thank_you_toggle(request, item_id):
     """Flip the thank-you-sent flag on an archived gift (owner only, 404 otherwise)."""
     item = get_object_or_404(
@@ -1782,11 +1891,10 @@ def wishlist_edit(request, wishlist_id):
         messages.error(request, 'You can only edit wishlists you own or manage.')
         return redirect('gift:wishlist_detail', wishlist_id=wishlist.id)
 
-    # Get existing items — archived gifts live on the received-gifts page instead
-    items = wishlist.items.filter(is_deleted=False, archived_at__isnull=True)
-    # Surprise items stay hidden from the owner/recipient; managers may see them
-    if is_owner:
-        items = items.exclude(is_sneaky=True)
+    # Archived gifts live on the received-gifts page instead. Surprise items
+    # stay hidden from the recipient; keepers and managers may edit them.
+    access = request_access(request, wishlist)
+    items = active_items_visible_to(wishlist, access)
 
     # Create wishlist form for editing title and other wishlist fields
     from .forms import WishListForm
@@ -1839,14 +1947,15 @@ def wishlist_edit(request, wishlist_id):
             # Handle scraped page import if selected (only on edit, not during item updates)
             scraped_page = wishlist_form.cleaned_data.get('scraped_page')
             if scraped_page:
-                wishlist = import_scraped_page_to_user(
+                if import_scraped_page_to_user(
                     request.user, scraped_page, target_wishlist=wishlist
-                )
-                if wishlist:
+                ):
                     messages.success(
                         request,
                         f'Added {scraped_page.item_count} items from "{scraped_page.title}" to wishlist!',
                     )
+                else:
+                    messages.warning(request, 'There was an error importing items.')
 
             # Save item changes
             for form in formset.forms:
@@ -1899,7 +2008,15 @@ def wishlist_edit(request, wishlist_id):
         return render(
             request,
             'gift/wishlist_edit.html',
-            {'formset': formset, 'wishlist': wishlist, 'wishlist_form': wishlist_form},
+            {
+                'formset': formset,
+                'wishlist': wishlist,
+                'wishlist_form': wishlist_form,
+                # Not while over the shoulder: what disappears is what was bought
+                'can_clear_purchased': (
+                    can_clear_purchased(wishlist, request.user) and not access.hiding
+                ),
+            },
         )
     except Exception as e:
         import traceback
@@ -1908,20 +2025,44 @@ def wishlist_edit(request, wishlist_id):
         raise
 
 
+def can_clear_purchased(wishlist, user):
+    """Whether `user` may sweep bought items off `wishlist` unseen.
+
+    On a list kept for a kid that's the keepers' call: the kid would be
+    throwing away the record of gifts the grown-ups are still tracking.
+    """
+    if is_kept_for_someone(wishlist) and user.pk == wishlist.dependent_id:
+        return False
+    return can_add_openly(wishlist, user)
+
+
+@require_POST
+@login_required
+def over_the_shoulder(request):
+    """Turn over-the-shoulder mode on or off for this session.
+
+    Lives in the session, not on the user: it describes who is looking at
+    this screen right now, and should end when the session does.
+    """
+    if request.POST.get('on') == '1':
+        request.session[OVER_THE_SHOULDER_SESSION_KEY] = True
+    else:
+        request.session.pop(OVER_THE_SHOULDER_SESSION_KEY, None)
+
+    next_url = request.POST.get('next', '')
+    if not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        next_url = reverse('gift:home')
+    return redirect(next_url)
+
+
 @require_POST
 @login_required
 def wishlist_clear_purchased(request, wishlist_id):
     wishlist = get_object_or_404(WishList, id=wishlist_id)
 
-    # Check if user is the owner, steward, or manager
-    is_owner = (request.user == wishlist.owner or request.user == wishlist.dependent)
-    from giftwiki.feature_flags import get_steward_proxy_enabled
-
-    STEWARD_PROXY_ENABLED = get_steward_proxy_enabled()
-    is_steward = STEWARD_PROXY_ENABLED and request.user == wishlist.dependent
-    is_manager = request.user in wishlist.managers.all()
-
-    if not (is_owner or is_steward or is_manager):
+    if not can_clear_purchased(wishlist, request.user):
         logger.warning(
             'Unauthorized wishlist clear purchased attempt',
             extra={'wishlist_id': wishlist_id, 'user': request.user.email},

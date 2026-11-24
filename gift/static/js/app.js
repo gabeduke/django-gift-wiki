@@ -33,6 +33,34 @@
 
   // ---- Toasts ------------------------------------------------------------
   // wlToast('Added!', {actions: [{label: 'View', href: '/x/'}, {label: 'Undo', onClick: fn}]})
+  // Most wanted: tap the star to flip it without leaving the page
+  document.addEventListener('submit', function (event) {
+    var form = event.target.closest && event.target.closest('[data-most-wanted]');
+    if (!form || !window.fetch) return;
+    event.preventDefault();
+    var button = form.querySelector('button');
+    if (button.classList.contains('is-busy')) return;
+    button.classList.add('is-busy');
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'fetch' },
+      credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+    }).then(function (result) {
+      if (!result.ok) throw new Error(result.data.error);
+      var on = result.data.is_priority;
+      button.classList.toggle('is-on', on);
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      button.title = on ? 'Most wanted — tap to unstar' : 'Mark as most wanted';
+    }).catch(function (error) {
+      if (window.wlToast) window.wlToast((error && error.message) || 'Couldn’t save that — try again.');
+    }).then(function () {
+      button.classList.remove('is-busy');
+    });
+  });
+
   window.wlToast = function (message, options) {
     var region = document.getElementById('wl-toasts');
     if (!region) { return; }

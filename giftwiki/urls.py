@@ -26,11 +26,11 @@ urlpatterns = [
     path('', include('gift.urls')),  # Include the gift app's URLs at the root
     path('admin/login/', gift_views.custom_admin_login, name='custom_admin_login'),
     path('admin/', admin.site.urls),
-    path('metrics/', gift_views.metrics_view, name='metrics'),  # Prometheus metrics endpoint
     path('auth.html', gift_views.auth_view, name='auth_page'),  # Auth page with injected config
     path(
         'sessionLogin', gift_views.session_login_view, name='session_login'
     ),  # Firebase session cookie creation (replaces Cloud Function)
+    path('robots.txt', gift_views.robots_view, name='robots'),
     # PWA — at the root because a service worker's scope is its own path
     path('manifest.webmanifest', gift_views.manifest_view, name='manifest'),
     path('sw.js', gift_views.service_worker_view, name='service_worker'),

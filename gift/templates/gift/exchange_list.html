@@ -1,0 +1,60 @@
+{% extends 'gift/base/base_generic.html' %}
+
+{% block title %}Exchanges · Wikileet{% endblock %}
+
+{% block content %}
+<div class="wl-page-medium">
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">Exchanges</h1>
+    <p class="wl-page-subtitle">Everyone who joins draws one name — to buy a gift for, write a letter of thanks to, do something kind for, or take out somewhere. Only you ever see who you drew.</p>
+  </div>
+
+  {% if active_exchanges %}
+  <div class="wl-section-head"><h2 class="wl-section-title">Happening now</h2></div>
+  {% for exchange in active_exchanges %}
+  <a class="wl-card wl-card-interactive wl-exchange-row" href="{% url 'gift:exchange_detail' exchange.id %}">
+    <span class="wl-exchange-row-main">
+      <span class="wl-card-title"><span class="wl-title-emoji" aria-hidden="true">{{ exchange.display_icon }}</span>{{ exchange.name }}</span>
+      <span class="wl-exchange-meta">
+        {{ exchange.kind_info.label }} · {{ exchange.participants.all|length }} in
+        {% if exchange.budget %} · {{ exchange.budget }}{% endif %}
+        {% if exchange.exchange_date %} · {{ exchange.exchange_date|date:"M j" }}{% endif %}
+        {% with days=exchange.days_until %}{% if days is not None %} · {% if days == 0 %}today!{% elif days == 1 %}tomorrow{% else %}{{ days }} days to go{% endif %}{% endif %}{% endwith %}
+      </span>
+    </span>
+    <span class="wl-exchange-status">
+      {{ exchange.status }}
+    </span>
+  </a>
+  {% endfor %}
+  {% else %}
+  <div class="wl-card wl-empty-card">
+    <div class="wl-empty-emoji" aria-hidden="true">✉️</div>
+    <p class="wl-card-title">Nothing going yet</p>
+    <p class="wl-card-subtitle">Start one below and the family will see it on the home page.</p>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'gift:exchange_create' %}" class="wl-card wl-form">
+    {% csrf_token %}
+    <h2 class="wl-card-title">Start an exchange</h2>
+    <p class="wl-card-subtitle">Call it whatever you like. You'll be the organizer: you decide when to draw names, but you won't see anyone's pick but your own.</p>
+    {% include 'gift/partials/exchange_fields.html' %}
+    <button type="submit" class="btn btn-primary">Start it</button>
+  </form>
+
+  {% if past_exchanges %}
+  <div class="wl-section-head"><h2 class="wl-section-title">Wrapped up</h2></div>
+  {% for exchange in past_exchanges %}
+  <a class="wl-card wl-card-interactive wl-exchange-row" href="{% url 'gift:exchange_detail' exchange.id %}">
+    <span class="wl-exchange-row-main">
+      <span class="wl-card-title"><span class="wl-title-emoji" aria-hidden="true">{{ exchange.display_icon }}</span>{{ exchange.name }}</span>
+      <span class="wl-exchange-meta">{{ exchange.kind_info.label }} · {{ exchange.participants.all|length }} took part · {% if exchange.exchange_date %}{{ exchange.exchange_date|date:"M j, Y" }}{% else %}{{ exchange.created_at|date:"M Y" }}{% endif %}</span>
+    </span>
+  </a>
+  {% endfor %}
+  {% endif %}
+
+</div>
+{% endblock %}

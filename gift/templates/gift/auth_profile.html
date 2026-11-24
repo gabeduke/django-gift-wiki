@@ -70,9 +70,8 @@
         {% endif %}
       </div>
       <div class="wl-person-actions">
-        {% if data.user.email %}
-        <button type="button" class="btn btn-link btn-sm" data-toggle="modal" data-target="#assignLoginEmailModal{{ data.user.id }}">Change</button>
-        {% else %}
+        {# One-time grant: once they can sign in, only an admin may change the address #}
+        {% if not data.user.email %}
         <button type="button" class="btn btn-outline-primary btn-sm" data-toggle="modal" data-target="#assignLoginEmailModal{{ data.user.id }}">Enable sign-in</button>
         {% endif %}
         <button type="button" class="btn btn-outline-secondary btn-sm" data-toggle="modal" data-target="#editManagedUserModal{{ data.user.id }}">Edit</button>
@@ -188,7 +187,10 @@
         <strong>Sign out</strong>
         <span>Signed in as {{ request.user.email|default:request.user.username }}</span>
       </div>
-      <a href="{% url 'gift:logout' %}" class="btn btn-outline-danger btn-sm">Sign out</a>
+      <form action="{% url 'gift:logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger btn-sm">Sign out</button>
+      </form>
     </div>
   </section>
 

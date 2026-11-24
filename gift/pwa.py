@@ -1,7 +1,7 @@
 """Progressive Web App support: the manifest, the service worker, versioned assets.
 
-Static files here are served at fixed, unhashed URLs: `STATICFILES_STORAGE` was
-removed in Django 5.1, so the manifest storage it names is silently ignored.
+Static files here are served at fixed, unhashed URLs: `STORAGES['staticfiles']`
+is Django's plain storage, not a manifest one (see settings).
 Without a fingerprint in the URL an installed app would keep its old icon
 forever and a service worker couldn't tell a changed file from a cached one, so
 everything the PWA references goes through `versioned_static`, which appends a
