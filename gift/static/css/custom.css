@@ -941,6 +941,11 @@ a.wl-list-row:active { transform: scale(.985); }
   margin-top: 10px;
 }
 .wl-changelog-dismiss { margin: 0; }
+/* The × in the corner: same as "Got it", for anyone who looks for a close */
+.wl-changelog-close {
+  margin-left: auto; margin-right: -8px; width: 32px; height: 32px;
+  font-size: 22px; line-height: 1;
+}
 
 /* ── GIFT EXCHANGE ──────────────────────────────────────── */
 .wl-exchange-banner {
