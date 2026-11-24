@@ -1,0 +1,5 @@
+{% comment %}
+What goes inside an avatar circle: `person`'s photo, or their initials. The
+wrapper (.wl-avatar / .wl-list-avatar) is the caller's, so it keeps its size.
+Reads the picture's URL only — no query, no storage request.
+{% endcomment %}{% with url=person.get_avatar_url %}{% if url and feature_flags.PROFILE_PICTURE_ENABLED %}<img class="wl-avatar-img" src="{{ url }}" alt="" loading="lazy" decoding="async">{% else %}{{ person.initials }}{% endif %}{% endwith %}

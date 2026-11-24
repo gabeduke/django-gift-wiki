@@ -39,6 +39,7 @@ make run     # start dev server
 - **Logo/icons** — defined once in `scripts/build_icons.py`; `make icons` writes `gift/static/brand/`. Never hand-edit those files; `tests/test_brand_icons.py` fails on drift.
 - **Colour themes** — per-user, picked on My Lists (`WikiUser.color_palette`). `gift/themes.py` is the list; `custom.css` sets only `--brand` per `[data-theme]` and derives every other shade from it (relative colour syntax, static fallbacks). The nav logo is an inline, generated partial (`partials/logo_mark.html`) so it follows the theme; the home-screen icon never changes. Tests keep CSS and Python in step and check WCAG AA.
 - **My Lists** — one list is the expanded card at the top: the user's pinned one (`WikiUser.pinned_wishlist`, toggled by POST `/profile/pin/<id>/`), else their most recently updated. Every other list is a compact row. Quick add's "Mine" goes to the pinned list when the user has several.
+- **Make it yours** — profile photos (on by default; `PROFILE_PICTURE_ENABLED` turns them off) and 🎨 Decorate (`/wishlist/<id>/decorate/`: emoji from `gift/decor.py`, a colour from `gift/themes.py` rendered as `data-theme` on that list's page, a cover photo). Views in `gift/personalize_views.py`. Every photo goes through `gift/utils.py` (upright, re-encoded so no EXIF/GPS, random name — S3 URLs are public) and replaced files are deleted. Avatars render through `partials/avatar_face.html`; a list's circle is `partials/list_mark.html` (emoji, else the recipient's photo/initials).
 - **Edit List** — a plain server-rendered formset of item cards plus `js/edit-list.js`; no client framework. The formset must never include `purchased` (owners would see what's been bought).
 - **Item visibility** — rules live in `gift/visibility.py`; views ask `access_for()` / `request_access()` and list items through `active_items_visible_to(wishlist, access)`, never re-deriving them. The **recipient** (the `dependent` of a list kept for someone, else the owner) never sees surprise items or purchase state. **Keepers** (owner + managers of a list kept for a kid) see both and can mark purchased; a manager of someone's own list sees surprises but not purchases. **Over the shoulder** (session flag, POST `/over-the-shoulder/`) shows that session every list as its recipient sees it, with a `wl-shoulder` banner on every page.
 - **Media/uploads** — `STORAGES['default']`: S3 when `USE_S3=TRUE`, local filesystem otherwise. Never use `DEFAULT_FILE_STORAGE`/`STATICFILES_STORAGE` (removed in Django 5.1, silently ignored). Don't assume uploads are on local disk — use `field.storage`, not `MEDIA_ROOT` paths. S3 URLs are unsigned and public; private files go through an access-checked view
@@ -102,7 +103,7 @@ starting work it covers — the decisions and their reasons are recorded there.
 ## Feature Flags
 Checked at runtime via `get_steward_proxy_enabled()` / `get_profile_picture_enabled()`:
 - `STEWARD_PROXY_ENABLED` — Shows dependent/steward fields on wishlists
-- `PROFILE_PICTURE_ENABLED` — Enables profile picture upload/display
+- `PROFILE_PICTURE_ENABLED` — Profile picture upload/display (default on)
 
 ## Testing
 ```bash

@@ -1,0 +1,20 @@
+{% comment %}
+Set or remove one person's photo. Picking a file uploads it straight away
+(js/app.js, [data-autosubmit]); without JS there's a Save button. Expects
+`person`, `action` (the URL to post to) and `picker_id` (unique on the page).
+{% endcomment %}
+<form method="post" action="{{ action }}" enctype="multipart/form-data" class="wl-picture-picker" data-autosubmit>
+  {% csrf_token %}
+  <span class="wl-avatar wl-avatar-xl" aria-hidden="true">{% include 'gift/partials/avatar_face.html' %}</span>
+  <div class="wl-picture-actions">
+    <label class="btn btn-primary btn-sm wl-file-btn" for="{{ picker_id }}">
+      📷 {% if person.profile_picture %}Change photo{% else %}Add a photo{% endif %}
+    </label>
+    <input class="wl-file-input" type="file" id="{{ picker_id }}" name="profile_picture" accept="image/*" required>
+    <noscript><button type="submit" class="btn btn-outline-secondary btn-sm">Save photo</button></noscript>
+    {% if person.profile_picture %}
+    <button type="submit" name="remove" value="1" formnovalidate class="btn btn-outline-secondary btn-sm">✕ Remove photo</button>
+    {% endif %}
+    <span class="form-text">We crop it to a square and take out where it was taken.</span>
+  </div>
+</form>

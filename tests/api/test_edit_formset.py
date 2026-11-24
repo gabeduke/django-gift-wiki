@@ -110,7 +110,11 @@ class TestWishlistEditFormset:
         # The blank card js/edit-list.js clones for "Add item"
         assert 'id="wl-empty-item"' in content
         assert 'name="form-__prefix__-name"' in content
-        assert 'vue' not in content.lower()
+        # No Vue: look for its markers, not the bare word — a random CSRF
+        # token can spell "vue" and fail this by chance
+        lowered = content.lower()
+        for marker in ('vue.', 'v-model', 'v-for', 'createapp('):
+            assert marker not in lowered
 
     def test_item_names_are_never_written_into_a_script(self, authenticated_user, user):
         """The old editor interpolated names into JS template literals, so a

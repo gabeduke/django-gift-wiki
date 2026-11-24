@@ -91,7 +91,10 @@
 /* ── THEMES ─────────────────────────────────────────────── */
 /* Set on <html> (data-theme) from the user's colour choice; the list of
    themes lives in gift/themes.py and tests keep the two in step. Every value
-   clears WCAG AA for white text on it and for it on the cream page. */
+   clears WCAG AA for white text on it and for it on the cream page.
+   Forest is the root colour too; it's listed so a list decorated in forest
+   (data-theme on that page, see 🎨 Decorate) wins over a visitor's own theme. */
+[data-theme="forest"]    { --brand: #2d6a4f; }
 [data-theme="lake"]      { --brand: #1e6079; }
 [data-theme="midnight"]  { --brand: #33497c; }
 [data-theme="plum"]      { --brand: #6e3f74; }
@@ -1839,3 +1842,50 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
 .wl-shoulder strong { margin-right: 6px; }
 .wl-shoulder form { margin: 0; }
 .wl-shoulder .btn { background: #fff; color: #7a5518; border: 1px solid #e8c97a; padding: 2px 10px; }
+
+/* ── MAKE IT YOURS: photos, list emoji, colours, covers ─── */
+.wl-avatar, .wl-list-avatar { overflow: hidden; }
+.wl-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wl-avatar-xl { width: 88px; height: 88px; font-size: 26px; box-shadow: var(--shadow-2); }
+/* A list's emoji sits on its own tint, a little bigger than initials */
+.wl-list-emoji { font-size: 19px; line-height: 1; }
+.wl-mylist-title .wl-list-emoji { font-size: 23px; }
+
+.wl-picture-picker { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.wl-picture-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wl-picture-actions .form-text { flex-basis: 100%; margin: 0; }
+/* The real file input is hidden; its label is the big button */
+.wl-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.wl-file-btn { cursor: pointer; margin: 0; }
+.wl-file-input:focus-visible + noscript, .wl-file-btn:focus-within { outline: 2px solid var(--text-primary); }
+.wl-modal-picture { border-top: 1px solid var(--border); }
+
+/* Cover photo banner: list page and the featured card on My Lists */
+.wl-cover {
+  display: block; width: 100%; aspect-ratio: 3 / 1; max-height: 220px; object-fit: cover;
+  border-radius: var(--radius-lg, 16px); margin-bottom: 18px; box-shadow: var(--shadow-1, none);
+  background: var(--brand-light);
+}
+.wl-mylist .wl-cover { aspect-ratio: 4 / 1; margin: -4px 0 14px; border-radius: var(--radius-md, 12px); }
+.wl-page-title-row { display: flex; align-items: center; gap: 12px; }
+.wl-page-title-row .wl-list-avatar { width: 52px; height: 52px; font-size: 16px; }
+.wl-page-title-row .wl-list-emoji { font-size: 30px; }
+/* A decorated list's page carries its colour as a band under the title */
+.wl-page[data-theme] .wl-page-header { border-bottom: 4px solid var(--brand); padding-bottom: 16px; }
+
+/* 🎨 Decorate */
+.wl-decorate-preview { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.wl-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px; }
+.wl-emoji-choice { position: relative; margin: 0; }
+.wl-emoji-choice input { position: absolute; opacity: 0; inset: 0; }
+.wl-emoji-choice span {
+  display: flex; align-items: center; justify-content: center;
+  height: 56px; border-radius: 14px; font-size: 28px; cursor: pointer;
+  background: var(--bg-surface, #fff); border: 2px solid var(--border, #e5e0d8);
+  transition: transform var(--dur-fast, .15s), border-color var(--dur-fast, .15s);
+}
+.wl-emoji-choice .wl-emoji-none { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.wl-emoji-choice input:checked + span { border-color: var(--brand); background: var(--brand-light); transform: scale(1.06); }
+.wl-emoji-choice input:focus-visible + span { box-shadow: 0 0 0 3px var(--bg-surface), 0 0 0 5px var(--text-primary); }
+.wl-swatch-none .wl-swatch-dot { background: conic-gradient(#2d6a4f, #1e6079, #33497c, #6e3f74, #9a2c3e, #434c5c, #2d6a4f); }
+.wl-cover-current { max-width: 360px; }

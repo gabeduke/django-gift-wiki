@@ -41,7 +41,6 @@ from .forms import (
     CustomUserCreationForm,
     ItemForm,
     ManagedUserForm,
-    ProfilePictureForm,
     ScrapedPageSelectionForm,
     UserProfileForm,
     WishListForm,
@@ -1077,49 +1076,18 @@ def profile(request):
     if featured:
         (my_lists if featured in my_lists else kept_lists).remove(featured)
 
-    # Handle profile picture upload (only if feature enabled)
+    # Picture uploads post to personalize_views.profile_picture
     from giftwiki.feature_flags import get_profile_picture_enabled
 
     PROFILE_PICTURE_ENABLED = get_profile_picture_enabled()
-    profile_form = None
-    user_profile_form = None
-    
-
-
-    if request.method == 'POST':
-        if 'update_profile' in request.POST:
-            user_profile_form = UserProfileForm(request.POST, instance=request.user)
-            if user_profile_form.is_valid():
-                user_profile_form.save()
-                messages.success(request, 'Profile updated successfully!')
-                return redirect('gift:account')
-            else:
-                messages.error(request, 'Error updating profile. Please check the form.')
-        else:
-            user_profile_form = UserProfileForm(instance=request.user)
-            
-        if PROFILE_PICTURE_ENABLED:
-
-            if 'update_profile_picture' in request.POST:
-                profile_form = ProfilePictureForm(request.POST, request.FILES, instance=request.user)
-                if profile_form.is_valid():
-                    profile_form.save()
-                    logger.info('Profile picture updated', extra={'user': request.user.email})
-                    messages.success(request, 'Profile picture updated successfully!')
-                    return redirect('gift:account')
-                else:
-                    logger.warning(
-                        'Profile picture update failed',
-                        extra={'user': request.user.email, 'errors': str(profile_form.errors)},
-                    )
-                    messages.error(request, 'Error updating profile picture. Please try again.')
-            else:
-                profile_form = ProfilePictureForm(instance=request.user)
-    else:
-        user_profile_form = UserProfileForm(instance=request.user)
-        if PROFILE_PICTURE_ENABLED:
-
-            profile_form = ProfilePictureForm(instance=request.user)
+    user_profile_form = UserProfileForm(instance=request.user)
+    if request.method == 'POST' and 'update_profile' in request.POST:
+        user_profile_form = UserProfileForm(request.POST, instance=request.user)
+        if user_profile_form.is_valid():
+            user_profile_form.save()
+            messages.success(request, 'Profile updated successfully!')
+            return redirect('gift:account')
+        messages.error(request, 'Error updating profile. Please check the form.')
 
     # Check if user needs to select a scraped page
     show_scraped_page_prompt = False
@@ -1159,7 +1127,6 @@ def profile(request):
         'kept_lists': kept_lists,
         'theme_options': [(key, label, colour) for key, (label, colour) in THEMES.items()],
         'current_theme': theme_for(request.user),
-        'profile_form': profile_form,
         'user_profile_form': user_profile_form,
         'show_scraped_page_prompt': show_scraped_page_prompt,
         'PROFILE_PICTURE_ENABLED': PROFILE_PICTURE_ENABLED,

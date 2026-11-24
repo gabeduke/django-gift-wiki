@@ -73,11 +73,7 @@ it already picked, since "add something to this list" is why you'd tap + here.
                   data-quick-add title="Add a gift idea to any list (shortcut: A)">+ Add item</button>
           <a href="{% url 'gift:create_wishlist' %}" class="btn btn-outline-secondary btn-sm wl-nav-desktop-only">New list</a>
           <a href="{% url 'gift:account' %}" class="wl-avatar" title="{{ request.user.get_full_name|default:request.user.username }}">
-            {% if request.user.first_name %}
-              {{ request.user.first_name|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}
-            {% else %}
-              {{ request.user.username|slice:":2"|upper }}
-            {% endif %}
+            {% include 'gift/partials/avatar_face.html' with person=request.user %}
           </a>
         {% else %}
           <a href="/auth.html" class="btn btn-primary btn-sm">Sign in</a>

@@ -5,9 +5,7 @@ open, with add-an-idea and the ⋯ menu alongside. Expects `entry`.
 {% with wishlist=entry.wishlist person=entry.person %}
 <div class="wl-mylist-row">
   <a class="wl-mylist-row-main" href="{% url 'gift:wishlist_detail' wishlist.id %}">
-    <span class="wl-list-avatar" aria-hidden="true">
-      {% if person.first_name %}{{ person.first_name|slice:":1"|upper }}{{ person.last_name|slice:":1"|upper }}{% else %}{{ person.username|slice:":2"|upper }}{% endif %}
-    </span>
+    {% include 'gift/partials/list_mark.html' %}
     <span class="wl-mylist-name">
       <strong>{{ wishlist.title }}</strong>
       <span class="wl-mylist-meta">

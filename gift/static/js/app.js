@@ -196,6 +196,46 @@
     });
   }
 
+  // ---- Photo pickers: choosing a file is the upload -------------------------
+  // One step instead of "choose, then find the Save button" — easier for kids.
+  document.querySelectorAll('form[data-autosubmit]').forEach(function (form) {
+    form.addEventListener('change', function (event) {
+      if (event.target.type === 'file' && event.target.files.length) {
+        form.classList.add('is-uploading');
+        form.submit();
+      }
+    });
+  });
+
+  // ---- 🎨 Decorate: show choices before they're saved -----------------------
+  var decorate = document.querySelector('form[data-decorate]');
+  if (decorate) {
+    var page = document.querySelector('[data-decorate-page]');
+    var mark = page.querySelector('.wl-decorate-preview .wl-list-avatar');
+    var markFace = page.querySelector('template[data-face]').innerHTML;
+    var cover = decorate.querySelector('[data-cover-preview]');
+    decorate.addEventListener('change', function (event) {
+      var input = event.target;
+      if (input.name === 'accent') {
+        if (input.value) {
+          page.dataset.theme = input.value;
+          mark.dataset.theme = input.value;
+        } else {
+          delete page.dataset.theme;
+          delete mark.dataset.theme;
+        }
+      } else if (input.name === 'emoji') {
+        mark.classList.toggle('wl-list-emoji', !!input.value);
+        if (input.value) { mark.textContent = input.value; } else { mark.innerHTML = markFace; }
+      } else if (input.type === 'file' && input.files.length && cover) {
+        cover.src = URL.createObjectURL(input.files[0]);
+        cover.hidden = false;
+      } else if (input.name === 'remove_image' && cover) {
+        cover.hidden = input.checked;
+      }
+    });
+  }
+
   // ---- Install prompt ----------------------------------------------------
   var DISMISS_KEY = 'wikileet:install-dismissed';
   var DISMISS_DAYS = 45;

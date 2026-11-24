@@ -2,7 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
-from . import exchange_views, views
+from . import exchange_views, personalize_views, views
 
 app_name = 'gift'
 urlpatterns = [
@@ -13,6 +13,7 @@ urlpatterns = [
     path('profile/', views.profile, name='account'),
     path('profile/theme/', views.set_theme, name='set_theme'),
     path('profile/pin/<int:wishlist_id>/', views.pin_wishlist, name='pin_wishlist'),
+    path('profile/picture/', personalize_views.profile_picture, name='profile_picture'),
     path('my-purchases/', views.my_purchases, name='my_purchases'),
     path('over-the-shoulder/', views.over_the_shoulder, name='over_the_shoulder'),
     path('received-gifts/', views.received_gifts, name='received_gifts'),
@@ -26,6 +27,11 @@ urlpatterns = [
     path('password-reset-request/', views.password_reset_request, name='password_reset_request'),
     path('managed-user/create/', views.create_managed_user, name='create_managed_user'),
     path('managed-user/<int:user_id>/edit/', views.edit_managed_user, name='edit_managed_user'),
+    path(
+        'managed-user/<int:user_id>/picture/',
+        personalize_views.managed_user_picture,
+        name='managed_user_picture',
+    ),
     path(
         'managed-user/<int:user_id>/assign-email/',
         views.assign_login_email,
@@ -91,6 +97,11 @@ urlpatterns = [
     path('wishlist/create/', views.wishlist_create, name='create_wishlist'),
     path('wishlist/<int:wishlist_id>/', views.wishlist_detail, name='wishlist_detail'),
     path('wishlist/<int:wishlist_id>/edit/', views.wishlist_edit, name='edit_wishlist'),
+    path(
+        'wishlist/<int:wishlist_id>/decorate/',
+        personalize_views.decorate_wishlist,
+        name='decorate_wishlist',
+    ),
     path('wishlist/<int:wishlist_id>/delete/', views.wishlist_delete, name='delete_wishlist'),
     path(
         'wishlist/<int:wishlist_id>/clear-purchased/',
