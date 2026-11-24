@@ -1,0 +1,59 @@
+{% extends 'gift/base/base_generic.html' %}
+
+{% block title %}Gift exchange · Wikileet{% endblock %}
+
+{% block content %}
+<div class="wl-page-medium">
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">Gift exchange</h1>
+    <p class="wl-page-subtitle">Everyone who joins draws one name and shops for just that person. Only you ever see who you drew.</p>
+  </div>
+
+  {% if active_exchanges %}
+  <div class="wl-section-head"><h2 class="wl-section-title">Happening now</h2></div>
+  {% for exchange in active_exchanges %}
+  <a class="wl-card wl-card-interactive wl-exchange-row" href="{% url 'gift:exchange_detail' exchange.id %}">
+    <span class="wl-exchange-row-main">
+      <span class="wl-card-title">{{ exchange.name }}</span>
+      <span class="wl-exchange-meta">
+        {{ exchange.participants.all|length }} in
+        {% if exchange.budget %} · {{ exchange.budget }}{% endif %}
+        {% if exchange.exchange_date %} · {{ exchange.exchange_date|date:"M j" }}{% endif %}
+      </span>
+    </span>
+    <span class="wl-exchange-status">
+      {% if exchange.is_drawn %}Names drawn{% elif exchange.joined %}You're in{% else %}Taking names{% endif %}
+    </span>
+  </a>
+  {% endfor %}
+  {% else %}
+  <div class="wl-card wl-empty-card">
+    <div class="wl-empty-emoji" aria-hidden="true">🎄</div>
+    <p class="wl-card-title">No exchange running yet</p>
+    <p class="wl-card-subtitle">Start one below and the family will see it on the home page.</p>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'gift:exchange_create' %}" class="wl-card wl-form">
+    {% csrf_token %}
+    <h2 class="wl-card-title">Start an exchange</h2>
+    <p class="wl-card-subtitle">Call it whatever you like. You'll be the organizer: you decide when to draw names, but you won't see anyone's pick but your own.</p>
+    {% include 'gift/partials/exchange_fields.html' %}
+    <button type="submit" class="btn btn-primary">Start it</button>
+  </form>
+
+  {% if past_exchanges %}
+  <div class="wl-section-head"><h2 class="wl-section-title">Wrapped up</h2></div>
+  {% for exchange in past_exchanges %}
+  <a class="wl-card wl-card-interactive wl-exchange-row" href="{% url 'gift:exchange_detail' exchange.id %}">
+    <span class="wl-exchange-row-main">
+      <span class="wl-card-title">{{ exchange.name }}</span>
+      <span class="wl-exchange-meta">{{ exchange.participants.all|length }} took part · {{ exchange.created_at|date:"Y" }}</span>
+    </span>
+  </a>
+  {% endfor %}
+  {% endif %}
+
+</div>
+{% endblock %}

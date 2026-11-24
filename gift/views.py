@@ -30,6 +30,7 @@ from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
 from . import pwa
+from .exchange import assignments_for, open_invitations_for
 from .forms import (
     AssignLoginEmailForm,
     CategoryForm,
@@ -1383,11 +1384,16 @@ def get_season(date, seasons):
     return 'Unknown'
 
 # We pass seasons and request_user into the strategy to avoid N+1 queries.
-def get_grouping_strategies(seasons, request_user):
+def get_grouping_strategies(seasons, request_user, exchange_targets=None):
+    """`exchange_targets` maps the id of each person the viewer is giving to in
+    a gift exchange to that exchange's name. Only pass revealed, non-shoulder
+    targets — the grouping must never be what spoils the reveal."""
+    exchange_targets = exchange_targets or {}
+
     def christmas_exchange_group(wl):
         person = wl.dependent or wl.owner
-        if request_user.secret_santa_target == person:
-            return '🎯 Your Secret Santa Target'
+        if person.id in exchange_targets:
+            return f'🎯 Your {exchange_targets[person.id]} pick'
         if person.is_kid:
             return '🧒 Kids'
         return '👤 Other Adults'
@@ -1519,6 +1525,7 @@ def home(request):
     upcoming_birthdays = []
     unseen_changelog_entries = []
     christmas_in_days = None
+    assignments = exchange_reveals = exchange_picks = exchange_invites = []
 
     if request.user.is_authenticated:
         christmas_in_days = days_until_christmas(timezone.localdate())
@@ -1532,14 +1539,28 @@ def home(request):
             ChangelogEntry.objects.filter(is_active=True).exclude(seen_by=request.user)
         )
 
+        # Gift exchanges: unopened envelopes get a card until the giver opens
+        # them; opened ones label the "Gift Exchange" grouping. Neither shows
+        # over the shoulder — that's exactly when the receiver may be looking.
+        over_the_shoulder = is_over_the_shoulder(request)
+        if not over_the_shoulder:
+            assignments = assignments_for(request.user)
+            exchange_reveals = [a for a in assignments if not a.reveal_seen_at]
+            exchange_picks = [a for a in assignments if a.reveal_seen_at]
+            exchange_invites = open_invitations_for(request.user)
+        exchange_targets = {a.receiver_id: a.exchange.name for a in exchange_picks}
+        if not assignments and request.user.secret_santa_target_id and not over_the_shoulder:
+            # Set by hand in the admin before exchanges existed
+            exchange_targets = {request.user.secret_santa_target_id: 'Secret Santa'}
+
         # Fetch seasons once
         seasons = list(Season.objects.all())
-        strategies = get_grouping_strategies(seasons, request.user)
+        strategies = get_grouping_strategies(seasons, request.user, exchange_targets)
 
         grouping_options = [
             {'value': 'house', 'label': 'Household'},
             {'value': 'alpha', 'label': 'Alphabetical'},
-            {'value': 'christmas_exchange', 'label': 'Christmas Exchange'},
+            {'value': 'christmas_exchange', 'label': 'Gift Exchange'},
         ]
         for season in seasons:
             grouping_options.append({
@@ -1576,7 +1597,6 @@ def home(request):
         )
         wishlists_grouped = defaultdict(list)
         strategy = strategies[current_grouping]
-        over_the_shoulder = is_over_the_shoulder(request)
 
         for wishlist in wishlists:
             if access_for(wishlist, request.user, over_the_shoulder).sees_surprises:
@@ -1616,6 +1636,9 @@ def home(request):
         'unseen_changelog_entries': unseen_changelog_entries[:CHANGELOG_CARD_LIMIT],
         'unseen_changelog_more': max(0, len(unseen_changelog_entries) - CHANGELOG_CARD_LIMIT),
         'christmas_in_days': christmas_in_days,
+        'exchange_reveals': exchange_reveals,
+        'exchange_picks': exchange_picks,
+        'exchange_invites': exchange_invites,
     }
     return render(request, 'gift/home.html', context)
 

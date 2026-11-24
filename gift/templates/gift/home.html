@@ -33,6 +33,37 @@
     </div>
     {% endif %}
 
+    {% for entry in exchange_reveals %}
+    <!-- Names are drawn: shown on every visit until the envelope is opened -->
+    <a class="wl-exchange-banner wl-exchange-banner-reveal" href="{% url 'gift:exchange_detail' entry.exchange.id %}#reveal">
+      <span class="wl-exchange-banner-gift" aria-hidden="true">🎁</span>
+      <span class="wl-exchange-banner-text">
+        <strong>Names are drawn for {{ entry.exchange.name }}!</strong>
+        <span>Your envelope is waiting — tap to see who you're giving to.</span>
+      </span>
+      <span class="btn btn-primary btn-sm">Open it</span>
+    </a>
+    {% endfor %}
+
+    {% for entry in exchange_picks %}
+    <a class="wl-exchange-banner" href="{% url 'gift:exchange_detail' entry.exchange.id %}">
+      <span class="wl-exchange-banner-gift" aria-hidden="true">🎯</span>
+      <span class="wl-exchange-banner-text">
+        <span>{{ entry.exchange.name }}: you're giving to
+          <strong>{{ entry.receiver.get_full_name|default:entry.receiver.username }}</strong></span>
+      </span>
+    </a>
+    {% endfor %}
+
+    {% for exchange in exchange_invites %}
+    <a class="wl-exchange-banner wl-exchange-banner-quiet" href="{% url 'gift:exchange_detail' exchange.id %}">
+      <span class="wl-exchange-banner-gift" aria-hidden="true">✉️</span>
+      <span class="wl-exchange-banner-text">
+        <span><strong>{{ exchange.name }}</strong> is taking names — want in?</span>
+      </span>
+    </a>
+    {% endfor %}
+
     <section class="wl-home-top">
       <figure class="wl-home-photo">
         <img src="{% static 'images/welcome-image.jpg' %}" alt="Our family">

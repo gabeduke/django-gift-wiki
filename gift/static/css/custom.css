@@ -942,6 +942,104 @@ a.wl-list-row:active { transform: scale(.985); }
 }
 .wl-changelog-dismiss { margin: 0; }
 
+/* ── GIFT EXCHANGE ──────────────────────────────────────── */
+.wl-exchange-banner {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--brand); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1); padding: 12px 16px; margin-bottom: 14px;
+  color: var(--text-primary); text-decoration: none;
+}
+.wl-exchange-banner:hover { text-decoration: none; color: var(--text-primary); box-shadow: var(--shadow-2); }
+.wl-exchange-banner-gift { font-size: 26px; line-height: 1; }
+.wl-exchange-banner-text { flex: 1; display: flex; flex-direction: column; font-size: 14px; }
+.wl-exchange-banner-text span { color: var(--text-secondary); font-size: 13px; }
+.wl-exchange-banner-reveal { padding: 16px 18px; margin-bottom: 20px; }
+.wl-exchange-banner-reveal .wl-exchange-banner-gift { font-size: 34px; animation: wl-wiggle 2.4s ease-in-out infinite; }
+.wl-exchange-banner-reveal strong { font-size: 15px; }
+.wl-exchange-banner-quiet { border-left-color: var(--border); box-shadow: none; padding: 10px 14px; }
+
+.wl-exchange-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  color: inherit; text-decoration: none;
+}
+.wl-exchange-row:hover { color: inherit; text-decoration: none; }
+.wl-exchange-row-main { display: flex; flex-direction: column; }
+.wl-exchange-row .wl-card-title { margin: 0; }
+.wl-exchange-meta { font-size: 12px; color: var(--text-muted); }
+.wl-exchange-status {
+  font-size: 12px; font-weight: 600; color: var(--brand-text);
+  white-space: nowrap;
+}
+.wl-exchange-notes { margin: 8px 0 0; font-size: 14px; color: var(--text-secondary); }
+.wl-exchange-tag {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; margin-left: 4px;
+}
+.wl-exchange-ring-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wl-exchange-ring-head form { margin: 0; }
+.wl-exchange-ring { display: block; width: 100%; max-width: 320px; margin: 4px auto 12px; }
+.wl-ring-track { fill: none; stroke: var(--border); stroke-width: 2; stroke-dasharray: 4 6; }
+.wl-exchange-ring.is-drawn .wl-ring-track { stroke: var(--brand); animation: wl-spin 30s linear infinite; transform-origin: 160px 160px; }
+.wl-ring-centre { font-size: 34px; }
+.wl-ring-caption { font-size: 13px; fill: var(--text-muted); font-family: var(--font-mono); }
+.wl-ring-node circle { fill: var(--bg-subtle); stroke: var(--border); stroke-width: 2; }
+.wl-ring-node text { font-size: 13px; font-weight: 700; fill: var(--text-secondary); }
+.wl-ring-node { animation: wl-pop .4s var(--ease-out) both; animation-delay: calc(var(--i) * 60ms); transform-box: fill-box; transform-origin: center; }
+.wl-ring-node.is-me circle { stroke: var(--brand); stroke-width: 3; }
+.wl-ring-node.is-opened circle { fill: var(--brand); stroke: var(--brand); }
+.wl-ring-node.is-opened text { fill: #fff; }
+.wl-exchange-roster { list-style: none; margin: 0; padding: 0; }
+.wl-exchange-roster li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 0; font-size: 14px;
+}
+.wl-exchange-roster li + li { border-top: 1px solid var(--border); }
+.wl-exchange-roster form { margin: 0; }
+.wl-exchange-remove { padding: 0; font-size: 12px; }
+.wl-exchange-edit { margin-top: 14px; }
+.wl-exchange-edit summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.wl-exchange-edit form { margin-top: 10px; }
+.wl-exchange-wrap { margin: 10px 0 0; }
+.wl-exchange-wrap .btn-link { padding: 0; color: var(--text-muted); }
+
+/* The reveal: a wrapped present that opens onto your pick */
+.wl-reveal { text-align: center; border-top: 3px solid var(--brand); }
+.wl-reveal-box > summary { list-style: none; cursor: pointer; padding: 10px 0 4px; }
+.wl-reveal-box > summary::-webkit-details-marker { display: none; }
+.wl-reveal-box[open] > summary { display: none; }
+.wl-reveal-gift { position: relative; display: block; width: 96px; height: 96px; margin: 0 auto 12px; animation: wl-wiggle 2.4s ease-in-out infinite; }
+.wl-reveal-body, .wl-reveal-lid {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  background:
+    linear-gradient(90deg, transparent 42%, #f4c95d 42%, #f4c95d 58%, transparent 58%),
+    var(--brand);
+  border-radius: 6px;
+}
+.wl-reveal-body { bottom: 0; width: 80px; height: 62px; }
+.wl-reveal-lid { top: 12px; width: 92px; height: 22px; box-shadow: 0 2px 0 rgba(0,0,0,.12); transition: transform .6s var(--ease-out); }
+.wl-reveal-lid::before {
+  content: ''; position: absolute; left: 50%; top: -14px; width: 30px; height: 16px;
+  transform: translateX(-50%); border: 5px solid #f4c95d; border-bottom: none;
+  border-radius: 50% 50% 0 0;
+}
+.wl-reveal-cta { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.is-unwrapping .wl-reveal-gift { animation: wl-shake .35s ease-in-out 2; }
+.is-unwrapping .wl-reveal-lid { transform: translate(-50%, -46px) rotate(-18deg); }
+.wl-reveal-inside { padding: 8px 0 4px; }
+.wl-reveal-kicker { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+.wl-reveal-name { margin: 6px 0 14px; font-size: 30px; font-weight: 800; color: var(--text-primary); line-height: 1.15; }
+.is-shuffling .wl-reveal-name { color: var(--text-muted); filter: blur(.5px); }
+.is-revealed .wl-reveal-name { animation: wl-pop .5s var(--ease-out); color: var(--brand-text); }
+.wl-reveal-lists { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 14px; }
+.wl-reveal-done { margin: 0; }
+.wl-reveal-hush { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+@keyframes wl-wiggle { 0%, 80%, 100% { transform: rotate(0); } 85% { transform: rotate(-6deg); } 90% { transform: rotate(6deg); } 95% { transform: rotate(-3deg); } }
+@keyframes wl-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px) rotate(-4deg); } 75% { transform: translateX(5px) rotate(4deg); } }
+@keyframes wl-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes wl-spin { to { transform: rotate(360deg); } }
+
 /* ── FORMS WITHOUT WIDGET CLASSES ───────────────────────── */
 /* Plenty of Django widgets render without class="form-control". Inside
    .wl-form they get the same look anyway, so no form class has to remember. */

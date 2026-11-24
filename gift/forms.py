@@ -8,7 +8,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Q
 from django.forms import formset_factory, modelformset_factory
 
-from .models import Category, Item, ScrapedWikiPage, Suggestion, WishList
+from .models import Category, Exchange, Item, ScrapedWikiPage, Suggestion, WishList
 
 User = get_user_model()
 
@@ -676,3 +676,27 @@ class ScrapedPageSelectionForm(forms.Form):
         else:
             self.fields['target_wishlist'].widget = forms.HiddenInput()
             self.fields['target_wishlist'].required = False
+
+
+class ExchangeForm(forms.ModelForm):
+    """Name and details of a gift exchange — call it whatever the family likes."""
+
+    class Meta:
+        model = Exchange
+        fields = ['name', 'budget', 'exchange_date', 'notes']
+        labels = {
+            'name': 'What should we call it?',
+            'budget': 'Spending limit',
+            'exchange_date': 'When we swap gifts',
+            'notes': 'Anything else people should know',
+        }
+        widgets = {
+            'name': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'e.g. The Great Duke Gift Swap'}
+            ),
+            'budget': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. $50'}),
+            'exchange_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'notes': forms.Textarea(
+                attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Optional'}
+            ),
+        }
