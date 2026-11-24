@@ -6,6 +6,10 @@ deployed that mutable tag, so the second build's deploy step resolved to the
 *first* build's digest: dev served PR #82's code while PR #83's checks were
 green and it had "deployed last".
 
+Upload storage: Django 5.1 removed DEFAULT_FILE_STORAGE and ignores it
+silently, so prod wrote every upload to the container's disk, where it was
+never served and was lost on redeploy. Media storage must come from STORAGES.
+
 HTTPS hardening in issue #131: with DEBUG off (dev and prod Cloud Run), Django
 trusts Cloud Run's X-Forwarded-Proto, marks its own cookies Secure and sends
 HSTS. Local `make run` (DEBUG on, plain HTTP) must keep Django's defaults.
@@ -198,6 +202,69 @@ class TestHttpsHardeningSettings:
             }
 
         assert not flagged & {'security.W004', 'security.W012', 'security.W016'}
+
+
+@pytest.fixture
+def with_s3(monkeypatch):
+    """Settings as Cloud Run gets them: USE_S3=TRUE and a bucket (terraform/main.tf)."""
+    monkeypatch.setenv('USE_S3', 'TRUE')
+    monkeypatch.setenv('AWS_STORAGE_BUCKET_NAME', 'gift-wiki')
+    return load_settings(monkeypatch, debug=False)
+
+
+@pytest.fixture
+def without_s3(monkeypatch):
+    monkeypatch.delenv('USE_S3', raising=False)
+    return load_settings(monkeypatch, debug=True)
+
+
+@pytest.mark.unit
+class TestUploadStorage:
+    def test_uploads_go_to_s3_when_use_s3(self, with_s3):
+        """What Django actually builds from the settings, not just a string."""
+        from django.core.files.storage import StorageHandler
+        from storages.backends.s3boto3 import S3Boto3Storage
+
+        storage = StorageHandler(with_s3.STORAGES)['default']
+
+        assert isinstance(storage, S3Boto3Storage)
+
+    def test_s3_settings_reach_the_storage(self, with_s3):
+        """The bucket from the environment, and never overwriting an upload
+        with the same name (django-storages' default): two people's photo.jpg."""
+        from django.core.files.storage import StorageHandler
+
+        aws = {name: getattr(with_s3, name) for name in dir(with_s3) if name.startswith('AWS_')}
+        with override_settings(**aws):
+            storage = StorageHandler(with_s3.STORAGES)['default']
+
+        assert storage.bucket_name == 'gift-wiki'
+        assert storage.file_overwrite is False
+        # The custom domain makes every URL unsigned and public
+        assert storage.url('wishlist_images/a.jpg') == (
+            'https://gift-wiki.s3.amazonaws.com/wishlist_images/a.jpg'
+        )
+
+    def test_uploads_stay_on_local_disk_without_s3(self, without_s3):
+        from django.core.files.storage import FileSystemStorage, StorageHandler
+
+        storage = StorageHandler(without_s3.STORAGES)['default']
+
+        assert type(storage) is FileSystemStorage
+
+    @pytest.mark.parametrize('fixture', ['with_s3', 'without_s3'])
+    def test_static_urls_stay_unfingerprinted(self, fixture, request):
+        """The app relies on plain static URLs plus {% vstatic %} (gift/pwa.py)."""
+        module = request.getfixturevalue(fixture)
+
+        assert module.STORAGES['staticfiles']['BACKEND'] == (
+            'django.contrib.staticfiles.storage.StaticFilesStorage'
+        )
+
+    @pytest.mark.parametrize('name', ['DEFAULT_FILE_STORAGE', 'STATICFILES_STORAGE'])
+    def test_no_removed_storage_setting_is_used(self, with_s3, name):
+        """Both were removed in Django 5.1 and are ignored without a word."""
+        assert not hasattr(with_s3, name)
 
 
 def sign_in(client, **kwargs):
