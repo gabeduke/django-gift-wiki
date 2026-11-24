@@ -1007,6 +1007,8 @@ a.wl-list-row:active { transform: scale(.985); }
 .wl-exchange-edit form { margin-top: 10px; }
 .wl-exchange-wrap { margin: 10px 0 0; }
 .wl-exchange-wrap .btn-link { padding: 0; color: var(--text-muted); }
+.wl-exchange-delete { margin: 10px 0 0; }
+.wl-exchange-delete .btn-link { padding: 0; color: var(--danger); }
 
 /* The reveal: a wrapped present that opens onto your pick */
 .wl-reveal { text-align: center; border-top: 3px solid var(--brand); }

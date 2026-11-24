@@ -44,6 +44,11 @@ urlpatterns = [
     ),
     path('exchanges/<int:exchange_id>/edit/', exchange_views.exchange_edit, name='exchange_edit'),
     path(
+        'exchanges/<int:exchange_id>/delete/',
+        exchange_views.exchange_delete,
+        name='exchange_delete',
+    ),
+    path(
         'exchanges/<int:exchange_id>/remove/<int:participant_id>/',
         exchange_views.exchange_remove,
         name='exchange_remove',

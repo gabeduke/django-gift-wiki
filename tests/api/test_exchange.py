@@ -6,6 +6,7 @@ the shoulder. The rest is the draw being a fair loop and the reveal showing
 up until it's been opened.
 """
 
+import os
 import re
 
 import pytest
@@ -663,3 +664,33 @@ class TestReviewFixes:
     def test_list_page_says_what_to_do(self, drawn, people):
         page = signed_in(people[1]).get(reverse('gift:exchange_list')).content.decode()
         assert 'Open yours' in page
+
+
+class TestDelete:
+    def test_organizer_deletes_an_exchange_made_by_mistake(self, exchange, people):
+        client = signed_in(people[0])
+        assert 'Delete this exchange' in client.get(url('exchange_detail', exchange)).content.decode()
+        response = client.post(url('exchange_delete', exchange))
+        assert response.url == reverse('gift:exchange_list')
+        assert not Exchange.objects.filter(pk=exchange.pk).exists()
+        assert not ExchangeParticipant.objects.filter(exchange_id=exchange.pk).exists()
+
+    def test_deleting_after_the_draw_takes_letters_and_photos(
+        self, drawn, people, media, django_capture_on_commit_callbacks
+    ):
+        signed_in(people[1]).post(url('exchange_letter', drawn), {'body': 'Hi', 'image': photo()})
+        path = ExchangeLetter.objects.get().image.path
+        with django_capture_on_commit_callbacks(execute=True):
+            signed_in(people[0]).post(url('exchange_delete', drawn))
+        assert not ExchangeLetter.objects.exists()
+        assert not os.path.exists(path)
+
+    def test_only_the_organizer_can_delete(self, exchange, people):
+        client = signed_in(people[1])
+        assert 'Delete this exchange' not in client.get(url('exchange_detail', exchange)).content.decode()
+        client.post(url('exchange_delete', exchange))
+        assert Exchange.objects.filter(pk=exchange.pk).exists()
+
+    def test_delete_is_post_only(self, exchange, people):
+        signed_in(people[0]).get(url('exchange_delete', exchange))
+        assert Exchange.objects.filter(pk=exchange.pk).exists()

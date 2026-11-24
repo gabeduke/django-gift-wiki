@@ -345,6 +345,12 @@
         <button type="submit" class="btn btn-outline-secondary btn-sm">Reopen it</button>
       </form>
     {% endif %}
+
+      <form method="post" action="{% url 'gift:exchange_delete' exchange.id %}" class="wl-exchange-delete"
+            onsubmit="return confirm('Delete {{ exchange.name|escapejs }} for good?{% if participants %} {{ participants|length }} {{ participants|length|pluralize:"person is,people are" }} in it.{% endif %}{% if exchange.is_drawn %} Everyone’s pick and any letters are deleted too.{% endif %} This can’t be undone.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-link btn-sm">Delete this exchange</button>
+      </form>
   </section>
   {% endif %}
 

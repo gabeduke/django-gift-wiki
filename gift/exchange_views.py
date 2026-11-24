@@ -23,6 +23,7 @@ from .exchange import (
     addable_people,
     can_manage,
     can_see_letter,
+    delete_exchange,
     delete_letters,
     deliver_letters,
     draw_names,
@@ -402,6 +403,18 @@ def exchange_wrap_up(request, exchange_id):
         exchange.is_active = request.POST.get('reopen') == '1'
         exchange.save(update_fields=['is_active'])
     return redirect('gift:exchange_detail', exchange_id=exchange.id)
+
+
+@require_POST
+@login_required
+def exchange_delete(request, exchange_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id)
+    if not _manage_or_refuse(request, exchange):
+        return redirect('gift:exchange_detail', exchange_id=exchange.id)
+    name = exchange.name
+    delete_exchange(exchange)
+    messages.success(request, f'Deleted {name}.')
+    return redirect('gift:exchange_list')
 
 
 def _mark_opened(request, exchange_id):
