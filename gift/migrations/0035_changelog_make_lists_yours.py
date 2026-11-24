@@ -21,7 +21,7 @@ def create_entry(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('gift', '0032_make_lists_yours'),
+        ('gift', '0034_make_lists_yours'),
     ]
 
     operations = [

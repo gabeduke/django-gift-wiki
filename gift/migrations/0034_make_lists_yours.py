@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('gift', '0031_changelog_exchange_kinds'),
+        ('gift', '0033_changelog_considering'),
     ]
 
     operations = [
