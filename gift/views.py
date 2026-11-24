@@ -30,7 +30,8 @@ from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
 from . import pwa
-from .exchange import assignments_for, open_invitations_for
+from .exchange import assignments_for, letters_for, open_invitations_for
+from .exchange_views import DECLINED_SESSION_KEY
 from .forms import (
     AssignLoginEmailForm,
     CategoryForm,
@@ -46,6 +47,7 @@ from .forms import (
 from .models import (
     Category,
     ChangelogEntry,
+    ExchangeLetter,
     Item,
     ScrapedWikiItem,
     ScrapedWikiPage,
@@ -1525,7 +1527,7 @@ def home(request):
     upcoming_birthdays = []
     unseen_changelog_entries = []
     christmas_in_days = None
-    assignments = exchange_reveals = exchange_picks = exchange_invites = []
+    assignments = exchange_reveals = exchange_picks = exchange_invites = exchange_letters = []
 
     if request.user.is_authenticated:
         christmas_in_days = days_until_christmas(timezone.localdate())
@@ -1547,8 +1549,24 @@ def home(request):
             assignments = assignments_for(request.user)
             exchange_reveals = [a for a in assignments if not a.reveal_seen_at]
             exchange_picks = [a for a in assignments if a.reveal_seen_at]
-            exchange_invites = open_invitations_for(request.user)
-        exchange_targets = {a.receiver_id: a.exchange.name for a in exchange_picks}
+            exchange_invites = open_invitations_for(
+                request.user, request.session.get(DECLINED_SESSION_KEY, [])
+            )
+            # Delivered letters to you show until you've read them. Not over
+            # the shoulder: they're nobody else's to read.
+            exchange_letters = [letter for letter in letters_for(request.user) if not letter.read_at]
+            # Letters you've written, for the "not written yet" nudge
+            written = set(
+                ExchangeLetter.objects.filter(
+                    author=request.user, exchange_id__in=[a.exchange_id for a in exchange_picks]
+                ).values_list('exchange_id', flat=True)
+            )
+            for pick in exchange_picks:
+                pick.letter_written = pick.exchange_id in written
+        # Only gift exchanges point you at your pick's wishlists
+        exchange_targets = {
+            a.receiver_id: a.exchange.name for a in exchange_picks if a.exchange.kind_info.shows_lists
+        }
         if not assignments and request.user.secret_santa_target_id and not over_the_shoulder:
             # Set by hand in the admin before exchanges existed
             exchange_targets = {request.user.secret_santa_target_id: 'Secret Santa'}
@@ -1639,6 +1657,7 @@ def home(request):
         'exchange_reveals': exchange_reveals,
         'exchange_picks': exchange_picks,
         'exchange_invites': exchange_invites,
+        'exchange_letters': exchange_letters,
     }
     return render(request, 'gift/home.html', context)
 

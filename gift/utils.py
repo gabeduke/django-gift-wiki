@@ -80,3 +80,40 @@ def process_profile_picture(image_field):
     web_size = resize_image(image_field, max_width=400, max_height=400, quality=85)
 
     return thumbnail, web_size
+
+
+# Letter photos: big enough to read handwriting, small enough for a phone.
+LETTER_IMAGE_MAX_SIDE = 2000
+LETTER_IMAGE_MAX_BYTES = 15 * 1024 * 1024
+
+
+def process_letter_image(upload):
+    """A photo or scan for an exchange letter, ready to store.
+
+    Turned the right way up, shrunk to fit LETTER_IMAGE_MAX_SIDE and re-encoded
+    as JPEG — which also drops the EXIF data, so a phone photo doesn't carry
+    where it was taken. Raises ValueError for anything that isn't an image.
+    """
+    from django.core.files.base import ContentFile
+    from PIL import ImageOps, UnidentifiedImageError
+
+    try:
+        image = Image.open(upload)
+        image.load()
+    except (UnidentifiedImageError, OSError) as error:
+        raise ValueError('That file isn’t a photo we can read.') from error
+
+    image = ImageOps.exif_transpose(image)
+    if image.mode in ('RGBA', 'LA', 'P'):
+        # Scans with transparency go on white paper, not black
+        image = image.convert('RGBA')
+        background = Image.new('RGB', image.size, (255, 255, 255))
+        background.paste(image, mask=image.split()[-1])
+        image = background
+    elif image.mode != 'RGB':
+        image = image.convert('RGB')
+    image.thumbnail((LETTER_IMAGE_MAX_SIDE, LETTER_IMAGE_MAX_SIDE), Image.LANCZOS)
+
+    out = BytesIO()
+    image.save(out, format='JPEG', quality=85, optimize=True)
+    return ContentFile(out.getvalue(), name='letter.jpg')
