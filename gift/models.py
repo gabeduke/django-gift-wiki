@@ -551,3 +551,61 @@ class ChangelogEntry(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Exchange(models.Model):
+    """
+    A gift exchange: people opt in, the organizer draws names, and each person
+    privately learns who they're giving to. The family names it — "Secret
+    Santa" is only the default. Logic lives in gift/exchange.py.
+
+    Nobody but the giver ever sees a pairing on the site, the organizer
+    included; see ExchangeParticipant.
+    """
+
+    name = models.CharField(max_length=80, default='Secret Santa')
+    organizer = models.ForeignKey(
+        WikiUser, on_delete=models.SET_NULL, null=True, related_name='organized_exchanges'
+    )
+    budget = models.CharField(max_length=40, blank=True, help_text='e.g. "$50"')
+    exchange_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    drawn_at = models.DateTimeField(null=True, blank=True)
+    # Wrapped-up exchanges leave the home page but keep their history.
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_drawn(self):
+        return self.drawn_at is not None
+
+
+class ExchangeParticipant(models.Model):
+    """
+    Someone opted into an exchange, and — once names are drawn — who they give
+    to. The receiver is secret: keep it out of __str__, admin, logs and flash
+    messages. Only the giver's own row is ever shown to them.
+    """
+
+    exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE, related_name='participants')
+    giver = models.ForeignKey(WikiUser, on_delete=models.CASCADE, related_name='exchange_entries')
+    receiver = models.ForeignKey(
+        WikiUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    # Set when the giver dismisses the reveal; until then the home page shows it.
+    reveal_seen_at = models.DateTimeField(null=True, blank=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['exchange', 'giver'], name='one_entry_per_exchange'),
+        ]
+
+    def __str__(self):
+        return f'{self.giver} in {self.exchange}'

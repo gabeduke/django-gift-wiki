@@ -1,0 +1,182 @@
+{% extends 'gift/base/base_generic.html' %}
+{% load gift_extras %}
+
+{% block title %}{{ exchange.name }} · Wikileet{% endblock %}
+
+{% block content %}
+<div class="wl-page-medium">
+
+  <a class="wl-back" href="{% url 'gift:exchange_list' %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    Gift exchange
+  </a>
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title">{{ exchange.name }}</h1>
+    <p class="wl-page-subtitle">
+      {% if exchange.budget %}Spending limit <strong>{{ exchange.budget }}</strong> · {% endif %}
+      {% if exchange.exchange_date %}Swapping {{ exchange.exchange_date|date:"l, M j" }} · {% endif %}
+      {% if exchange.organizer %}Organized by {{ exchange.organizer.get_full_name|default:exchange.organizer.username }}{% endif %}
+      {% if not exchange.is_active %} · Wrapped up{% endif %}
+    </p>
+    {% if exchange.notes %}<p class="wl-exchange-notes">{{ exchange.notes|linebreaksbr }}</p>{% endif %}
+  </div>
+
+  {% if reveal %}
+  <!-- Your pick. Only ever rendered for you, and never over the shoulder. -->
+  <section class="wl-card wl-reveal" id="reveal" data-exchange-reveal>
+    <details class="wl-reveal-box" {% if reveal.entry.reveal_seen_at %}open{% endif %}>
+      <summary class="wl-reveal-wrap">
+        <span class="wl-reveal-gift" aria-hidden="true">
+          <span class="wl-reveal-lid"></span>
+          <span class="wl-reveal-body"></span>
+        </span>
+        <span class="wl-reveal-cta">Your name is drawn — tap to unwrap</span>
+      </summary>
+      <div class="wl-reveal-inside">
+        <p class="wl-reveal-kicker">You're giving to</p>
+        <p class="wl-reveal-name" data-reveal-name>{{ reveal.name }}</p>
+        {% if reveal.lists %}
+        <div class="wl-reveal-lists">
+          {% for wishlist in reveal.lists %}
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'gift:wishlist_detail' wishlist.id %}">{{ wishlist.title }}</a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="wl-card-subtitle">{{ reveal.first_name }} hasn't made a list yet — maybe drop a hint? 😉</p>
+        {% endif %}
+        {% if not reveal.entry.reveal_seen_at %}
+        <form method="post" action="{% url 'gift:exchange_reveal_seen' exchange.id %}" class="wl-reveal-done">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-sm">Got it — my lips are sealed 🤫</button>
+        </form>
+        {% else %}
+        <p class="wl-reveal-hush">🤫 Keep it a secret!</p>
+        {% endif %}
+      </div>
+    </details>
+    {{ reveal.decoys|json_script:"wl-reveal-decoys" }}
+  </section>
+  {% elif over_the_shoulder and mine and exchange.is_drawn %}
+  <div class="wl-card wl-empty-card">
+    <div class="wl-empty-emoji" aria-hidden="true">👀</div>
+    <p class="wl-card-title">Your pick is hidden while you're over the shoulder</p>
+    <p class="wl-card-subtitle">Turn the mode off at the top of the page when nobody's looking.</p>
+  </div>
+  {% endif %}
+
+  <section class="wl-card">
+    <div class="wl-exchange-ring-head">
+      <h2 class="wl-card-title">Who's in</h2>
+      {% if exchange.is_active and not exchange.is_drawn %}
+        {% if mine %}
+        <form method="post" action="{% url 'gift:exchange_leave' exchange.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-secondary btn-sm">Leave</button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'gift:exchange_join' exchange.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-sm">Count me in</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
+    <p class="wl-card-subtitle">
+      {% if exchange.is_drawn %}
+        Names were drawn {{ exchange.drawn_at|date:"M j" }}. {{ opened_count }} of {{ participants|length }} envelope{{ participants|length|pluralize }} opened.
+      {% elif participants %}
+        Waiting for everyone to join before names are drawn.
+      {% else %}
+        Nobody's joined yet.
+      {% endif %}
+    </p>
+
+    {% if ring %}
+    <!-- Everyone around a ring, in alphabetical order — never draw order, which would give pairs away -->
+    <svg class="wl-exchange-ring{% if exchange.is_drawn %} is-drawn{% endif %}" viewBox="0 0 {{ ring_size }} {{ ring_size }}"
+         role="img" aria-label="{{ participants|length }} people in {{ exchange.name }}">
+      <circle class="wl-ring-track" cx="160" cy="160" r="120"/>
+      <text class="wl-ring-centre" x="160" y="152" text-anchor="middle">{% if exchange.is_drawn %}🎁{% else %}✉️{% endif %}</text>
+      <text class="wl-ring-caption" x="160" y="180" text-anchor="middle">
+        {% if exchange.is_drawn %}{{ opened_count }}/{{ participants|length }} opened{% else %}{{ participants|length }} in{% endif %}
+      </text>
+      {% for node in ring %}
+      <g class="wl-ring-node{% if node.participant.reveal_seen_at %} is-opened{% endif %}{% if node.participant.giver_id == request.user.id %} is-me{% endif %}"
+         style="--i: {{ forloop.counter0 }}">
+        <title>{{ node.name }}{% if exchange.is_drawn %} — {% if node.participant.reveal_seen_at %}opened{% else %}not opened yet{% endif %}{% endif %}</title>
+        <circle cx="{{ node.x }}" cy="{{ node.y }}" r="22"/>
+        <text x="{{ node.x }}" y="{{ node.y }}" dy="0.35em" text-anchor="middle">{{ node.initials }}</text>
+      </g>
+      {% endfor %}
+    </svg>
+
+    <ul class="wl-exchange-roster">
+      {% for participant in participants %}
+      <li>
+        <span>{{ participant.giver.get_full_name|default:participant.giver.username }}{% if participant.giver_id == exchange.organizer_id %} <span class="wl-exchange-tag">organizer</span>{% endif %}</span>
+        {% if exchange.is_drawn %}
+          <span class="wl-exchange-meta">{% if participant.reveal_seen_at %}✓ opened{% else %}✉️ sealed{% endif %}</span>
+        {% elif can_manage and exchange.is_active and participant.giver_id != request.user.id %}
+          <form method="post" action="{% url 'gift:exchange_remove' exchange.id participant.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-link btn-sm wl-exchange-remove">Remove</button>
+          </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  {% if can_manage %}
+  <section class="wl-card">
+    <h2 class="wl-card-title">Organizer</h2>
+    {% if exchange.is_active %}
+      {% if not exchange.is_drawn %}
+        <p class="wl-card-subtitle">When everyone's in, draw names. Each person gets someone else — never themselves — and only they find out who.</p>
+        <form method="post" action="{% url 'gift:exchange_draw' exchange.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary" {% if not can_draw %}disabled{% endif %}>🎲 Draw names</button>
+          {% if not can_draw %}<span class="wl-exchange-meta">Needs at least {{ min_participants }} people.</span>{% endif %}
+        </form>
+      {% else %}
+        <p class="wl-card-subtitle">Names are drawn. Someone joined late or dropped out? Drawing again gives everyone a new name, and they'll all get a fresh envelope.</p>
+        <form method="post" action="{% url 'gift:exchange_draw' exchange.id %}"
+              onsubmit="return confirm('Draw everyone a new name? Everyone’s current pick is thrown away.');">
+          {% csrf_token %}
+          <input type="hidden" name="redraw" value="1">
+          <button type="submit" class="btn btn-outline-secondary btn-sm" {% if not can_draw %}disabled{% endif %}>Draw again</button>
+        </form>
+      {% endif %}
+
+      <details class="wl-exchange-edit">
+        <summary>Rename or change the details</summary>
+        <form method="post" action="{% url 'gift:exchange_edit' exchange.id %}" class="wl-form">
+          {% csrf_token %}
+          {% include 'gift/partials/exchange_fields.html' %}
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+      </details>
+
+      <form method="post" action="{% url 'gift:exchange_wrap_up' exchange.id %}" class="wl-exchange-wrap"
+            onsubmit="return confirm('Wrap up {{ exchange.name|escapejs }}? It leaves the home page.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-link btn-sm">Wrap up the exchange</button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'gift:exchange_wrap_up' exchange.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="reopen" value="1">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Reopen it</button>
+      </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+</div>
+{% if reveal %}<script src="{% vstatic 'js/exchange.js' %}"></script>{% endif %}
+{% endblock %}

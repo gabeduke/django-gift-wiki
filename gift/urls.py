@@ -2,7 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
-from . import views
+from . import exchange_views, views
 
 app_name = 'gift'
 urlpatterns = [
@@ -30,6 +30,29 @@ urlpatterns = [
         'managed-user/<int:user_id>/assign-email/',
         views.assign_login_email,
         name='assign_login_email',
+    ),
+    # Gift exchanges
+    path('exchanges/', exchange_views.exchange_list, name='exchange_list'),
+    path('exchanges/new/', exchange_views.exchange_create, name='exchange_create'),
+    path('exchanges/<int:exchange_id>/', exchange_views.exchange_detail, name='exchange_detail'),
+    path('exchanges/<int:exchange_id>/join/', exchange_views.exchange_join, name='exchange_join'),
+    path('exchanges/<int:exchange_id>/leave/', exchange_views.exchange_leave, name='exchange_leave'),
+    path('exchanges/<int:exchange_id>/edit/', exchange_views.exchange_edit, name='exchange_edit'),
+    path(
+        'exchanges/<int:exchange_id>/remove/<int:participant_id>/',
+        exchange_views.exchange_remove,
+        name='exchange_remove',
+    ),
+    path('exchanges/<int:exchange_id>/draw/', exchange_views.exchange_draw, name='exchange_draw'),
+    path(
+        'exchanges/<int:exchange_id>/wrap-up/',
+        exchange_views.exchange_wrap_up,
+        name='exchange_wrap_up',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/opened/',
+        exchange_views.exchange_reveal_seen,
+        name='exchange_reveal_seen',
     ),
     # Wishlists
     path('wishlist/create/', views.wishlist_create, name='create_wishlist'),
