@@ -38,6 +38,23 @@ def wishlist_image_path(instance, filename):
     return _random_jpeg_name('wishlist_images')
 
 
+def _random_name_keeping_extension(folder, filename):
+    """For uploads stored as sent (not re-encoded to JPEG). Random like the
+    rest, because S3 storage overwrites a name that's already taken."""
+    import os
+    import uuid
+
+    return f'{folder}/{uuid.uuid4().hex}{os.path.splitext(filename)[1].lower()}'
+
+
+def family_image_path(instance, filename):
+    return _random_name_keeping_extension('family_images', filename)
+
+
+def suggestion_image_path(instance, filename):
+    return _random_name_keeping_extension('suggestions', filename)
+
+
 class WikiUser(AbstractUser):
     family_name = models.ForeignKey(
         'Family', on_delete=models.SET_NULL, null=True, blank=True, related_name='WikiUsers'
@@ -185,7 +202,7 @@ class Family(models.Model):
     name = models.CharField(max_length=255, default='My Family')
     description = models.TextField(blank=True, null=True)
     image = models.ImageField(
-        upload_to='family_images/',
+        upload_to=family_image_path,
         blank=True,
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])],
@@ -362,7 +379,7 @@ class Suggestion(models.Model):
     name = models.CharField(max_length=255, default='My Suggestion')
     hyperlink = models.URLField(blank=True, null=True)  # Allow null and blank
     description = models.TextField(blank=True, null=True)
-    image = models.ImageField(upload_to='suggestions/', blank=True, null=True)  # Image field
+    image = models.ImageField(upload_to=suggestion_image_path, blank=True, null=True)  # Image field
     suggested_price = models.DecimalField(
         max_digits=10, decimal_places=2, blank=True, null=True
     )  # Optional price field

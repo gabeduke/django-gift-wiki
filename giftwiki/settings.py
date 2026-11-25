@@ -324,9 +324,12 @@ if USE_S3:
     # files (letter photos) are streamed through an access-checked view.
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
-    # django-storages overwrites by default; two uploads named photo.jpg would
-    # replace each other. Get a suffixed name instead, like FileSystemStorage.
-    AWS_S3_FILE_OVERWRITE = False
+    # Keep django-storages' default: write the name as given, with no "is it
+    # taken?" HeadObject first. That check needs s3:ListBucket, which our key
+    # doesn't have — S3 answers 403 for a missing key and every upload 500'd.
+    # Collisions can't happen anyway: every upload_to in gift/models.py makes
+    # a random uuid name (tests/test_deploy_config.py checks both).
+    AWS_S3_FILE_OVERWRITE = True
     STORAGES['default'] = {'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage'}
 
 # Default primary key field type

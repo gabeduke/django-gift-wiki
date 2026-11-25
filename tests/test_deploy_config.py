@@ -230,8 +230,8 @@ class TestUploadStorage:
         assert isinstance(storage, S3Boto3Storage)
 
     def test_s3_settings_reach_the_storage(self, with_s3):
-        """The bucket from the environment, and never overwriting an upload
-        with the same name (django-storages' default): two people's photo.jpg."""
+        """The bucket from the environment, and writing names as given: every
+        upload name is random, and checking first needs s3:ListBucket."""
         from django.core.files.storage import StorageHandler
 
         aws = {name: getattr(with_s3, name) for name in dir(with_s3) if name.startswith('AWS_')}
@@ -239,11 +239,39 @@ class TestUploadStorage:
             storage = StorageHandler(with_s3.STORAGES)['default']
 
         assert storage.bucket_name == 'gift-wiki'
-        assert storage.file_overwrite is False
+        assert storage.file_overwrite is True
         # The custom domain makes every URL unsigned and public
         assert storage.url('wishlist_images/a.jpg') == (
             'https://gift-wiki.s3.amazonaws.com/wishlist_images/a.jpg'
         )
+
+    def test_saving_to_s3_never_asks_whether_a_name_is_taken(self, with_s3):
+        """Prod's key can't HeadObject a missing key (403, not 404), so the
+        "is it taken?" check 500'd every cover photo upload."""
+        from django.core.files.storage import StorageHandler
+
+        aws = {name: getattr(with_s3, name) for name in dir(with_s3) if name.startswith('AWS_')}
+        with override_settings(**aws):
+            storage = StorageHandler(with_s3.STORAGES)['default']
+            with patch.object(storage, 'exists', side_effect=AssertionError('HeadObject')):
+                name = storage.get_available_name('wishlist_images/a.jpg')
+
+        assert name == 'wishlist_images/a.jpg'
+
+    @pytest.mark.parametrize(
+        'model,field', [('WikiUser', 'profile_picture'), ('WikiUser', 'profile_picture_web'),
+                        ('WikiUser', 'profile_picture_thumbnail'), ('WishList', 'image'),
+                        ('Family', 'image'), ('Suggestion', 'image'), ('ExchangeLetter', 'image')],
+    )
+    def test_every_upload_gets_a_random_name(self, model, field):
+        """With overwriting on, a reused name would replace someone else's photo."""
+        from gift import models
+
+        upload_to = models.__dict__[model]._meta.get_field(field).upload_to
+
+        first, second = upload_to(None, 'photo.jpg'), upload_to(None, 'photo.jpg')
+        assert first != second
+        assert 'photo' not in first
 
     def test_uploads_stay_on_local_disk_without_s3(self, without_s3):
         from django.core.files.storage import FileSystemStorage, StorageHandler
