@@ -27,9 +27,7 @@ common_labels = {
 secret_names = [
   "django-secret-key",
   "django-db-user",
-  "django-db-password",
-  "aws-access-key-id",
-  "aws-secret-access-key"
+  "django-db-password"
 ]
 
 # Secret values are passed via TF_VAR_secret_values env var (not stored in VCS)

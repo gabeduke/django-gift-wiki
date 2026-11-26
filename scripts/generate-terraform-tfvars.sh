@@ -40,8 +40,6 @@ secrets = {
   django-secret-key      = "$DJANGO_SECRET_KEY"
   django-db-user         = "$DJANGO_DB_USER"
   django-db-password     = "$DJANGO_DB_PASSWORD"
-  aws-access-key-id      = "$AWS_ACCESS_KEY_ID"
-  aws-secret-access-key  = "$AWS_SECRET_ACCESS_KEY"
 }
 EOF
 

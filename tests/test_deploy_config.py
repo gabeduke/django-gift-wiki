@@ -8,7 +8,8 @@ green and it had "deployed last".
 
 Upload storage: Django 5.1 removed DEFAULT_FILE_STORAGE and ignores it
 silently, so prod wrote every upload to the container's disk, where it was
-never served and was lost on redeploy. Media storage must come from STORAGES.
+never served and was lost on redeploy. Media storage must come from STORAGES,
+and every deploy command must name the Cloud Storage bucket.
 
 HTTPS hardening in issue #131: with DEBUG off (dev and prod Cloud Run), Django
 trusts Cloud Run's X-Forwarded-Proto, marks its own cookies Secure and sends
@@ -204,59 +205,71 @@ class TestHttpsHardeningSettings:
         assert not flagged & {'security.W004', 'security.W012', 'security.W016'}
 
 
+MEDIA_TF = REPO_ROOT / 'terraform' / 'media.tf'
+
+
 @pytest.fixture
-def with_s3(monkeypatch):
-    """Settings as Cloud Run gets them: USE_S3=TRUE and a bucket (terraform/main.tf)."""
-    monkeypatch.setenv('USE_S3', 'TRUE')
-    monkeypatch.setenv('AWS_STORAGE_BUCKET_NAME', 'gift-wiki')
+def with_gcs(monkeypatch):
+    """Settings as Cloud Run gets them: a media bucket (cloudbuild.yaml)."""
+    monkeypatch.setenv('GS_BUCKET_NAME', 'wikileet-media-dev')
     return load_settings(monkeypatch, debug=False)
 
 
 @pytest.fixture
-def without_s3(monkeypatch):
-    monkeypatch.delenv('USE_S3', raising=False)
+def without_gcs(monkeypatch):
+    monkeypatch.delenv('GS_BUCKET_NAME', raising=False)
     return load_settings(monkeypatch, debug=True)
+
+
+@pytest.fixture
+def gcs_storage(with_gcs):
+    """The storage Django builds from the deployed settings, with an anonymous
+    client so nothing looks for real Google credentials."""
+    from django.core.files.storage import StorageHandler
+    from google.auth.credentials import AnonymousCredentials
+    from google.cloud.storage import Client
+
+    gs = {name: getattr(with_gcs, name) for name in dir(with_gcs) if name.startswith('GS_')}
+    with override_settings(**gs):
+        storage = StorageHandler(with_gcs.STORAGES)['default']
+        storage._client = Client(project='test', credentials=AnonymousCredentials())
+        yield storage
 
 
 @pytest.mark.unit
 class TestUploadStorage:
-    def test_uploads_go_to_s3_when_use_s3(self, with_s3):
+    def test_uploads_go_to_gcs_when_a_bucket_is_set(self, gcs_storage):
         """What Django actually builds from the settings, not just a string."""
-        from django.core.files.storage import StorageHandler
-        from storages.backends.s3boto3 import S3Boto3Storage
+        from storages.backends.gcloud import GoogleCloudStorage
 
-        storage = StorageHandler(with_s3.STORAGES)['default']
+        assert isinstance(gcs_storage, GoogleCloudStorage)
 
-        assert isinstance(storage, S3Boto3Storage)
+    def test_gcs_settings_reach_the_storage(self, gcs_storage):
+        """The bucket from the environment; no ACL (uniform bucket access
+        rejects one); names written as given, since every one is random."""
+        assert gcs_storage.bucket_name == 'wikileet-media-dev'
+        assert gcs_storage.default_acl is None
+        assert gcs_storage.file_overwrite is True
 
-    def test_s3_settings_reach_the_storage(self, with_s3):
-        """The bucket from the environment, and writing names as given: every
-        upload name is random, and checking first needs s3:ListBucket."""
-        from django.core.files.storage import StorageHandler
-
-        aws = {name: getattr(with_s3, name) for name in dir(with_s3) if name.startswith('AWS_')}
-        with override_settings(**aws):
-            storage = StorageHandler(with_s3.STORAGES)['default']
-
-        assert storage.bucket_name == 'gift-wiki'
-        assert storage.file_overwrite is True
-        # The custom domain makes every URL unsigned and public
-        assert storage.url('wishlist_images/a.jpg') == (
-            'https://gift-wiki.s3.amazonaws.com/wishlist_images/a.jpg'
+    def test_urls_are_public_and_unsigned(self, gcs_storage):
+        """Signing needs a private key the Cloud Run identity doesn't have, so a
+        signed URL would 500 every page that shows a photo."""
+        assert gcs_storage.url('wishlist_images/a.jpg') == (
+            'https://storage.googleapis.com/wikileet-media-dev/wishlist_images/a.jpg'
         )
 
-    def test_saving_to_s3_never_asks_whether_a_name_is_taken(self, with_s3):
-        """Prod's key can't HeadObject a missing key (403, not 404), so the
-        "is it taken?" check 500'd every cover photo upload."""
-        from django.core.files.storage import StorageHandler
-
-        aws = {name: getattr(with_s3, name) for name in dir(with_s3) if name.startswith('AWS_')}
-        with override_settings(**aws):
-            storage = StorageHandler(with_s3.STORAGES)['default']
-            with patch.object(storage, 'exists', side_effect=AssertionError('HeadObject')):
-                name = storage.get_available_name('wishlist_images/a.jpg')
+    def test_saving_never_asks_whether_a_name_is_taken(self, gcs_storage):
+        """A lookup per upload buys nothing when every name is random."""
+        # GCS's backend short-circuits inside exists(), so block the request.
+        with patch.object(type(gcs_storage.bucket), 'get_blob', side_effect=AssertionError('lookup')):
+            name = gcs_storage.get_available_name('wishlist_images/a.jpg')
 
         assert name == 'wishlist_images/a.jpg'
+
+    def test_no_aws_settings_remain(self, with_gcs):
+        """The S3 key that died silently is the outage this replaced."""
+        assert not [name for name in dir(with_gcs) if name.startswith('AWS_')]
+        assert not hasattr(with_gcs, 'USE_S3')
 
     @pytest.mark.parametrize(
         'model,field', [('WikiUser', 'profile_picture'), ('WikiUser', 'profile_picture_web'),
@@ -273,14 +286,14 @@ class TestUploadStorage:
         assert first != second
         assert 'photo' not in first
 
-    def test_uploads_stay_on_local_disk_without_s3(self, without_s3):
+    def test_uploads_stay_on_local_disk_without_a_bucket(self, without_gcs):
         from django.core.files.storage import FileSystemStorage, StorageHandler
 
-        storage = StorageHandler(without_s3.STORAGES)['default']
+        storage = StorageHandler(without_gcs.STORAGES)['default']
 
         assert type(storage) is FileSystemStorage
 
-    @pytest.mark.parametrize('fixture', ['with_s3', 'without_s3'])
+    @pytest.mark.parametrize('fixture', ['with_gcs', 'without_gcs'])
     def test_static_urls_stay_unfingerprinted(self, fixture, request):
         """The app relies on plain static URLs plus {% vstatic %} (gift/pwa.py)."""
         module = request.getfixturevalue(fixture)
@@ -290,9 +303,41 @@ class TestUploadStorage:
         )
 
     @pytest.mark.parametrize('name', ['DEFAULT_FILE_STORAGE', 'STATICFILES_STORAGE'])
-    def test_no_removed_storage_setting_is_used(self, with_s3, name):
+    def test_no_removed_storage_setting_is_used(self, with_gcs, name):
         """Both were removed in Django 5.1 and are ignored without a word."""
-        assert not hasattr(with_s3, name)
+        assert not hasattr(with_gcs, name)
+
+
+@pytest.mark.unit
+class TestMediaDeploy:
+    """`gcloud run deploy --set-env-vars` replaces the whole environment, so a
+    bucket missing from any one command silently sends uploads to local disk."""
+
+    def test_every_deploy_command_sets_the_bucket(self):
+        text = CLOUDBUILD.read_text()
+
+        assert text.count('GS_BUCKET_NAME=${_MEDIA_BUCKET}') == 3
+
+    def test_no_deploy_command_still_passes_aws(self):
+        assert 'AWS_' not in CLOUDBUILD.read_text()
+        assert 'USE_S3' not in CLOUDBUILD.read_text()
+
+    def test_dev_defaults_to_the_dev_bucket(self):
+        config = yaml.safe_load(CLOUDBUILD.read_text())
+
+        assert config['substitutions']['_MEDIA_BUCKET'] == 'wikileet-media-dev'
+
+    def test_prod_passes_the_prod_bucket(self):
+        """Without it, prod would write to the dev bucket by default."""
+        assert '_MEDIA_BUCKET=wikileet-media-prod' in PROD_WORKFLOW.read_text()
+
+    def test_bucket_is_publicly_readable_but_not_listable(self):
+        """objectViewer would let anyone list every photo, which undoes the
+        random names; legacyObjectReader is read-by-name only."""
+        roles = re.findall(r'role\s*=\s*"([^"]+)"', MEDIA_TF.read_text())
+
+        assert 'roles/storage.legacyObjectReader' in roles
+        assert 'roles/storage.objectViewer' not in roles
 
 
 def sign_in(client, **kwargs):

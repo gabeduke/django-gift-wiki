@@ -183,9 +183,7 @@ locals {
       DJANGO_DB_NAME         = var.db_name
       DJANGO_DB_PORT         = var.db_port
       DJANGO_DB_CONN_MAX_AGE = "600"
-      USE_S3                 = "TRUE"
-      AWS_S3_REGION_NAME     = "us-east-1"
-      AWS_STORAGE_BUCKET_NAME = "gift-wiki"
+      GS_BUCKET_NAME         = google_storage_bucket.media.name
       DJANGO_LOG_LEVEL       = "INFO"
       
       # Firebase Configuration (Injected from Terraform)
@@ -206,8 +204,6 @@ locals {
     "DJANGO_SECRET_KEY"      = "${var.environment}-django-secret-key"
     "DJANGO_DB_USER"          = "${var.environment}-django-db-user"
     "DJANGO_DB_PASSWORD"      = "${var.environment}-django-db-password"
-    "AWS_ACCESS_KEY_ID"       = "${var.environment}-aws-access-key-id"
-    "AWS_SECRET_ACCESS_KEY"   = "${var.environment}-aws-secret-access-key"
     "FIREBASE_API_KEY"        = "${var.environment}-firebase-api-key"
   }
   

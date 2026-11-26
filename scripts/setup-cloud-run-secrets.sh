@@ -33,12 +33,6 @@ echo -n "$DJANGO_DB_USER" | gcloud secrets create django-db-user --data-file=- -
 echo -n "$DJANGO_DB_PASSWORD" | gcloud secrets create django-db-password --data-file=- --replication-policy="automatic" 2>/dev/null || \
     echo -n "$DJANGO_DB_PASSWORD" | gcloud secrets versions add django-db-password --data-file=-
 
-echo -n "$AWS_ACCESS_KEY_ID" | gcloud secrets create aws-access-key-id --data-file=- --replication-policy="automatic" 2>/dev/null || \
-    echo -n "$AWS_ACCESS_KEY_ID" | gcloud secrets versions add aws-access-key-id --data-file=-
-
-echo -n "$AWS_SECRET_ACCESS_KEY" | gcloud secrets create aws-secret-access-key --data-file=- --replication-policy="automatic" 2>/dev/null || \
-    echo -n "$AWS_SECRET_ACCESS_KEY" | gcloud secrets versions add aws-secret-access-key --data-file=-
-
 echo ""
 echo "✅ Secrets created/updated in Cloud Secret Manager"
 echo ""

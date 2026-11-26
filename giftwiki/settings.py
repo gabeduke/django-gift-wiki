@@ -82,16 +82,6 @@ LOGGING = {
             'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG' if DEBUG else 'INFO'),
             'propagate': False,
         },
-        'boto3': {
-            'handlers': ['console'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'WARNING' if not DEBUG else 'DEBUG'),
-            'propagate': True,
-        },
-        'botocore': {
-            'handlers': ['console'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'WARNING' if not DEBUG else 'DEBUG'),
-            'propagate': True,
-        },
     },
 }
 
@@ -130,8 +120,6 @@ if DEBUG:
         'filename': 'debug.log',
         'formatter': 'verbose',
     }
-    LOGGING['loggers']['boto3']['handlers'].append('file')
-    LOGGING['loggers']['botocore']['handlers'].append('file')
 
 
 # Application definition
@@ -297,7 +285,6 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 # STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
-USE_S3 = os.getenv('USE_S3') == 'TRUE'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 
@@ -306,31 +293,36 @@ STATIC_URL = '/static/'
 # Django's plain storage, and anything a browser or the service worker caches
 # long-term goes through {% vstatic %} instead (see gift/pwa.py).
 #
-# Media (uploads) go to S3 when USE_S3. This must be the STORAGES setting:
-# Django 5.1 removed DEFAULT_FILE_STORAGE and STATICFILES_STORAGE, and ignores
-# them silently — uploads went to the container's disk and were lost on
-# redeploy. tests/test_deploy_config.py guards it.
+# Media (uploads) go to Google Cloud Storage when GS_BUCKET_NAME is set (Cloud
+# Run; bucket and IAM in terraform/media.tf), local disk otherwise. This must be
+# the STORAGES setting: Django 5.1 removed DEFAULT_FILE_STORAGE and
+# STATICFILES_STORAGE, and ignores them silently — uploads went to the
+# container's disk and were lost on redeploy. tests/test_deploy_config.py
+# guards it.
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
 }
 
-if USE_S3:
-    # Note: static files are served via WhiteNoise, not S3
-    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
-    # Unsigned public URLs: object names are their only protection. Private
-    # files (letter photos) are streamed through an access-checked view.
-    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
-    AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
-    # Keep django-storages' default: write the name as given, with no "is it
-    # taken?" HeadObject first. That check needs s3:ListBucket, which our key
-    # doesn't have — S3 answers 403 for a missing key and every upload 500'd.
-    # Collisions can't happen anyway: every upload_to in gift/models.py makes
-    # a random uuid name (tests/test_deploy_config.py checks both).
-    AWS_S3_FILE_OVERWRITE = True
-    STORAGES['default'] = {'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage'}
+GS_BUCKET_NAME = os.getenv('GS_BUCKET_NAME', '')
+if GS_BUCKET_NAME:
+    # No keys: on Cloud Run the client signs in as the service's own service
+    # account (Application Default Credentials). A long-lived AWS key that
+    # quietly died is what broke every upload in Nov 2026.
+    #
+    # Unsigned public URLs: object names are their only protection, and the
+    # bucket grants public *read* but not *list*. Private files (letter
+    # photos) are streamed through an access-checked view. Signing would also
+    # need a private key the Cloud Run identity doesn't have.
+    GS_QUERYSTRING_AUTH = False
+    # Uniform bucket-level access: per-object ACLs are rejected, so send none.
+    GS_DEFAULT_ACL = None
+    GS_OBJECT_PARAMETERS = {'cache_control': 'public, max-age=86400'}
+    # Write the name as given, with no "is it taken?" lookup first. Collisions
+    # can't happen: every upload_to in gift/models.py makes a random uuid name
+    # (tests/test_deploy_config.py checks both).
+    GS_FILE_OVERWRITE = True
+    STORAGES['default'] = {'BACKEND': 'storages.backends.gcloud.GoogleCloudStorage'}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
