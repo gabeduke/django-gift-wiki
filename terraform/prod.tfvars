@@ -25,9 +25,7 @@ common_labels = {
 secret_names = [
   "django-secret-key",
   "django-db-user",
-  "django-db-password",
-  "aws-access-key-id",
-  "aws-secret-access-key"
+  "django-db-password"
 ]
 
 # Alert email is passed via TF_VAR_alert_email (set from the ALERT_EMAIL
