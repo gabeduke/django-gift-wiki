@@ -1,7 +1,8 @@
 """Pages for exchanges (see gift/exchange.py for the rules).
 
-Every state change is a POST. Pairings appear only on the giver's own
-reveal, and never while the session is over the shoulder.
+Every state change is a POST. Pairings appear on the giver's own reveal and
+on the curators' draw page (exchange_pairings) — nowhere else, and never
+while the session is over the shoulder.
 """
 
 import math
@@ -21,19 +22,28 @@ from .exchange import (
     DrawError,
     add_person,
     addable_people,
+    breaks_rules,
     can_manage,
+    can_name_curators,
     can_see_letter,
+    change_pick,
+    curators_of,
     delete_exchange,
     delete_letters,
     deliver_letters,
     draw_names,
+    is_curator,
+    keep_apart,
+    kept_apart,
     needs_redraw,
     on_board,
+    pick_options,
+    possible_curators,
     remove_person,
 )
 from .forms import ExchangeForm, ExchangeLetterForm
 from .middleware.ops_token import not_found
-from .models import Exchange, ExchangeLetter, ExchangeParticipant, WishList
+from .models import Exchange, ExchangeKeepApart, ExchangeLetter, ExchangeParticipant, WishList
 from .visibility import is_over_the_shoulder
 
 # The roster ring: an SVG circle of everyone in the exchange.
@@ -204,7 +214,9 @@ def exchange_detail(request, exchange_id):
             exchange.letters.filter(receiver=request.user).select_related('author')
         )
 
-    manager = can_manage(request.user, exchange)
+    curators = curators_of(exchange)
+    curator = any(person.id == request.user.id for person in curators)
+    manager = curator or can_manage(request.user, exchange)
     manage = {}
     if manager:
         letters = list(exchange.letters.all()) if exchange.is_drawn else []
@@ -224,6 +236,32 @@ def exchange_detail(request, exchange_id):
                 else 'drawn' if exchange.is_drawn
                 else 'joining'
             ),
+            'open': exchange.is_active and not exchange.letters_delivered,
+            'can_name_curators': can_name_curators(request.user, exchange),
+        }
+        if manage['can_name_curators']:
+            manage['possible_curators'] = list(possible_curators(exchange))
+    curate = {}
+    if curator and not shoulder:
+        # Rules and the way into the draw: curators only, and not with
+        # someone looking on — a rule hints at who a person didn't draw
+        rules = list(exchange.keep_apart.select_related('first__giver', 'second__giver'))
+        apart = {frozenset((rule.first.giver_id, rule.second.giver_id)) for rule in rules}
+        curate = {
+            'rules': sorted(
+                (
+                    {
+                        'id': rule.id,
+                        'names': sorted(
+                            [display_name(rule.first.giver), display_name(rule.second.giver)],
+                            key=str.lower,
+                        ),
+                    }
+                    for rule in rules
+                ),
+                key=lambda rule: [name.lower() for name in rule['names']],
+            ),
+            'broken': not stale and breaks_rules(participants, apart),
         }
     return render(
         request,
@@ -239,6 +277,10 @@ def exchange_detail(request, exchange_id):
             'stale': stale,
             'over_the_shoulder': shoulder,
             'can_manage': manager,
+            'is_curator': curator,
+            'curators': curators,
+            'curator_ids': {person.id for person in curators},
+            'curate': curate,
             'can_draw': manager and len(participants) >= MIN_PARTICIPANTS,
             'min_participants': MIN_PARTICIPANTS,
             'form': ExchangeForm(instance=exchange) if manager else None,
@@ -257,7 +299,7 @@ def _locked(request, exchange):
         messages.error(request, 'This exchange has wrapped up.')
         return True
     if exchange.is_drawn:
-        organizer = display_name(exchange.organizer) if exchange.organizer else 'the organizer'
+        organizer = display_name(exchange.organizer) if exchange.organizer else 'a curator'
         messages.error(
             request, f'Names have already been drawn — ask {organizer} to add or remove you.'
         )
@@ -298,7 +340,7 @@ def exchange_decline(request, exchange_id):
 def _manage_or_refuse(request, exchange):
     if can_manage(request.user, exchange):
         return True
-    messages.error(request, 'Only the organizer can do that.')
+    messages.error(request, 'Only a curator can do that.')
     return False
 
 
@@ -317,8 +359,8 @@ def exchange_edit(request, exchange_id):
 
 
 def _roster_locked(request, exchange):
-    """The organizer can still change who's in after the draw, but not once
-    it's wrapped up or letters are out."""
+    """Curators can still change who's in — and the rules and picks — after
+    the draw, but not once it's wrapped up or letters are out."""
     if not exchange.is_active:
         messages.error(request, 'This exchange has wrapped up.')
         return True
@@ -363,7 +405,13 @@ def exchange_remove(request, exchange_id, participant_id):
         if entry is not None:
             name = display_name(entry.giver)
             remove_person(exchange, entry)
-            if exchange.is_drawn:
+            if exchange.is_drawn and needs_redraw(exchange, exchange.participants.all()):
+                messages.warning(
+                    request,
+                    f'Removed {name}. The gap couldn’t be closed without breaking a '
+                    'keep-apart rule (or too few people are left) — draw again.',
+                )
+            elif exchange.is_drawn:
                 messages.success(
                     request,
                     f'Removed {name}. Whoever had drawn them has a new pick waiting; '
@@ -372,6 +420,160 @@ def exchange_remove(request, exchange_id, participant_id):
             else:
                 messages.success(request, f'Removed {name}.')
     return redirect('gift:exchange_detail', exchange_id=exchange.id)
+
+
+def _name_curators_or_refuse(request, exchange):
+    if can_name_curators(request.user, exchange):
+        return True
+    messages.error(request, 'Only the person who set this up can choose its curators.')
+    return False
+
+
+@require_POST
+@login_required
+def exchange_curator_add(request, exchange_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id)
+    if _name_curators_or_refuse(request, exchange):
+        user_id = request.POST.get('user_id', '')
+        person = (
+            possible_curators(exchange).filter(id=user_id).first() if user_id.isdigit() else None
+        )
+        if person is None:
+            messages.error(request, 'Choose someone who can sign in and isn’t a curator yet.')
+        else:
+            exchange.curators.add(person)
+            messages.success(
+                request,
+                f'{display_name(person)} is a curator now: they can run {exchange.name}, set '
+                'who to keep apart, and see and adjust the draw.',
+            )
+    return redirect('gift:exchange_detail', exchange_id=exchange.id)
+
+
+@require_POST
+@login_required
+def exchange_curator_remove(request, exchange_id, user_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id)
+    if _name_curators_or_refuse(request, exchange):
+        person = exchange.curators.filter(id=user_id).first()
+        if person is not None:
+            exchange.curators.remove(person)
+            messages.success(request, f'{display_name(person)} is no longer a curator.')
+    return redirect('gift:exchange_detail', exchange_id=exchange.id)
+
+
+def _curate_or_refuse(request, exchange):
+    """Rules and picks: curators only (not staff as such), and never with
+    someone looking over their shoulder."""
+    if not is_curator(request.user, exchange):
+        messages.error(request, 'Only a curator can do that.')
+        return False
+    if is_over_the_shoulder(request):
+        messages.error(request, 'Turn off over the shoulder first.')
+        return False
+    return True
+
+
+@require_POST
+@login_required
+def exchange_apart_add(request, exchange_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id)
+    if _curate_or_refuse(request, exchange) and not _roster_locked(request, exchange):
+        ids = [request.POST.get('first', ''), request.POST.get('second', '')]
+        entries = {
+            str(entry.id): entry
+            for entry in exchange.participants.filter(id__in=[i for i in ids if i.isdigit()])
+        }
+        try:
+            if ids[0] not in entries or ids[1] not in entries:
+                raise DrawError('Choose two people who are in.')
+            keep_apart(exchange, entries[ids[0]], entries[ids[1]])
+        except DrawError as error:
+            messages.error(request, str(error))
+        else:
+            messages.success(request, 'Saved. Those two won’t draw each other.')
+    return redirect(detail_url(exchange.id, 'curate'))
+
+
+@require_POST
+@login_required
+def exchange_apart_remove(request, exchange_id, rule_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id)
+    if _curate_or_refuse(request, exchange) and not _roster_locked(request, exchange):
+        ExchangeKeepApart.objects.filter(exchange=exchange, id=rule_id).delete()
+    return redirect(detail_url(exchange.id, 'curate'))
+
+
+@require_GET
+@login_required
+def exchange_pairings(request, exchange_id):
+    """The whole draw, for a curator to check and adjust. The only page that
+    shows who drew whom — opening it is a deliberate step from the exchange
+    page, which warns a curator who's playing that it spoils their own."""
+    exchange = get_object_or_404(Exchange.objects.select_related('organizer'), id=exchange_id)
+    if not is_curator(request.user, exchange) or not exchange.is_drawn:
+        return not_found()
+    shoulder = is_over_the_shoulder(request)
+    rows, stale, editable = [], False, False
+    if not shoulder:
+        participants = sorted(
+            exchange.participants.select_related('giver', 'receiver'),
+            key=lambda p: display_name(p.giver).lower(),
+        )
+        stale = needs_redraw(exchange, participants)
+        editable = exchange.is_active and not exchange.letters_delivered and not stale
+        apart = kept_apart(exchange)
+        options = pick_options(participants, apart) if editable else {}
+        rows = [
+            {
+                'entry': entry,
+                'giver': display_name(entry.giver),
+                'receiver': display_name(entry.receiver) if entry.receiver else '',
+                'broken': bool(entry.receiver_id)
+                and frozenset((entry.giver_id, entry.receiver_id)) in apart,
+                'options': sorted(
+                    (
+                        {'id': person.id, 'name': display_name(person)}
+                        for person in options.get(entry.pk, [])
+                    ),
+                    key=lambda option: option['name'].lower(),
+                ),
+            }
+            for entry in participants
+        ]
+    return render(
+        request,
+        'gift/exchange_pairings.html',
+        {
+            'exchange': exchange,
+            'rows': rows,
+            'stale': stale,
+            'editable': editable,
+            'over_the_shoulder': shoulder,
+        },
+    )
+
+
+@require_POST
+@login_required
+def exchange_pick(request, exchange_id):
+    """A curator hands one giver someone else (see change_pick)."""
+    exchange = get_object_or_404(Exchange, id=exchange_id)
+    if not _curate_or_refuse(request, exchange):
+        return redirect('gift:exchange_detail', exchange_id=exchange.id)
+    entry_id, receiver_id = request.POST.get('entry', ''), request.POST.get('receiver', '')
+    try:
+        if not (entry_id.isdigit() and receiver_id.isdigit()):
+            raise DrawError('Choose someone who’s in.')
+        change_pick(exchange, int(entry_id), int(receiver_id))
+    except DrawError as error:
+        messages.error(request, str(error))
+    else:
+        # Names nobody: this message can outlive the page it was made on
+        messages.success(
+            request, 'Changed. The two people whose picks moved have a new one waiting.'
+        )
+    return redirect('gift:exchange_pairings', exchange_id=exchange.id)
 
 
 @require_POST
@@ -479,8 +681,7 @@ def exchange_letter(request, exchange_id):
     letter.save()
     if old_image and old_image != (letter.image.name if letter.image else None):
         letter.image.storage.delete(old_image)
-    organizer = display_name(exchange.organizer) if exchange.organizer else 'the organizer'
-    messages.success(request, f'Saved. Only you can see it until {organizer} delivers the letters.')
+    messages.success(request, 'Saved. Only you can see it until the letters are delivered.')
     return redirect(back)
 
 

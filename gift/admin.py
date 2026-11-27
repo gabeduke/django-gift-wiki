@@ -53,8 +53,8 @@ admin.site.register(Season)
 
 
 class ExchangeParticipantInline(admin.TabularInline):
-    # No receiver: whoever opens the admin may be playing too. Draw again
-    # from the exchange page rather than editing pairings by hand.
+    # No receiver: whoever opens the admin may be playing too. Curators adjust
+    # the draw from the exchange's own page, not here.
     model = ExchangeParticipant
     fields = ('giver', 'reveal_seen_at', 'joined_at')
     readonly_fields = ('reveal_seen_at', 'joined_at')

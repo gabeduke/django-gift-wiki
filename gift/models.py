@@ -584,8 +584,10 @@ class Exchange(models.Model):
     privately learns who they're giving to. The family names it — "Secret
     Santa" is only the default. Logic lives in gift/exchange.py.
 
-    Nobody but the giver ever sees a pairing on the site, the organizer
-    included; see ExchangeParticipant.
+    Its curators — the organizer who made it, plus anyone they name — run it:
+    they draw names, say who to keep apart (ExchangeKeepApart) and can open
+    the draw to adjust it by hand. Nobody else sees a pairing but its giver;
+    see ExchangeParticipant.
     """
 
     name = models.CharField(max_length=80, default='Secret Santa')
@@ -594,6 +596,8 @@ class Exchange(models.Model):
     organizer = models.ForeignKey(
         WikiUser, on_delete=models.SET_NULL, null=True, related_name='organized_exchanges'
     )
+    # Co-curators; the organizer is always one and isn't listed here.
+    curators = models.ManyToManyField(WikiUser, blank=True, related_name='curated_exchanges')
     budget = models.CharField(max_length=40, blank=True, help_text='e.g. "$50"')
     exchange_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
@@ -641,7 +645,8 @@ class ExchangeParticipant(models.Model):
     """
     Someone opted into an exchange, and — once names are drawn — who they give
     to. The receiver is secret: keep it out of __str__, admin, logs and flash
-    messages. Only the giver's own row is ever shown to them.
+    messages. It's shown to the giver, and to the exchange's curators on the
+    one page made for adjusting the draw — nowhere else.
     """
 
     exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE, related_name='participants')
@@ -663,6 +668,29 @@ class ExchangeParticipant(models.Model):
 
     def __str__(self):
         return f'{self.giver} in {self.exchange}'
+
+
+class ExchangeKeepApart(models.Model):
+    """
+    Two people in an exchange who shouldn't draw each other — spouses, say.
+    It holds both ways, and every draw, late add and removal honours it. Only
+    curators see these: a rule narrows down who someone might have drawn.
+
+    Stored with the lower participant id first, so a pair has one row. Rows go
+    with either participant, so leaving an exchange drops that person's rules.
+    """
+
+    exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE, related_name='keep_apart')
+    first = models.ForeignKey(ExchangeParticipant, on_delete=models.CASCADE, related_name='+')
+    second = models.ForeignKey(ExchangeParticipant, on_delete=models.CASCADE, related_name='+')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['first', 'second'], name='one_rule_per_pair'),
+        ]
+
+    def __str__(self):
+        return f'Keep-apart rule in {self.exchange}'
 
 
 def letter_image_storage():

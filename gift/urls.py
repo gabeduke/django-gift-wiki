@@ -84,6 +84,36 @@ urlpatterns = [
     ),
     path('exchanges/<int:exchange_id>/draw/', exchange_views.exchange_draw, name='exchange_draw'),
     path(
+        'exchanges/<int:exchange_id>/curators/add/',
+        exchange_views.exchange_curator_add,
+        name='exchange_curator_add',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/curators/<int:user_id>/remove/',
+        exchange_views.exchange_curator_remove,
+        name='exchange_curator_remove',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/keep-apart/',
+        exchange_views.exchange_apart_add,
+        name='exchange_apart_add',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/keep-apart/<int:rule_id>/remove/',
+        exchange_views.exchange_apart_remove,
+        name='exchange_apart_remove',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/pairings/',
+        exchange_views.exchange_pairings,
+        name='exchange_pairings',
+    ),
+    path(
+        'exchanges/<int:exchange_id>/pairings/change/',
+        exchange_views.exchange_pick,
+        name='exchange_pick',
+    ),
+    path(
         'exchanges/<int:exchange_id>/wrap-up/',
         exchange_views.exchange_wrap_up,
         name='exchange_wrap_up',

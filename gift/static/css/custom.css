@@ -1203,7 +1203,7 @@ a.wl-list-row:active { transform: scale(.985); }
 .wl-kind-blurbs li { padding: 2px 0; }
 .wl-kind-blurbs strong { color: var(--text-secondary); font-weight: 600; }
 
-/* Organizer tools */
+/* Curator tools */
 .wl-exchange-add { margin: 0 0 16px; }
 .wl-exchange-add label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 .wl-exchange-add-row { display: flex; gap: 8px; align-items: center; }
@@ -1212,6 +1212,14 @@ a.wl-list-row:active { transform: scale(.985); }
 .wl-exchange-actions form { margin: 0; }
 .wl-exchange-roster li > form { margin-left: 8px; }
 .wl-exchange-roster li > span:first-child { margin-right: auto; }
+
+/* Curators: keep-apart rules and the draw page */
+.wl-exchange-apart .wl-exchange-add-row { flex-wrap: wrap; }
+.wl-exchange-apart .wl-exchange-add-row select { flex: 1 1 130px; }
+.wl-exchange-peek { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 0; }
+.wl-exchange-pairs li { flex-wrap: wrap; }
+.wl-exchange-pairs .wl-exchange-add-row { flex: 0 1 260px; }
+.wl-exchange-pairs li.is-broken strong { color: var(--danger); }
 
 /* Icon picker: a grid of emoji radio tiles */
 .wl-field-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }

@@ -1,9 +1,14 @@
 """Gift exchanges: who's in, drawing names, letters, and who sees what.
 
-The rule everything here keeps: a pairing is only ever shown to its giver.
-The organizer runs the draw but sees the roster and who has opened theirs,
-never who drew whom. A letter is seen by its writer, then — once delivered —
-by the person it's for, and on the board only if both of them said so.
+The rule everything here keeps: a pairing is shown to its giver, and to the
+exchange's curators only on the page made for adjusting the draw — never on
+the roster, in a message or in a log. A letter is seen by its writer, then —
+once delivered — by the person it's for, and on the board only if both of
+them said so.
+
+Curators are the organizer who made the exchange plus anyone they name. They
+can say who to keep apart (ExchangeKeepApart); every way a pick gets assigned
+here honours those rules.
 """
 
 import random
@@ -13,22 +18,95 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Exchange, ExchangeLetter, ExchangeParticipant
+from .models import Exchange, ExchangeKeepApart, ExchangeLetter, ExchangeParticipant
 
 # With two people each knows who the other drew. Three works, but in a loop
 # of three your own pick gives the rest away; the organizer page says so.
 MIN_PARTICIPANTS = 3
 SMALL_DRAW = 3
 
+# Plain shuffles find a loop quickly unless the rules are tight; then a
+# search takes over, and gives up after this many steps.
+SHUFFLE_TRIES = 200
+SEARCH_STEPS = 50_000
+
 _rng = random.SystemRandom()
 
 
 class DrawError(Exception):
-    """The draw can't happen; the message is safe to show the organizer."""
+    """The draw can't happen; the message is safe to show a curator."""
+
+
+def is_curator(user, exchange):
+    """The organizer, or someone they named. Curators may see the draw."""
+    if not user.is_authenticated:
+        return False
+    return exchange.organizer_id == user.id or exchange.curators.filter(pk=user.pk).exists()
 
 
 def can_manage(user, exchange):
+    """Run the exchange: curators, and staff. Staff who aren't curators get
+    the roster tools but not the rules or the draw — they may be playing."""
+    return user.is_authenticated and (user.is_staff or is_curator(user, exchange))
+
+
+def can_name_curators(user, exchange):
     return user.is_authenticated and (user.is_staff or exchange.organizer_id == user.id)
+
+
+def curators_of(exchange):
+    """Everyone curating: the organizer first, then co-curators by name."""
+    people = [exchange.organizer] if exchange.organizer else []
+    people += [
+        person
+        for person in exchange.curators.order_by('first_name', 'last_name', 'username')
+        if person.id != exchange.organizer_id
+    ]
+    return people
+
+
+def kept_apart(exchange):
+    """The keep-apart rules as a set of frozenset({user id, user id})."""
+    return {
+        frozenset(pair)
+        for pair in exchange.keep_apart.values_list('first__giver_id', 'second__giver_id')
+    }
+
+
+def _allowed(apart, giver_id, receiver_id):
+    return giver_id != receiver_id and frozenset((giver_id, receiver_id)) not in apart
+
+
+def _loop(ids, apart):
+    """Everyone in one random loop with no kept-apart neighbours, or None."""
+    ids = list(ids)
+    for _ in range(SHUFFLE_TRIES):
+        _rng.shuffle(ids)
+        if all(_allowed(apart, a, b) for a, b in zip(ids, ids[1:] + ids[:1], strict=True)):
+            return ids
+
+    start, rest, path = ids[0], set(ids[1:]), [ids[0]]
+    steps = 0
+
+    def extend():
+        nonlocal steps
+        if not rest:
+            return _allowed(apart, path[-1], start)
+        steps += 1
+        if steps > SEARCH_STEPS:
+            return False
+        options = [person for person in rest if _allowed(apart, path[-1], person)]
+        _rng.shuffle(options)
+        for person in options:
+            rest.remove(person)
+            path.append(person)
+            if extend():
+                return True
+            path.pop()
+            rest.add(person)
+        return False
+
+    return path if extend() else None
 
 
 def draw_names(exchange):
@@ -39,6 +117,9 @@ def draw_names(exchange):
     again starts over: everyone's pick is sealed again and marked changed, and
     letters not yet delivered are thrown away — they were written for someone
     else. Once letters are delivered the draw is final.
+
+    People kept apart are never next to each other in the loop, so neither
+    draws the other.
     """
     with transaction.atomic():
         exchange = Exchange.objects.select_for_update().get(pk=exchange.pk)
@@ -48,9 +129,16 @@ def draw_names(exchange):
         if len(people) < MIN_PARTICIPANTS:
             raise DrawError(f'At least {MIN_PARTICIPANTS} people need to join before drawing names.')
         redraw = exchange.is_drawn
-        _rng.shuffle(people)
-        for giver, receiver in zip(people, people[1:] + people[:1], strict=True):
-            giver.receiver_id = receiver.giver_id
+        order = _loop([p.giver_id for p in people], kept_apart(exchange))
+        if order is None:
+            raise DrawError(
+                'The keep-apart rules leave no way to put everyone in one loop. '
+                'Take one off, or add more people, and draw again.'
+            )
+        by_giver = {p.giver_id: p for p in people}
+        for giver_id, receiver_id in zip(order, order[1:] + order[:1], strict=True):
+            giver = by_giver[giver_id]
+            giver.receiver_id = receiver_id
             giver.reveal_seen_at = None
             giver.pick_changed = redraw
             giver.save(update_fields=['receiver', 'reveal_seen_at', 'pick_changed'])
@@ -97,7 +185,8 @@ def remove_person(exchange, entry):
     """Take someone out, closing the loop around them if names are drawn.
 
     Whoever drew them inherits their pick (A→gone→C becomes A→C), so again
-    only one pick changes. Letters to or from them go too.
+    only one pick changes. Letters to or from them go too. If A and C are kept
+    apart, A is left without a pick and the exchange needs drawing again.
     """
     with transaction.atomic():
         exchange = Exchange.objects.select_for_update().get(pk=exchange.pk)
@@ -110,7 +199,9 @@ def remove_person(exchange, entry):
             )
             if giver is not None:
                 # With only two left, the giver would inherit themselves
-                inherit = entry.receiver_id if entry.receiver_id != giver.giver_id else None
+                inherit = entry.receiver_id
+                if not inherit or not _allowed(kept_apart(exchange), giver.giver_id, inherit):
+                    inherit = None
                 _repick(giver, inherit)
             delete_letters(
                 ExchangeLetter.objects.filter(exchange=exchange).filter(
@@ -130,15 +221,107 @@ def needs_redraw(exchange, participants):
     return None in receivers or set(receivers) != givers
 
 
-def addable_people(exchange):
-    """People the organizer can add: anyone who can sign in (an email or a
-    linked email — see the Firebase middleware) and isn't in yet. Someone who
-    can't sign in would never see who they drew."""
+def breaks_rules(participants, apart):
+    """Does the draw pair two people who are kept apart? (A rule added after
+    the draw, usually.)"""
+    return any(
+        p.receiver_id and frozenset((p.giver_id, p.receiver_id)) in apart for p in participants
+    )
+
+
+def keep_apart(exchange, first, second):
+    """Add a rule that two participants never draw each other."""
+    if first.pk == second.pk:
+        raise DrawError('Choose two different people.')
+    if first.exchange_id != exchange.pk or second.exchange_id != exchange.pk:
+        raise DrawError('Choose two people who are in.')
+    low, high = sorted((first, second), key=lambda entry: entry.pk)
+    return ExchangeKeepApart.objects.get_or_create(exchange=exchange, first=low, second=high)[0]
+
+
+def pick_options(participants, apart):
+    """For each giver, the people a curator could hand them instead.
+
+    Changing a pick is a swap: A takes X, and whoever had X takes A's old
+    pick. So X is on offer only if both new pairs are allowed.
+    """
+    giver_of = {p.receiver_id: p for p in participants if p.receiver_id}
+    person = {p.giver_id: p.giver for p in participants}
+    options = {}
+    for entry in participants:
+        options[entry.pk] = [
+            person[receiver_id]
+            for receiver_id, other in giver_of.items()
+            if other.pk != entry.pk
+            and _allowed(apart, entry.giver_id, receiver_id)
+            and _allowed(apart, other.giver_id, entry.receiver_id)
+        ]
+    return options
+
+
+def change_pick(exchange, entry_id, receiver_id):
+    """A curator hands one giver a different person.
+
+    Whoever had that person takes the giver's old pick, so everyone still
+    gives once and gets once. Both of them get a sealed new pick, and lose
+    any letter they'd written. Nobody ends up with themselves, or with
+    someone they're kept apart from.
+    """
+    with transaction.atomic():
+        exchange = Exchange.objects.select_for_update().get(pk=exchange.pk)
+        if not exchange.is_active:
+            raise DrawError('This exchange has wrapped up.')
+        if not exchange.is_drawn:
+            raise DrawError('Draw names first.')
+        if exchange.letters_delivered:
+            raise DrawError('Letters have been delivered, so the draw is final.')
+        people = list(exchange.participants.select_for_update())
+        if needs_redraw(exchange, people):
+            raise DrawError('Who’s in has changed since the draw — draw again first.')
+        entry = next((p for p in people if p.pk == entry_id), None)
+        other = next((p for p in people if p.receiver_id == receiver_id), None)
+        if entry is None or other is None:
+            raise DrawError('Choose someone who’s in.')
+        if other.pk == entry.pk:
+            return
+        apart = kept_apart(exchange)
+        if entry.giver_id == receiver_id or other.giver_id == entry.receiver_id:
+            raise DrawError('That would leave someone drawing themselves.')
+        if not _allowed(apart, entry.giver_id, receiver_id) or not _allowed(
+            apart, other.giver_id, entry.receiver_id
+        ):
+            raise DrawError('That would pair two people you’re keeping apart.')
+        old = entry.receiver_id
+        _repick(entry, receiver_id)
+        _repick(other, old)
+
+
+def _can_sign_in():
+    """Active people with an email or a linked email — see the Firebase
+    middleware."""
     User = get_user_model()
+    return User.objects.filter(is_active=True).filter(
+        Q(email__gt='') | Q(linked_emails__isnull=False)
+    )
+
+
+def addable_people(exchange):
+    """People a curator can add: anyone who can sign in and isn't in yet.
+    Someone who can't sign in would never see who they drew."""
     return (
-        User.objects.filter(is_active=True)
-        .filter(Q(email__gt='') | Q(linked_emails__isnull=False))
+        _can_sign_in()
         .exclude(exchange_entries__exchange=exchange)
+        .distinct()
+        .order_by('first_name', 'last_name', 'username')
+    )
+
+
+def possible_curators(exchange):
+    """People who could be named a curator: they can sign in and aren't one."""
+    return (
+        _can_sign_in()
+        .exclude(pk=exchange.organizer_id or 0)
+        .exclude(curated_exchanges=exchange)
         .distinct()
         .order_by('first_name', 'last_name', 'username')
     )

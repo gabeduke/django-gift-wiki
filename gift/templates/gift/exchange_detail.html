@@ -20,7 +20,7 @@
       {{ kind.label }}
       {% if exchange.budget %} · {{ kind.budget_label }} <strong>{{ exchange.budget }}</strong>{% endif %}
       {% if exchange.exchange_date %} · {{ exchange.exchange_date|date:"l, M j" }}{% endif %}
-      {% if exchange.organizer %} · Organized by {{ exchange.organizer.get_full_name|default:exchange.organizer.username }}{% endif %}
+      {% if curators %} · Curated by {% for person in curators %}{{ person.get_full_name|default:person.username }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
       {% if not exchange.is_active %} · Wrapped up{% endif %}
     </p>
     {% if exchange.is_active %}{% include 'gift/partials/exchange_countdown.html' %}{% endif %}
@@ -31,11 +31,11 @@
   </div>
 
   {% if stale and mine and not can_manage %}
-  <div class="alert alert-warning">Who's in has changed since names were drawn. {{ exchange.organizer.first_name|default:"The organizer" }} will draw again — hold off on anything for now.</div>
+  <div class="alert alert-warning">Who's in has changed since names were drawn. {{ exchange.organizer.first_name|default:"A curator" }} will draw again — hold off on anything for now.</div>
   {% endif %}
 
   {% if received_letters %}
-  <!-- Letters written to you, once the organizer has delivered them -->
+  <!-- Letters written to you, once a curator has delivered them -->
   <section id="letters">
     {% if over_the_shoulder %}
     <div class="wl-card wl-empty-card">
@@ -115,7 +115,7 @@
           {% endfor %}
         </div>
         {% elif kind.shows_lists %}
-        <p class="wl-card-subtitle">{{ reveal.first_name }} hasn't made a list yet{% if exchange.organizer and exchange.organizer_id != request.user.id %} — {{ exchange.organizer.first_name|default:"the organizer" }} could give them a nudge{% endif %}.</p>
+        <p class="wl-card-subtitle">{{ reveal.first_name }} hasn't made a list yet{% if exchange.organizer and exchange.organizer_id != request.user.id %} — {{ exchange.organizer.first_name|default:"a curator" }} could give them a nudge{% endif %}.</p>
         {% endif %}
         {% if not reveal.entry.reveal_seen_at %}
         <form method="post" action="{% url 'gift:exchange_reveal_seen' exchange.id %}" class="wl-reveal-done" data-reveal-done>
@@ -123,9 +123,9 @@
           <button type="submit" class="btn btn-primary btn-sm">Got it</button>
         </form>
         {% endif %}
-        <p class="wl-reveal-hush">🤫 Only you can see this.</p>
+        <p class="wl-reveal-hush">🤫 Just for you. A curator can look only by opening the draw to adjust it.</p>
 
-        <!-- Your letter: only you see it until the organizer delivers them -->
+        <!-- Your letter: only you see it until a curator delivers them -->
         <div class="wl-letter-write">
           <h3 class="wl-card-title">{{ kind.letter_title }}</h3>
           {% if exchange.letters_delivered %}
@@ -164,12 +164,12 @@
 
             <label class="wl-letter-check">
               <input type="checkbox" name="shareable" value="on" {% if reveal.letter %}{% if reveal.letter.shareable %}checked{% endif %}{% elif exchange.board_enabled %}checked{% endif %}>
-              {% if exchange.board_enabled %}Okay to pin it to the board after it's delivered, if {{ reveal.first_name }} agrees{% else %}Okay to pin it to a board, if the organizer puts one up and {{ reveal.first_name }} agrees{% endif %}
+              {% if exchange.board_enabled %}Okay to pin it to the board after it's delivered, if {{ reveal.first_name }} agrees{% else %}Okay to pin it to a board, if a curator puts one up and {{ reveal.first_name }} agrees{% endif %}
             </label>
 
             <div class="wl-letter-actions">
               <button type="submit" class="btn btn-primary btn-sm">{% if reveal.letter %}Save changes{% else %}Save letter{% endif %}</button>
-              <span class="wl-exchange-meta">{% if reveal.letter %}Saved {{ reveal.letter.updated_at|date:"M j, g:i a" }} · {% endif %}Delivered, signed, when {{ exchange.organizer.first_name|default:"the organizer" }} hands them out.</span>
+              <span class="wl-exchange-meta">{% if reveal.letter %}Saved {{ reveal.letter.updated_at|date:"M j, g:i a" }} · {% endif %}Delivered, signed, when {{ exchange.organizer.first_name|default:"a curator" }} hands them out.</span>
             </div>
           </form>
           {% endif %}
@@ -186,7 +186,7 @@
   </div>
   {% elif not mine and exchange.is_drawn and exchange.is_active %}
   <div class="wl-card wl-empty-card">
-    <p class="wl-card-subtitle">Names are already drawn. Want in? Ask {{ exchange.organizer.first_name|default:"the organizer" }} to add you — only one pick changes to fit you in.</p>
+    <p class="wl-card-subtitle">Names are already drawn. Want in? Ask {{ exchange.organizer.first_name|default:"a curator" }} to add you — only one pick changes to fit you in.</p>
   </div>
   {% endif %}
 
@@ -211,7 +211,7 @@
       {% if exchange.is_drawn %}
         Names were drawn {{ exchange.drawn_at|date:"M j" }}. {{ opened_count }} of {{ participants|length }} {{ kind.art }}{{ participants|length|pluralize }} opened.
       {% elif participants %}
-        {{ participants|length }} in so far. {{ exchange.organizer.first_name|default:"The organizer" }} draws names once everyone's joined.
+        {{ participants|length }} in so far. {{ exchange.organizer.first_name|default:"A curator" }} draws names once everyone's joined.
       {% else %}
         Nobody's joined yet.
       {% endif %}
@@ -239,7 +239,7 @@
     <ul class="wl-exchange-roster">
       {% for participant in participants %}
       <li>
-        <span>{{ participant.giver.get_full_name|default:participant.giver.username }}{% if participant.giver_id == exchange.organizer_id %} <span class="wl-exchange-tag">organizer</span>{% endif %}</span>
+        <span>{{ participant.giver.get_full_name|default:participant.giver.username }}{% if participant.giver_id in curator_ids %} <span class="wl-exchange-tag">curator</span>{% endif %}</span>
         {% if exchange.is_drawn %}
           <span class="wl-exchange-meta">{% if participant.reveal_seen_at %}✓ opened{% else %}{{ exchange.display_icon }} not yet{% endif %}</span>
         {% endif %}
@@ -258,7 +258,7 @@
 
   {% if can_manage %}
   <section class="wl-card">
-    <h2 class="wl-card-title">Organizer</h2>
+    <h2 class="wl-card-title">Curator</h2>
 
     <ol class="wl-exchange-steps" aria-label="Where the exchange is up to">
       <li class="{% if manage.step == 'joining' %}is-current{% else %}is-done{% endif %}">Everyone's in</li>
@@ -296,7 +296,7 @@
       {% endif %}
 
       {% if not exchange.is_drawn %}
-        <p class="wl-card-subtitle">When everyone's in, draw names. Each person gets someone else — never themselves — and only they find out who.</p>
+        <p class="wl-card-subtitle">When everyone's in, draw names. Each person gets someone else — never themselves, never someone they're kept apart from — and finds out privately. Nobody else sees a pick unless a curator opens the draw.</p>
         {% if manage.small_draw %}<p class="wl-exchange-meta">With just three people, anyone can work out the whole draw from their own pick. Four or more keeps it a real secret.</p>{% endif %}
         <form method="post" action="{% url 'gift:exchange_draw' exchange.id %}">
           {% csrf_token %}
@@ -333,6 +333,39 @@
         </form>
       </details>
 
+      <details class="wl-exchange-edit" id="curators">
+        <summary>Curators ({{ curators|length }})</summary>
+        <p class="wl-card-subtitle">Curators run the exchange together. Each can set who to keep apart, and can see and adjust the draw.</p>
+        <ul class="wl-exchange-roster">
+          {% for person in curators %}
+          <li>
+            <span>{{ person.get_full_name|default:person.username }}{% if person.id == exchange.organizer_id %} <span class="wl-exchange-meta">set it up</span>{% endif %}</span>
+            {% if manage.can_name_curators and person.id != exchange.organizer_id %}
+            <form method="post" action="{% url 'gift:exchange_curator_remove' exchange.id person.id %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-link btn-sm wl-exchange-remove" aria-label="Remove {{ person.get_full_name|default:person.username }} as a curator">Remove</button>
+            </form>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% if manage.can_name_curators and manage.possible_curators %}
+        <form method="post" action="{% url 'gift:exchange_curator_add' exchange.id %}" class="wl-exchange-add">
+          {% csrf_token %}
+          <label for="wl-exchange-add-curator">Add a curator</label>
+          <div class="wl-exchange-add-row">
+            <select id="wl-exchange-add-curator" name="user_id" class="form-control" required>
+              <option value="" selected disabled>Choose someone…</option>
+              {% for person in manage.possible_curators %}
+              <option value="{{ person.id }}">{{ person.get_full_name|default:person.username }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Add</button>
+          </div>
+        </form>
+        {% endif %}
+      </details>
+
       <form method="post" action="{% url 'gift:exchange_wrap_up' exchange.id %}" class="wl-exchange-wrap"
             onsubmit="return confirm('Wrap up {{ exchange.name|escapejs }}? It leaves the home page.{% if exchange.is_drawn and not exchange.letters_delivered and manage.letters_written %} The {{ manage.letters_written }} letter{{ manage.letters_written|pluralize }} written so far won’t be delivered.{% elif exchange.letters_delivered and manage.letters_read < manage.letters_written %} {{ manage.letters_written|add:0 }} delivered, but some haven’t been read yet.{% endif %}');">
         {% csrf_token %}
@@ -351,6 +384,59 @@
         {% csrf_token %}
         <button type="submit" class="btn btn-link btn-sm">Delete this exchange</button>
       </form>
+  </section>
+  {% endif %}
+
+  {% if is_curator and exchange.is_active or is_curator and exchange.is_drawn %}
+  <!-- Curators only: who to keep apart, and the way into the draw. No pairing is shown here. -->
+  <section class="wl-card" id="curate">
+    <h2 class="wl-card-title">Who draws whom</h2>
+    {% if over_the_shoulder %}
+    <p class="wl-card-subtitle">Hidden while you're over the shoulder.</p>
+    {% else %}
+    <p class="wl-card-subtitle">Keep two people apart — spouses, say — and neither will draw the other. Only curators see this list.</p>
+    {% if curate.rules %}
+    <ul class="wl-exchange-roster">
+      {% for rule in curate.rules %}
+      <li>
+        <span>{{ rule.names.0 }} <span class="wl-exchange-meta" aria-label="kept apart from">✕</span> {{ rule.names.1 }}</span>
+        {% if manage.open %}
+        <form method="post" action="{% url 'gift:exchange_apart_remove' exchange.id rule.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-link btn-sm wl-exchange-remove" aria-label="Stop keeping {{ rule.names.0 }} and {{ rule.names.1 }} apart">Remove</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if manage.open and participants|length >= 2 %}
+    <form method="post" action="{% url 'gift:exchange_apart_add' exchange.id %}" class="wl-exchange-add wl-exchange-apart">
+      {% csrf_token %}
+      <div class="wl-exchange-add-row">
+        <select name="first" class="form-control" aria-label="First person" required>
+          <option value="" selected disabled>Someone…</option>
+          {% for participant in participants %}<option value="{{ participant.id }}">{{ participant.giver.get_full_name|default:participant.giver.username }}</option>{% endfor %}
+        </select>
+        <select name="second" class="form-control" aria-label="Second person" required>
+          <option value="" selected disabled>…and someone</option>
+          {% for participant in participants %}<option value="{{ participant.id }}">{{ participant.giver.get_full_name|default:participant.giver.username }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Keep apart</button>
+      </div>
+      <span class="wl-exchange-meta">Each one also narrows down who someone could have drawn, so use only the ones you need.</span>
+    </form>
+    {% endif %}
+    {% if exchange.is_drawn %}
+      {% if curate.broken %}
+      <div class="alert alert-warning">The draw pairs two people you're now keeping apart. Draw again, or adjust the draw by hand.</div>
+      {% endif %}
+      <p class="wl-card-subtitle wl-exchange-peek">
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'gift:exchange_pairings' exchange.id %}">See {% if not exchange.letters_delivered and exchange.is_active %}and adjust {% endif %}the draw</a>
+        <span class="wl-exchange-meta">Shows who drew whom{% if mine %} — including who drew you, so only open it if you don't mind losing your own surprise{% endif %}.</span>
+      </p>
+    {% endif %}
+    {% endif %}
   </section>
   {% endif %}
 

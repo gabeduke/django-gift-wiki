@@ -1,9 +1,10 @@
 """Gift exchanges (#78): opt in, draw names, and find out privately.
 
-The promise that matters is secrecy: a pairing is shown to its giver and
-nobody else — not the organizer, not the roster, not a session that's over
-the shoulder. The rest is the draw being a fair loop and the reveal showing
-up until it's been opened.
+The promise that matters is secrecy: a pairing is shown to its giver, and to
+a curator only on the draw page they chose to open (#147) — not on the
+exchange page, not the roster, not a session that's over the shoulder. The
+rest is the draw being a fair loop and the reveal showing up until it's been
+opened.
 """
 
 import os
@@ -14,8 +15,14 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
-from gift.exchange import DrawError, deliver_letters, draw_names
-from gift.models import Exchange, ExchangeLetter, ExchangeParticipant, WishList
+from gift.exchange import DrawError, change_pick, deliver_letters, draw_names, keep_apart
+from gift.models import (
+    Exchange,
+    ExchangeKeepApart,
+    ExchangeLetter,
+    ExchangeParticipant,
+    WishList,
+)
 
 User = get_user_model()
 
@@ -694,3 +701,264 @@ class TestDelete:
     def test_delete_is_post_only(self, exchange, people):
         signed_in(people[0]).get(url('exchange_delete', exchange))
         assert Exchange.objects.filter(pk=exchange.pk).exists()
+
+
+def entry_of(exchange, person):
+    return ExchangeParticipant.objects.get(exchange=exchange, giver=person)
+
+
+def apart(exchange, first, second):
+    return keep_apart(exchange, entry_of(exchange, first), entry_of(exchange, second))
+
+
+def picks(exchange):
+    return dict(exchange.participants.values_list('giver_id', 'receiver_id'))
+
+
+class TestCurators:
+    """#147: the organizer plus anyone they name."""
+
+    def test_the_organizer_names_a_curator_who_can_then_run_it(self, exchange, people):
+        signed_in(people[0]).post(url('exchange_curator_add', exchange), {'user_id': people[1].id})
+        assert list(exchange.curators.all()) == [people[1]]
+        signed_in(people[1]).post(url('exchange_draw', exchange))
+        assert Exchange.objects.get(pk=exchange.pk).is_drawn
+
+    def test_only_the_organizer_names_or_removes_curators(self, exchange, people):
+        exchange.curators.add(people[1])
+        signed_in(people[1]).post(url('exchange_curator_add', exchange), {'user_id': people[2].id})
+        signed_in(people[2]).post(url('exchange_curator_add', exchange), {'user_id': people[2].id})
+        signed_in(people[2]).post(url('exchange_curator_remove', exchange, people[1].id))
+        assert list(exchange.curators.all()) == [people[1]]
+        signed_in(people[0]).post(url('exchange_curator_remove', exchange, people[1].id))
+        assert not exchange.curators.exists()
+
+    def test_a_get_names_nobody(self, exchange, people):
+        response = signed_in(people[0]).get(url('exchange_curator_add', exchange))
+        assert response.status_code == 405
+
+    def test_the_page_says_who_curates(self, exchange, people):
+        exchange.curators.add(people[1])
+        page = signed_in(people[2]).get(url('exchange_detail', exchange)).content.decode()
+        assert 'Curated by Ann, Ben' in page
+        assert page.count('wl-exchange-tag">curator') == 2
+
+
+class TestKeepApart:
+    def test_a_draw_never_pairs_them_either_way(self, exchange, people):
+        ann, ben, cal = people[:3]
+        apart(exchange, ann, ben)
+        apart(exchange, cal, ann)
+        for _ in range(40):
+            draw_names(exchange)
+            gives_to = picks(exchange)
+            assert gives_to[ann.id] not in (ben.id, cal.id)
+            assert gives_to[ben.id] != ann.id and gives_to[cal.id] != ann.id
+            assert_one_loop(gives_to)
+
+    def test_tight_rules_still_find_the_one_loop_there_is(self, exchange, people):
+        # Only Ann-Ben-Cal-Dee-Eve-Ann (either way round) is left
+        ann, ben, cal, dee, eve = people
+        for first, second in [(ann, cal), (ann, dee), (ben, dee), (ben, eve), (cal, eve)]:
+            apart(exchange, first, second)
+        draw_names(exchange)
+        gives_to = picks(exchange)
+        assert_one_loop(gives_to)
+        assert gives_to[ann.id] in (ben.id, eve.id)
+
+    def test_impossible_rules_are_refused_and_nothing_is_drawn(self, people):
+        exchange = Exchange.objects.create(name='Tiny', organizer=people[0])
+        for person in people[:3]:
+            ExchangeParticipant.objects.create(exchange=exchange, giver=person)
+        apart(exchange, people[0], people[1])
+        with pytest.raises(DrawError, match='keep-apart'):
+            draw_names(exchange)
+        assert not Exchange.objects.get(pk=exchange.pk).is_drawn
+        assert set(picks(exchange).values()) == {None}
+
+    def test_a_pair_is_one_rule_whichever_way_round(self, exchange, people):
+        apart(exchange, people[0], people[1])
+        apart(exchange, people[1], people[0])
+        assert ExchangeKeepApart.objects.count() == 1
+        with pytest.raises(DrawError):
+            apart(exchange, people[0], people[0])
+
+    def test_a_curator_sets_and_lifts_a_rule(self, exchange, people):
+        curator = signed_in(people[0])
+        data = {
+            'first': entry_of(exchange, people[1]).id,
+            'second': entry_of(exchange, people[2]).id,
+        }
+        assert curator.get(url('exchange_apart_add', exchange)).status_code == 405
+        curator.post(url('exchange_apart_add', exchange), data)
+        rule = ExchangeKeepApart.objects.get()
+        page = curator.get(url('exchange_detail', exchange)).content.decode()
+        assert 'Stop keeping Ben and Cal apart' in page
+        curator.post(url('exchange_apart_remove', exchange, rule.id))
+        assert not ExchangeKeepApart.objects.exists()
+
+    def test_nobody_else_sets_lifts_or_sees_rules(self, exchange, people, admin_user):
+        rule = apart(exchange, people[1], people[2])
+        data = {
+            'first': entry_of(exchange, people[3]).id,
+            'second': entry_of(exchange, people[4]).id,
+        }
+        # Staff run exchanges, but the rules and the draw are the curators'
+        for outsider in (people[1], admin_user):
+            client = signed_in(outsider)
+            client.post(url('exchange_apart_add', exchange), data)
+            client.post(url('exchange_apart_remove', exchange, rule.id))
+            assert (
+                'Stop keeping' not in client.get(url('exchange_detail', exchange)).content.decode()
+            )
+        assert list(ExchangeKeepApart.objects.all()) == [rule]
+
+    def test_rules_are_hidden_over_the_shoulder(self, exchange, people):
+        apart(exchange, people[1], people[2])
+        curator = signed_in(people[0])
+        curator.post(reverse('gift:over_the_shoulder'), {'on': '1'})
+        assert 'Stop keeping' not in curator.get(url('exchange_detail', exchange)).content.decode()
+        data = {
+            'first': entry_of(exchange, people[3]).id,
+            'second': entry_of(exchange, people[4]).id,
+        }
+        curator.post(url('exchange_apart_add', exchange), data)
+        assert ExchangeKeepApart.objects.count() == 1
+
+    def test_leaving_drops_your_rules(self, exchange, people):
+        apart(exchange, people[1], people[2])
+        signed_in(people[1]).post(url('exchange_leave', exchange))
+        assert not ExchangeKeepApart.objects.exists()
+
+    def test_removing_someone_never_hands_on_a_forbidden_pick(self, exchange, people):
+        draw_names(exchange)
+        gone = people[2]
+        inherits = ExchangeParticipant.objects.get(exchange=exchange, receiver=gone)
+        was_theirs = receiver_of(exchange, gone)
+        apart(exchange, inherits.giver, was_theirs)
+        response = signed_in(people[0]).post(
+            url('exchange_remove', exchange, entry_of(exchange, gone).id), follow=True
+        )
+        inherits.refresh_from_db()
+        assert inherits.receiver is None
+        text = ' '.join(str(m) for m in response.context['messages'])
+        assert 'draw again' in text
+        assert response.context['stale']
+
+    def test_a_rule_the_draw_already_breaks_is_flagged_to_curators_only(self, exchange, people):
+        draw_names(exchange)
+        ben = people[1]
+        apart(exchange, ben, receiver_of(exchange, ben))
+        warning = 'now keeping apart'
+        assert (
+            warning in signed_in(people[0]).get(url('exchange_detail', exchange)).content.decode()
+        )
+        assert warning not in signed_in(ben).get(url('exchange_detail', exchange)).content.decode()
+
+
+class TestTheDrawPage:
+    def test_a_curator_can_open_the_whole_draw(self, exchange, people):
+        draw_names(exchange)
+        exchange.curators.add(people[1])
+        for curator in people[:2]:
+            response = signed_in(curator).get(url('exchange_pairings', exchange))
+            shown = {row['giver']: row['receiver'] for row in response.context['rows']}
+            assert shown == {p.first_name: receiver_of(exchange, p).first_name for p in people}
+
+    def test_nobody_else_can_not_even_staff(self, exchange, people, admin_user):
+        draw_names(exchange)
+        for outsider in (people[1], admin_user):
+            assert signed_in(outsider).get(url('exchange_pairings', exchange)).status_code == 404
+
+    def test_not_before_the_draw(self, exchange, people):
+        assert signed_in(people[0]).get(url('exchange_pairings', exchange)).status_code == 404
+
+    def test_the_exchange_page_still_shows_a_curator_only_their_own_pick(self, exchange, people):
+        draw_names(exchange)
+        page = signed_in(people[0]).get(url('exchange_detail', exchange)).content.decode()
+        assert page.count('data-reveal-name') == 1
+        assert 'data-pair-receiver' not in page
+        assert 'losing your own surprise' in page
+
+    def test_hidden_over_the_shoulder_and_cannot_be_changed_there(self, exchange, people):
+        draw_names(exchange)
+        before = picks(exchange)
+        curator = signed_in(people[0])
+        curator.post(reverse('gift:over_the_shoulder'), {'on': '1'})
+        response = curator.get(url('exchange_pairings', exchange))
+        assert response.context['rows'] == []
+        assert 'data-pair-receiver' not in response.content.decode()
+        other = next(p for p in people[1:] if before[people[1].id] != p.id and p != people[1])
+        curator.post(
+            url('exchange_pick', exchange),
+            {'entry': entry_of(exchange, people[1]).id, 'receiver': other.id},
+        )
+        assert picks(exchange) == before
+
+    def test_changing_a_pick_swaps_two_and_leaves_the_rest(self, exchange, people):
+        draw_names(exchange)
+        ExchangeParticipant.objects.filter(exchange=exchange).update(
+            reveal_seen_at='2026-01-01T00:00:00Z'
+        )
+        before = picks(exchange)
+        response = signed_in(people[0]).get(url('exchange_pairings', exchange))
+        row = next(row for row in response.context['rows'] if row['options'])
+        entry, new = row['entry'], row['options'][0]['id']
+        had_it = ExchangeParticipant.objects.get(exchange=exchange, receiver_id=new)
+        ExchangeLetter.objects.create(
+            exchange=exchange, author=entry.giver, receiver=entry.receiver, body='hi'
+        )
+        response = signed_in(people[0]).post(
+            url('exchange_pick', exchange), {'entry': entry.id, 'receiver': new}, follow=True
+        )
+        after = picks(exchange)
+        assert after[entry.giver_id] == new
+        assert after[had_it.giver_id] == before[entry.giver_id]
+        moved = {entry.giver_id, had_it.giver_id}
+        assert {k: v for k, v in after.items() if k not in moved} == {
+            k: v for k, v in before.items() if k not in moved
+        }
+        assert sorted(after.values()) == sorted(before)  # everyone still gets once
+        # Both are sealed again and told; the stale letter is gone
+        for changed in ExchangeParticipant.objects.filter(giver_id__in=moved, exchange=exchange):
+            assert changed.pick_changed and changed.reveal_seen_at is None
+        assert not ExchangeLetter.objects.exists()
+        text = ' '.join(str(m) for m in response.context['messages'])
+        assert not any(re.search(rf'\b{name}\b', text) for name in NAMES)
+
+    def test_no_one_ends_up_with_themselves_or_someone_kept_apart(self, exchange, people):
+        draw_names(exchange)
+        ann = people[0]
+        first = receiver_of(exchange, ann)
+        second = receiver_of(exchange, first)
+        # Ann taking her pick's pick would leave that person with themselves
+        with pytest.raises(DrawError, match='themselves'):
+            change_pick(exchange, entry_of(exchange, ann).id, second.id)
+        third = receiver_of(exchange, second)
+        apart(exchange, ann, third)
+        with pytest.raises(DrawError, match='keeping apart'):
+            change_pick(exchange, entry_of(exchange, ann).id, third.id)
+        options = signed_in(ann).get(url('exchange_pairings', exchange)).context['rows']
+        offered = next(row for row in options if row['entry'].giver_id == ann.id)['options']
+        assert {second.id, third.id, ann.id, first.id}.isdisjoint(o['id'] for o in offered)
+
+    def test_only_a_curator_changes_a_pick_and_only_by_post(self, exchange, people, admin_user):
+        draw_names(exchange)
+        before = picks(exchange)
+        ann = people[0]
+        target = receiver_of(exchange, receiver_of(exchange, receiver_of(exchange, ann)))
+        data = {'entry': entry_of(exchange, ann).id, 'receiver': target.id}
+        for outsider in (people[1], admin_user):
+            signed_in(outsider).post(url('exchange_pick', exchange), data)
+        assert signed_in(ann).get(url('exchange_pick', exchange), data).status_code == 405
+        assert picks(exchange) == before
+
+    def test_the_draw_is_final_once_letters_are_delivered(self, exchange, people):
+        deliver_letters(draw_names(exchange))
+        ann = people[0]
+        target = receiver_of(exchange, receiver_of(exchange, receiver_of(exchange, ann)))
+        with pytest.raises(DrawError, match='final'):
+            change_pick(exchange, entry_of(exchange, ann).id, target.id)
+        response = signed_in(ann).get(url('exchange_pairings', exchange))
+        assert not response.context['editable']
+        assert all(not row['options'] for row in response.context['rows'])
