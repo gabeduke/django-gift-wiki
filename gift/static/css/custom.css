@@ -1862,11 +1862,15 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
 
 /* Cover photo banner: list page and the featured card on My Lists */
 .wl-cover {
-  display: block; width: 100%; aspect-ratio: 3 / 1; max-height: 220px; object-fit: cover;
+  display: block; width: 100%; aspect-ratio: 3 / 1; max-height: 265px; object-fit: cover;
   border-radius: var(--radius-lg, 16px); margin-bottom: 18px; box-shadow: var(--shadow-1, none);
   background: var(--brand-light);
 }
-.wl-mylist .wl-cover { aspect-ratio: 4 / 1; margin: -4px 0 14px; border-radius: var(--radius-md, 12px); }
+/* A cover is framed and stored at 3:1 (js/photo-framer.js) and shown whole up
+   to about 800px wide. Past that the height stops at 265px, so a full-width
+   desktop page trims it to roughly 4:1 — the same strip as the My Lists card —
+   rather than giving a third of the screen to the banner. */
+.wl-mylist .wl-cover { aspect-ratio: 4 / 1; max-height: 220px; margin: -4px 0 14px; border-radius: var(--radius-md, 12px); }
 .wl-page-title-row { display: flex; align-items: center; gap: 12px; }
 .wl-page-title-row .wl-list-avatar { width: 52px; height: 52px; font-size: 16px; }
 .wl-page-title-row .wl-list-emoji { font-size: 30px; }
@@ -1889,3 +1893,50 @@ a.wl-toast-action:hover, .wl-toast-action:hover { color: #fff; background: rgba(
 .wl-emoji-choice input:focus-visible + span { box-shadow: 0 0 0 3px var(--bg-surface), 0 0 0 5px var(--text-primary); }
 .wl-swatch-none .wl-swatch-dot { background: conic-gradient(#2d6a4f, #1e6079, #33497c, #6e3f74, #9a2c3e, #434c5c, #2d6a4f); }
 .wl-cover-current { max-width: 360px; }
+.wl-cover[hidden] { display: none; }
+
+/* Photo framer: drag and zoom a new photo inside its frame before saving
+   (js/photo-framer.js). The photo is placed with percentages, so the frame
+   can be any size. */
+.wl-framer { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-basis: 100%; }
+.wl-framer[hidden] { display: none; }
+.wl-framer-view {
+  position: relative; overflow: hidden; width: 100%;
+  border-radius: var(--radius-lg, 16px); background: var(--brand-light);
+  box-shadow: var(--shadow-1, none);
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+}
+.wl-framer-view.is-dragging { cursor: grabbing; }
+.wl-framer-view:focus-visible { outline: 3px solid var(--text-primary); outline-offset: 2px; }
+.wl-framer-img {
+  position: absolute; top: 0; left: 0; max-width: none;
+  pointer-events: none; user-select: none; -webkit-user-drag: none;
+}
+.wl-framer-avatar .wl-framer-view { width: 220px; max-width: 100%; aspect-ratio: 1; }
+/* The circle the photo will be shown in; the corners are dimmed */
+.wl-framer-avatar .wl-framer-view::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 0 200px rgba(0, 0, 0, .5); outline: 2px solid rgba(255, 255, 255, .85); outline-offset: -2px;
+}
+.wl-framer-cover { align-items: stretch; margin-bottom: 14px; }
+.wl-framer-cover .wl-framer-view { aspect-ratio: 3 / 1; }
+/* Wide screens and the My Lists card show a shallower strip (see .wl-cover):
+   the shaded top and bottom eighths are what they leave out. */
+.wl-framer-cover .wl-framer-view::before, .wl-framer-cover .wl-framer-view::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 12.5%; z-index: 1;
+  background: rgba(0, 0, 0, .32); pointer-events: none;
+}
+.wl-framer-cover .wl-framer-view::before { top: 0; border-bottom: 1px dashed rgba(255, 255, 255, .7); }
+.wl-framer-cover .wl-framer-view::after { bottom: 0; border-top: 1px dashed rgba(255, 255, 255, .7); }
+.wl-framer-zoom {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  width: 100%; max-width: 280px; align-self: center;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+}
+.wl-framer-zoom input { flex: 1; min-width: 0; height: 28px; accent-color: var(--brand); }
+.wl-framer .form-text { margin: 0; text-align: center; }
+.wl-framer-buttons { display: flex; gap: 8px; justify-content: center; }
+/* While a photo is being framed, the framer is the whole picker */
+.wl-picture-picker.is-framing > .wl-avatar,
+.wl-picture-picker.is-framing > .wl-picture-actions { display: none; }
+.wl-picture-picker.is-uploading { opacity: .6; pointer-events: none; }

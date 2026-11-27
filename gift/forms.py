@@ -338,15 +338,61 @@ def clean_photo_upload(upload, process=None):
     return upload
 
 
-class ProfilePictureForm(forms.ModelForm):
-    """A new profile picture. WikiUser.save() crops and cleans it."""
+CROP_FIELDS = ('crop_x', 'crop_y', 'crop_w', 'crop_h')
+
+
+def parse_crop_box(values):
+    """The frame somebody chose for a photo, or None for "no framing".
+
+    `values` are the four raw strings (x, y, width, height): fractions of the
+    upright photo, measured from its top-left corner. They come from hidden
+    inputs a browser fills in, so anything can turn up. Whatever isn't four
+    finite numbers describing some area of the photo means None — the photo
+    is then stored the default way, never refused.
+    """
+    import math
+
+    try:
+        x, y, w, h = (float(value) for value in values)
+    except (TypeError, ValueError):
+        return None
+    if not all(math.isfinite(number) for number in (x, y, w, h)):
+        return None
+    # Keep only the part of the box that is on the photo
+    left, top = max(x, 0.0), max(y, 0.0)
+    right, bottom = min(x + w, 1.0), min(y + h, 1.0)
+    if right <= left or bottom <= top:
+        return None
+    return left, top, right - left, bottom - top
+
+
+class CropBoxMixin:
+    """Adds the hidden crop_x/crop_y/crop_w/crop_h inputs to a photo form.
+
+    Plain `Field`s on purpose: they accept anything, so a broken value can
+    never fail the form. `crop_box()` reads the raw data, which also makes it
+    usable while another field is still being cleaned.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in CROP_FIELDS:
+            self.fields[name] = forms.Field(required=False, widget=forms.HiddenInput)
+
+    def crop_box(self):
+        return parse_crop_box([self.data.get(self.add_prefix(name)) for name in CROP_FIELDS])
+
+
+class ProfilePictureForm(CropBoxMixin, forms.ModelForm):
+    """A new profile picture. WikiUser.save() crops and cleans it, to the
+    frame the person chose (crop_x/y/w/h) or else the centre square."""
 
     # A plain FileField, not ImageField: the extension check would turn away
     # photos phones hand over as .webp or .heic-converted; open_photo decides.
     profile_picture = forms.FileField(
         required=True,
         label='Choose a photo',
-        help_text='We crop it to a square and remove where it was taken.',
+        help_text='We make it a square and remove where it was taken.',
         widget=forms.FileInput(attrs={'accept': 'image/*', 'class': 'form-control'}),
     )
 
@@ -357,8 +403,14 @@ class ProfilePictureForm(forms.ModelForm):
     def clean_profile_picture(self):
         return clean_photo_upload(self.cleaned_data['profile_picture'])
 
+    def save(self, commit=True):
+        # The photo is decoded and encoded once, in WikiUser.save(); hand it
+        # the frame. save() takes it off again, so it applies to this photo only.
+        self.instance._profile_picture_box = self.crop_box()
+        return super().save(commit=commit)
 
-class DecorateListForm(forms.ModelForm):
+
+class DecorateListForm(CropBoxMixin, forms.ModelForm):
     """🎨 Decorate: an emoji, a colour and a cover photo for one list."""
 
     image = forms.FileField(
@@ -377,10 +429,12 @@ class DecorateListForm(forms.ModelForm):
         from .utils import process_cover_image
 
         upload = self.cleaned_data.get('image')
-        # Unchanged (the stored file) or nothing chosen: nothing to process
+        # Unchanged (the stored file) or nothing chosen: nothing to process,
+        # and no frame to apply either
         if not upload or not hasattr(upload, 'content_type'):
             return upload
-        return clean_photo_upload(upload, process=process_cover_image)
+        box = self.crop_box()
+        return clean_photo_upload(upload, process=lambda photo: process_cover_image(photo, box))
 
     def clean(self):
         cleaned = super().clean()

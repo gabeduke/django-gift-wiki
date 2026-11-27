@@ -1,10 +1,18 @@
-{% comment %}
-Set or remove one person's photo. Picking a file uploads it straight away
-(js/app.js, [data-autosubmit]); without JS there's a Save button. Expects
-`person`, `action` (the URL to post to) and `picker_id` (unique on the page).
+{% load gift_extras %}{% comment %}
+Set or remove one person's photo. Picking a file opens the framer in the same
+form — drag and zoom, then "Use this photo" uploads it (js/photo-framer.js,
+wired up in js/app.js, [data-autosubmit]). The crop_* inputs carry the framed
+box; left empty, the server centres the photo itself. Without JS there's a
+plain Save button. Expects `person`, `action` (the URL to post to) and
+`picker_id` (unique on the page). Can appear more than once on a page, so
+nothing here has an id apart from the file input.
 {% endcomment %}
 <form method="post" action="{{ action }}" enctype="multipart/form-data" class="wl-picture-picker" data-autosubmit>
   {% csrf_token %}
+  <input type="hidden" name="crop_x">
+  <input type="hidden" name="crop_y">
+  <input type="hidden" name="crop_w">
+  <input type="hidden" name="crop_h">
   <span class="wl-avatar wl-avatar-xl" aria-hidden="true">{% include 'gift/partials/avatar_face.html' %}</span>
   <div class="wl-picture-actions">
     <label class="btn btn-primary btn-sm wl-file-btn" for="{{ picker_id }}">
@@ -15,6 +23,20 @@ Set or remove one person's photo. Picking a file uploads it straight away
     {% if person.profile_picture %}
     <button type="submit" name="remove" value="1" formnovalidate class="btn btn-outline-secondary btn-sm">✕ Remove photo</button>
     {% endif %}
-    <span class="form-text">We crop it to a square and take out where it was taken.</span>
+    <span class="form-text">Pick a photo, then move it to fit. We take out where it was taken.</span>
+  </div>
+  <div class="wl-framer wl-framer-avatar" data-framer data-framer-aspect="1" hidden>
+    <div class="wl-framer-view" data-framer-view tabindex="0" role="group"
+         aria-label="Your photo. Drag it, or use the arrow keys, to move it."><img class="wl-framer-img" data-framer-img alt="" draggable="false"></div>
+    <label class="wl-framer-zoom">
+      <span>Zoom</span>
+      <input type="range" data-framer-zoom min="1" max="4" step="0.01" value="1">
+    </label>
+    <span class="form-text">Drag to move it, slide to zoom.</span>
+    <div class="wl-framer-buttons">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-framer-cancel>Cancel</button>
+      <button type="submit" class="btn btn-primary btn-sm">Use this photo</button>
+    </div>
   </div>
 </form>
+<script src="{% vstatic 'js/photo-framer.js' %}"></script>
