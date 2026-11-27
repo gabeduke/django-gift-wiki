@@ -60,14 +60,34 @@ def fit_within(image, side):
     return image
 
 
-def process_profile_picture(upload):
+def crop_to_box(image, box):
+    """The part of `image` inside `box`: (x, y, width, height) as fractions of
+    the image, measured from its top-left corner.
+
+    Always at least one pixel, always inside the image — the numbers come
+    from a browser and are not to be trusted.
+    """
+    width, height = image.size
+    x, y, w, h = box
+    left = min(max(round(x * width), 0), width - 1)
+    top = min(max(round(y * height), 0), height - 1)
+    right = max(left + 1, min(round((x + w) * width), width))
+    bottom = max(top + 1, min(round((y + h) * height), height))
+    return image.crop((left, top, right, bottom))
+
+
+def process_profile_picture(upload, box=None):
     """Square, cleaned copies of a profile picture: (original, web, thumbnail).
 
-    Centre-cropped so a face fills the round avatar instead of being squashed.
+    With `box` (see `crop_to_box`), the part of the upright photo the person
+    framed, made square around its centre. Without one, the centre square, so
+    a face fills the round avatar instead of being squashed.
     """
     from PIL import ImageOps
 
     image = open_photo(upload)
+    if box is not None:
+        image = crop_to_box(image, box)
     side = min(image.size)
     square = ImageOps.fit(image, (side, side), Image.LANCZOS)
     return tuple(
@@ -76,9 +96,16 @@ def process_profile_picture(upload):
     )
 
 
-def process_cover_image(upload):
-    """A list's cover photo, ready to store: upright, shrunk, no EXIF."""
-    return to_jpeg(fit_within(open_photo(upload), COVER_MAX_SIDE), 'cover.jpg')
+def process_cover_image(upload, box=None):
+    """A list's cover photo, ready to store: upright, shrunk, no EXIF.
+
+    With `box` (see `crop_to_box`), only the part of the upright photo the
+    person framed; without one, the whole photo.
+    """
+    image = open_photo(upload)
+    if box is not None:
+        image = crop_to_box(image, box)
+    return to_jpeg(fit_within(image, COVER_MAX_SIDE), 'cover.jpg')
 
 
 def process_letter_image(upload):

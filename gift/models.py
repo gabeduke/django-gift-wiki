@@ -172,12 +172,18 @@ class WikiUser(AbstractUser):
         # its GPS position at a public URL. `_committed` is False only for a
         # file that hasn't reached storage yet; don't test `hasattr(field,
         # 'read')`, which opens the stored file on every save.
+        #
+        # `_profile_picture_box` is the frame the person chose, set by
+        # ProfilePictureForm for this one save. It is always taken off here:
+        # a stale one must never crop a later photo. Without it (admin, a
+        # script) the picture is the centre square.
+        box = self.__dict__.pop('_profile_picture_box', None)
         old_names = []
         if self.profile_picture and not self.profile_picture._committed:
             from .utils import process_profile_picture
 
             try:
-                original, web, thumbnail = process_profile_picture(self.profile_picture)
+                original, web, thumbnail = process_profile_picture(self.profile_picture, box)
             except ValueError:
                 # Forms reject these before getting here; never store one raw
                 logger.warning('Unreadable profile picture dropped', extra={'user_id': self.pk})

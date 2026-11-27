@@ -196,14 +196,48 @@
     });
   }
 
-  // ---- Photo pickers: choosing a file is the upload -------------------------
-  // One step instead of "choose, then find the Save button" — easier for kids.
+  // ---- Photo pickers: choose, fit it in the circle, done --------------------
+  // Choosing a file opens the framer inside the same form (js/photo-framer.js)
+  // with "Use this photo" and "Cancel". If the framer isn't there, or the
+  // browser can't show the picture, choosing a file uploads it straight away
+  // and the server centres it.
   document.querySelectorAll('form[data-autosubmit]').forEach(function (form) {
+    var fileInput = form.querySelector('input[type="file"]');
+    var framerEl = form.querySelector('[data-framer]');
+    var framer = framerEl && window.wlPhotoFramer && window.wlPhotoFramer.create(framerEl, form);
+
+    function upload() {
+      form.classList.add('is-uploading');
+      form.submit();
+    }
+    function stopFraming() {
+      if (framer) { framer.close(); }
+      form.classList.remove('is-framing');
+    }
+
     form.addEventListener('change', function (event) {
-      if (event.target.type === 'file' && event.target.files.length) {
-        form.classList.add('is-uploading');
-        form.submit();
-      }
+      if (event.target.type !== 'file') { return; }
+      if (!event.target.files.length) { stopFraming(); return; }
+      if (!framer) { upload(); return; }
+      framer.open(event.target.files[0], {
+        onReady: function () {
+          form.classList.add('is-framing');
+          framer.focus();
+          // In the edit dialog the picker sits below the fold: bring the
+          // frame and its buttons into view.
+          if (framerEl.scrollIntoView) { framerEl.scrollIntoView({block: 'nearest'}); }
+        },
+        onError: upload
+      });
+    });
+    form.addEventListener('click', function (event) {
+      if (!event.target.closest('[data-framer-cancel]')) { return; }
+      fileInput.value = '';
+      stopFraming();
+      fileInput.focus();
+    });
+    form.addEventListener('submit', function () {
+      form.classList.add('is-uploading');
     });
   });
 
@@ -214,6 +248,17 @@
     var mark = page.querySelector('.wl-decorate-preview .wl-list-avatar');
     var markFace = page.querySelector('template[data-face]').innerHTML;
     var cover = decorate.querySelector('[data-cover-preview]');
+    var coverFile = decorate.querySelector('input[type="file"]');
+    var coverRemove = decorate.querySelector('input[name="remove_image"]');
+    var coverFramerEl = decorate.querySelector('[data-framer]');
+    var coverFramer = coverFramerEl && window.wlPhotoFramer &&
+      window.wlPhotoFramer.create(coverFramerEl, decorate);
+    // The cover that's already saved, if any: shown whenever no new photo is
+    // being framed and "Remove photo" isn't ticked.
+    var hasSavedCover = !!(cover && cover.getAttribute('src'));
+    var showSavedCover = function () {
+      if (cover) { cover.hidden = !hasSavedCover || !!(coverRemove && coverRemove.checked); }
+    };
     decorate.addEventListener('change', function (event) {
       var input = event.target;
       if (input.name === 'accent') {
@@ -227,11 +272,24 @@
       } else if (input.name === 'emoji') {
         mark.classList.toggle('wl-list-emoji', !!input.value);
         if (input.value) { mark.textContent = input.value; } else { mark.innerHTML = markFace; }
-      } else if (input.type === 'file' && input.files.length && cover) {
-        cover.src = URL.createObjectURL(input.files[0]);
-        cover.hidden = false;
-      } else if (input.name === 'remove_image' && cover) {
-        cover.hidden = input.checked;
+      } else if (input.type === 'file') {
+        // A different photo (or none): start the framing again from scratch.
+        if (coverFramer) { coverFramer.close(); }
+        if (!input.files.length) { showSavedCover(); return; }
+        if (coverRemove) { coverRemove.checked = false; }
+        if (!coverFramer) { showSavedCover(); return; }
+        coverFramer.open(input.files[0], {
+          onReady: function () { if (cover) { cover.hidden = true; } },
+          // Can't be shown here; it still uploads, and the server fits it.
+          onError: function () { if (cover) { cover.hidden = true; } }
+        });
+      } else if (input.name === 'remove_image') {
+        // Removing means no new photo either.
+        if (input.checked) {
+          if (coverFramer) { coverFramer.close(); }
+          if (coverFile) { coverFile.value = ''; }
+        }
+        showSavedCover();
       }
     });
   }
