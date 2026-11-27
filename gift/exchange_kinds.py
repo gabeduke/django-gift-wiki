@@ -37,8 +37,8 @@ KINDS = {
         verb="You're giving to",
         budget_label='Spending limit',
         letter_title='A note to go with your gift',
-        letter_prompt='Optional. It’s delivered, signed, when the organizer hands out '
-        'the letters — so if you’re keeping your identity a surprise, wait until the day.',
+        letter_prompt='Optional. It’s delivered, signed, when the letters are handed '
+        'out — so if you’re keeping your identity a surprise, wait until the day.',
         received_title='A note with your gift',
         letter_is_the_gift=False,
         shows_lists=True,
@@ -88,7 +88,7 @@ KINDS = {
 
 KIND_CHOICES = [(key, kind.label) for key, kind in KINDS.items()]
 
-# Icons an organizer can pick instead of the kind's own. Curated, not free
+# Icons a curator can pick instead of the kind's own. Curated, not free
 # text, so every one renders and none can break the layout.
 ICON_CHOICES = [
     ('', 'Match the kind'),

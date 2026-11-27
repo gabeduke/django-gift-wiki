@@ -1,0 +1,64 @@
+{% extends 'gift/base/base_generic.html' %}
+
+{% block title %}{{ exchange.name }} draw · Wikileet{% endblock %}
+
+{% block content %}
+<div class="wl-page-medium">
+
+  <a class="wl-back" href="{% url 'gift:exchange_detail' exchange.id %}#curate">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    {{ exchange.name }}
+  </a>
+
+  <div class="wl-page-header">
+    <h1 class="wl-page-title"><span class="wl-title-emoji" aria-hidden="true">{{ exchange.display_icon }}</span>The draw</h1>
+    <p class="wl-page-subtitle">Who drew whom in {{ exchange.name }}. Only curators can open this page.</p>
+  </div>
+
+  {% if over_the_shoulder %}
+  <div class="wl-card wl-empty-card">
+    <div class="wl-empty-emoji" aria-hidden="true">👀</div>
+    <p class="wl-card-subtitle">The draw is hidden while you're over the shoulder.</p>
+  </div>
+  {% else %}
+  <section class="wl-card">
+    {% if stale %}
+    <div class="alert alert-warning">Who's in no longer matches the draw. Draw again from the exchange page before adjusting anything.</div>
+    {% elif editable %}
+    <p class="wl-card-subtitle">Changing a pick is a swap: the person who had your new choice takes the old one. Both of them get a fresh pick to open, and any letter either had started is thrown away. Only choices that respect the keep-apart rules are offered. A change by hand also breaks the single loop names are drawn in, so in a small group two people can end up with each other.</p>
+    {% else %}
+    <p class="wl-card-subtitle">{% if exchange.letters_delivered %}Letters have been delivered, so the draw is final.{% else %}This exchange has wrapped up.{% endif %}</p>
+    {% endif %}
+
+    <ul class="wl-exchange-roster wl-exchange-pairs">
+      {% for row in rows %}
+      <li{% if row.broken %} class="is-broken"{% endif %}>
+        <span>
+          <strong>{{ row.giver }}</strong>
+          <span class="wl-exchange-meta">has</span>
+          <strong data-pair-receiver>{{ row.receiver|default:"nobody yet" }}</strong>
+          {% if row.broken %}<span class="wl-exchange-tag">kept apart</span>{% endif %}
+        </span>
+        {% if editable and row.options %}
+        <form method="post" action="{% url 'gift:exchange_pick' exchange.id %}" class="wl-exchange-add-row"
+              onsubmit="return confirm('Change who {{ row.giver|escapejs }} has? Two people get a new pick, and lose any letter they’d started.');">
+          {% csrf_token %}
+          <input type="hidden" name="entry" value="{{ row.entry.id }}">
+          <select name="receiver" class="form-control" aria-label="Someone else for {{ row.giver }}" required>
+            <option value="" selected disabled>Change to…</option>
+            {% for option in row.options %}<option value="{{ option.id }}">{{ option.name }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn btn-outline-secondary btn-sm">Change</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}
